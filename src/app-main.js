@@ -3,7 +3,7 @@ const Display = {
   init(code) {
     this.code = code || LS.get('bena.displayCode', '') || '';
     this.root = $('#app'); this.root.innerHTML = '<div class="stage-host" id="dsp"></div>';
-    this.stage = new Stage($('#dsp'), { sound: true });
+    this.stage = new Stage($('#dsp'), { sound: true, ambient: true });
     this.net = new Net('display'); this.lastHs = null; this.lastV = -1; this.got = 0;
     this.net.on('state', P => this.onState(P));
     this.net.on('roster', R => { if (R && R.L) this.stage.setRoster(R); });
@@ -33,6 +33,8 @@ const Display = {
     o.innerHTML = '<div class="card" style="text-align:center;max-width:520px"><div class="h" style="font-size:24px">🖥️ شاشة العرض</div><div class="note" style="margin-top:8px">اضغط في أي مكان لتفعيل الصوت وملء الشاشة</div></div>';
     o.onclick = () => { SFX.unlock(); try { document.documentElement.requestFullscreen().catch(() => { }); } catch (e) { } o.remove(); };
     document.body.appendChild(o);
+    const mb = document.createElement('button'); mb.className = 'btn sm'; mb.style.cssText = 'position:fixed;bottom:6px;right:8px;z-index:40;opacity:.35'; const upd = () => { mb.textContent = SFX.on ? '🔊' : '🔇'; };
+    mb.onclick = e => { e.stopPropagation(); SFX.unlock(); SFX.on = !SFX.on; if (!SFX.on) SFX.stopAmbient(); upd(); }; upd(); document.body.appendChild(mb);
     const b = document.createElement('div'); b.id = 'dbadge'; b.style.cssText = 'position:fixed;bottom:6px;left:8px;z-index:40;font-size:11px;opacity:.45'; document.body.appendChild(b); this.badge();
   },
   badge() { const b = $('#dbadge'); if (b) { const l = this.net.label(); b.innerHTML = `<span class="dot ${l.cls}"></span> ${esc(l.t)}${this.code ? ' · ' + esc(this.code) : ''}`; } },
@@ -66,7 +68,6 @@ function route(to) {
   if (r === 'host') return Host.init();
   if (r.startsWith('display')) return Display.init((r.split('-')[1] || '').replace(/\D/g, '').slice(0, 4));
   if (r === 'join' || r === 'play' || r.startsWith('join-')) { const parts = r.split('-'); return Student.init((parts[1] || '').replace(/\D/g, '').slice(0, 4) || null, /^[0-9a-f]{12}$/.test(parts[2] || '') ? parts[2] : null); }
-  const P = LS.get('bena.player', null);
   return Landing.init();
 }
 Brand.apply();

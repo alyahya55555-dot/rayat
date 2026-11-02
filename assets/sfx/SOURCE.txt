@@ -7,3 +7,6 @@ Audio, CC0 1.0
   (https://kenney.nl/assets/digital-audio).
 - "Battle Theme A" by cynicmusic, https://opengameart.org/content/battle-theme-a
   (the page lists License(s): CC0; verified 2026-10-16).
+
+Kenney Starter Kits (MIT, © 2025 Kenney) — https://github.com/KenneyNL/Starter-Kit-City-Builder و Starter-Kit-3D-Platformer:
+hammer-a..d (placement)، debris (removal-a)، nature (ambience، أول 45 ثانية)، break.

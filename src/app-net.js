@@ -39,46 +39,62 @@ class Mq {
   start(code) {
     if (typeof Paho === 'undefined' || !Paho.Client) { this.failed = 'no-lib'; this.net.fire('status'); return; }
     if (this.code === code && this.links.length) return;
-    this.stop(); this.code = code; this.base = TOPIC_ROOT + code + '/';
-    this.ensureKey().then(() => { BROKERS.forEach((b, i) => this.open(b, i)); });
+    this.stop(); this.code = code; this.base = TOPIC_ROOT + code + '/'; this.gen = (this.gen || 0) + 1;
+    const gen = this.gen;
+    this.ensureKey().then(() => { if (gen !== this.gen) return; if (this.multi) BROKERS.forEach((b, i) => this.openHost(b, i)); else this.attempt(0, gen); });
   }
-  stop() { this.links.forEach(l => { l.dead = true; try { l.c.disconnect(); } catch (e) { } }); this.links = []; this.active = null; }
-  open(b, i) {
-    const l = { b, i, up: false, dead: false, tries: 0 };
-    this.links[i] = l;
+  stop() { this.gen = (this.gen || 0) + 1; this.links.forEach(l => { if (!l) return; l.dead = true; clearTimeout(l.t); try { l.c && l.c.disconnect(); } catch (e) { } }); this.links = []; this.active = null; }
+  client(b, i, l) {
+    const c = new Paho.Client(b.h, b.p, b.path || '/mqtt', this.cid + '-' + i + '-' + (l.tries++));
+    c.onMessageArrived = m => this.onMsg(m.destinationName, m.payloadString, l);
+    return c;
+  }
+  connOpts(b, onSuccess, onFailure) {
+    const o = { useSSL: !!b.ssl, timeout: 6, keepAliveInterval: 20, cleanSession: true, mqttVersion: 4, onSuccess, onFailure };
+    if (this.role !== 'host') { const w = new Paho.Message(JSON.stringify({ bye: 1 })); w.destinationName = this.base + 'p/' + this.cid; w.qos = 0; o.willMessage = w; }
+    return o;
+  }
+  // المشرف: يتصل بكل الخوادم ويجسر بينها، ويعيد المحاولة مع كل خادم وحده
+  openHost(b, i) {
+    const l = { b, i, up: false, dead: false, tries: 0 }; this.links[i] = l;
     const connect = () => {
       if (l.dead) return;
-      let c; try { c = new Paho.Client(b.h, b.p, b.path || '/mqtt', this.cid + '-' + i + '-' + (l.tries++)); } catch (e) { return retry(); }
-      l.c = c;
-      c.onConnectionLost = () => { l.up = false; if (this.active === l) this.active = null; this.net.fire('status'); retry(); };
-      c.onMessageArrived = m => this.onMsg(m.destinationName, m.payloadString, l);
-      const will = new Paho.Message(JSON.stringify({ bye: 1 })); will.destinationName = this.base + 'p/' + this.cid; will.qos = 0;
-      const opts = { useSSL: !!b.ssl, timeout: 6, keepAliveInterval: 20, cleanSession: true, mqttVersion: 4,
-        onSuccess: () => {
-          if (l.dead) { try { c.disconnect(); } catch (e) { } return; }
-          l.up = true; l.tries = 0;
-          if (this.multi) c.subscribe(this.base + 'p/+', { qos: 1 });
-          c.subscribe(this.base + 'h/+', { qos: 1 });
-          if (!this.multi) {
-            if (!this.active || !this.active.up) { this.active = l; this.links.forEach(o => { if (o !== l && o.up) { o.dead = true; try { o.c.disconnect(); } catch (e) { } } }); }
-            else { l.dead = true; try { c.disconnect(); } catch (e) { } return; }
-          }
-          this.net.fire('status'); this.net.fire('mqup');
-        },
-        onFailure: () => { l.up = false; retry(); } };
-      if (this.role !== 'host') opts.willMessage = will;
-      try { c.connect(opts); } catch (e) { retry(); }
+      let c; try { c = this.client(b, i, l); } catch (e) { return retry(); }
+      l.c = c; c.onConnectionLost = () => { l.up = false; this.net.fire('status'); retry(); };
+      try { c.connect(this.connOpts(b, () => { if (l.dead) { try { c.disconnect(); } catch (e) { } return; } l.up = true; l.tries = 0; c.subscribe(this.base + 'p/+', { qos: 1 }); c.subscribe(this.base + 'h/+', { qos: 1 }); this.net.fire('status'); this.net.fire('mqup'); }, () => { l.up = false; retry(); })); } catch (e) { retry(); }
     };
-    const retry = () => {
-      if (l.dead) return;
-      if (!this.multi && this.active && this.active !== l && this.active.up) { l.dead = true; return; }
-      if (!this.multi && !this.active) { this.links.forEach(o => { if (o.dead && o !== l) { o.dead = false; o.tries = 0; setTimeout(() => this.reopen(o), 300); } }); }
-      clearTimeout(l.t); l.t = setTimeout(connect, Math.min(10000, 800 * Math.pow(1.7, Math.min(l.tries, 6))));
-    };
-    l.reconnect = connect;
+    const retry = () => { if (l.dead) return; clearTimeout(l.t); l.t = setTimeout(connect, Math.min(10000, 800 * Math.pow(1.7, Math.min(l.tries, 6)))); };
     connect();
   }
-  reopen(l) { if (!l.dead && (!l.c || !l.up)) l.reconnect(); }
+  // الجوال وشاشة العرض: خادم واحد بالأولوية (الأول دائمًا إن كان متاحًا) حتى يصل الجميع عبر الخادم نفسه
+  attempt(idx, gen) {
+    if (gen !== this.gen) return;
+    const b = BROKERS[idx % BROKERS.length], i = idx % BROKERS.length;
+    const l = { b, i, up: false, dead: false, tries: 0 }; this.links = [l];
+    let c; try { c = this.client(b, i, l); } catch (e) { setTimeout(() => this.attempt(idx + 1, gen), 400); return; }
+    l.c = c;
+    c.onConnectionLost = () => { l.up = false; this.active = null; this.net.fire('status'); if (gen === this.gen && !l.dead) setTimeout(() => this.attempt(0, gen), 1000); };
+    try {
+      c.connect(this.connOpts(b, () => {
+        if (gen !== this.gen || l.dead) { try { c.disconnect(); } catch (e) { } return; }
+        l.up = true; this.active = l; c.subscribe(this.base + 'h/+', { qos: 1 }); this.net.fire('status'); this.net.fire('mqup');
+        // إن لم يكن هذا الخادم الأول، نحاول العودة إليه لاحقًا
+        if (i !== 0) { clearTimeout(this.backT); this.backT = setTimeout(() => this.tryPrimary(gen), 30000); }
+      }, () => { if (gen === this.gen && !l.dead) setTimeout(() => this.attempt(idx + 1, gen), 300); }));
+    } catch (e) { setTimeout(() => this.attempt(idx + 1, gen), 400); }
+  }
+  tryPrimary(gen) {
+    if (gen !== this.gen || !this.active || this.active.i === 0) return;
+    const b = BROKERS[0], l = { b, i: 0, up: false, dead: false, tries: 0 };
+    let c; try { c = this.client(b, 0, l); } catch (e) { return; } l.c = c;
+    c.connect(this.connOpts(b, () => {
+      if (gen !== this.gen) { try { c.disconnect(); } catch (e) { } return; }
+      const old = this.active; l.up = true; this.links = [l]; this.active = l; c.subscribe(this.base + 'h/+', { qos: 1 });
+      c.onConnectionLost = () => { l.up = false; this.active = null; this.net.fire('status'); if (gen === this.gen) setTimeout(() => this.attempt(0, gen), 1000); };
+      if (old) { old.dead = true; try { old.c.disconnect(); } catch (e) { } }
+      this.net.fire('status'); this.net.fire('mqup');
+    }, () => { clearTimeout(this.backT); this.backT = setTimeout(() => this.tryPrimary(gen), 30000); }));
+  }
   upCount() { return this.links.filter(l => l && l.up).length; }
   // نشر رسالة موقّعة
   async pub(sub, data, qos = 1) {

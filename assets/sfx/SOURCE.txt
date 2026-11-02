@@ -1,0 +1,9 @@
+Audio, CC0 1.0
+- Kenney sound packs, each archive's License.txt reads "Creative Commons
+  Zero, CC0": Impact Sounds (https://kenney.nl/assets/impact-sounds),
+  Interface Sounds (https://kenney.nl/assets/interface-sounds), RPG Audio
+  (https://kenney.nl/assets/rpg-audio), Sci-fi Sounds
+  (https://kenney.nl/assets/sci-fi-sounds), Digital Audio
+  (https://kenney.nl/assets/digital-audio).
+- "Battle Theme A" by cynicmusic, https://opengameart.org/content/battle-theme-a
+  (the page lists License(s): CC0; verified 2026-10-16).

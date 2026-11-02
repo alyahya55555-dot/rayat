@@ -304,41 +304,26 @@
   const MEMORY_POOL = ['🍎', '🚗', '⚽', '📚', '🌙', '⭐', '🐪', '🌴', '🔑', '⏰', '✈️', '🎯', '🧭', '🕌', '☕', '🎒', '🐟', '🌵', '🔦', '🧩', '🏆', '📱', '🖊️', '🦅'];
   const MEMORY_NAMES = { '🍎': 'تفاحة', '🚗': 'سيارة', '⚽': 'كرة', '📚': 'كتب', '🌙': 'هلال', '⭐': 'نجمة', '🐪': 'جمل', '🌴': 'نخلة', '🔑': 'مفتاح', '⏰': 'منبّه', '✈️': 'طائرة', '🎯': 'هدف', '🧭': 'بوصلة', '🕌': 'مسجد', '☕': 'قهوة', '🎒': 'حقيبة', '🐟': 'سمكة', '🌵': 'صبار', '🔦': 'مصباح', '🧩': 'أحجية', '🏆': 'كأس', '📱': 'جوال', '🖊️': 'قلم', '🦅': 'صقر' };
 
-  // ===== تعريف الألعاب =====
-  // mode: buzz | all | team | live | special
-  const GAMES = {
-    kickoff: { name: 'الانطلاقة', icon: '🚀', mode: 'all', kind: 'mcq', desc: 'أسئلة سريعة يجيب عنها الجميع من جوالاتهم. نقاط الفريق = نسبة إجابات أعضائه الصحيحة.', filter: { d: [1] }, count: 6, time: 15, base: 20 },
-    arena: { name: 'ساحة المواجهة', icon: '⚔️', mode: 'buzz', kind: 'mcq', vs: true, desc: 'فريقان وجهًا لوجه. أول ضغطة استباق من أي عضو تمنح فريقه حق الإجابة.', filter: { d: [1, 2] }, count: 6, time: 20 },
-    memory: { name: 'قوة الملاحظة', icon: '👁️', mode: 'all', kind: 'memory', desc: 'تظهر شبكة عناصر لثوانٍ ثم تختفي. أجيبوا من الذاكرة.', count: 4, time: 15, base: 20 },
-    cipher: { name: 'فك الشفرة', icon: '🔐', mode: 'buzz', kind: 'open', desc: 'ألغاز منطقية وشفرات. اضغط الاستباق وقل الحل بصوت عالٍ.', count: 5, time: 45 },
-    whoami: { name: 'من أنا؟', icon: '🕵️', mode: 'buzz', kind: 'whoami', desc: 'تلميحات متدرجة. كلما خمّنت مبكرًا زادت النقاط (40 ← 10).', count: 4, time: 60 },
-    order: { name: 'رتّبها صح', icon: '🔢', mode: 'all', kind: 'order', desc: 'رتّب العناصر بالضغط عليها بالترتيب الصحيح في جوالك.', count: 4, time: 30, base: 20 },
-    wheel: { name: 'عجلة المصير', icon: '🎡', mode: 'special', kind: 'wheel', desc: 'يدير ممثل الفريق العجلة. مكافآت وتحديات محدودة لا تلغي التفوق.', count: 4 },
-    boxes: { name: 'الصناديق الغامضة', icon: '🎁', mode: 'special', kind: 'boxes', desc: 'كل فريق يختار صندوقًا: نقاط أو تحدٍّ أو بطاقة أو مفاجأة.', count: 4 },
-    everyone: { name: 'تحدي الجميع', icon: '📱', mode: 'all', kind: 'mcq', desc: 'سؤال واحد للجميع في اللحظة نفسها، وتظهر نسبة كل فريق.', filter: { d: [2, 3] }, count: 5, time: 20, base: 25 },
-    duel: { name: 'المواجهة الثنائية', icon: '🤺', mode: 'buzz', kind: 'mcq', duel: true, desc: 'ممثل واحد من كل فريقين. زر الاستباق يظهر لهما فقط. يقترح النظام من لم يشارك.', filter: { d: [1, 2, 3] }, count: 6, time: 15 },
-    secret: { name: 'التحدي السري', icon: '🤫', mode: 'special', kind: 'secret', desc: 'كل فريق يستلم مهمة سرية على جوالات أعضائه. إنجازها = +15.', count: 1 },
-    final: { name: 'الحسم', icon: '🏁', mode: 'buzz', kind: 'mcq', mult: 2, wager: true, desc: 'أسئلة سرعة بنقاط مضاعفة، ثم سؤال الرهان الأخير (حتى 25% من النقاط وبحد أقصى 40).', filter: { d: [2, 3] }, count: 5, time: 15 },
-    // ألعاب مبتكرة
-    estimate: { name: 'الرقم الأقرب', icon: '🎯', mode: 'all', kind: 'number', desc: 'كل طالب يكتب تقديره. يُحسب لكل فريق وسيط تقديرات أعضائه، والأقرب يفوز.', count: 3, time: 25 },
-    survival: { name: 'صمود', icon: '🛡️', mode: 'all', kind: 'tf', desc: 'صح أم خطأ متتالية. الخطأ أو عدم الإجابة يُخرجك. نقاط الفريق حسب نسبة الصامدين.', count: 8, time: 8 },
-    consensus: { name: 'عقل واحد', icon: '🧠', mode: 'all', kind: 'consensus', desc: 'لا إجابة صحيحة! اختر ما تظن أن فريقك سيختاره دون كلام. كلما اتفقتم أكثر زادت النقاط.', count: 3, time: 15 },
-    auction: { name: 'المزاد', icon: '🔨', mode: 'special', kind: 'auction', desc: 'تزايد الفرق بنقاطها على حق الإجابة عن سؤال صعب. الإجابة الصحيحة تكسب قيمة الرهان، والخاطئة تخسر نصفها.', count: 3, time: 20 },
-    taboo: { name: 'الكلمة الممنوعة', icon: '🤐', mode: 'live', kind: 'taboo', desc: 'ممثل الفريق يرى الكلمة في جواله ويصفها دون الكلمات الممنوعة. 60 ثانية لكل فريق.', count: 1, time: 60 },
-    live: { name: 'التحدي الحضوري', icon: '🏃', mode: 'live', kind: 'live', desc: 'تحدٍّ حركي أمام الشاشة. يسجّل المشرف الترتيب، ويمكن فتح تصويت الجمهور.', count: 1 }
-  };
-
-  // ===== قرية الحرب =====
-  // كل نقطة يكسبها الفريق = قطعة ذهب. الذهب يُصرف على المباني ولا يُنقص النقاط.
+  // ===== جزيرة القرى =====
+  // ستة مبانٍ، ولكل مبنى مستويان فقط. الذهب يُصرف عليها ولا يُنقص النقاط.
   const BUILD = {
-    wall: { name: 'السور', icon: '🧱', side: 'def', pow: 10, desc: 'دفاع المعركة، ويحمي خانات القلعة من القصف' },
-    tower: { name: 'البرج', icon: '🗼', side: 'def', pow: 8, desc: 'دفاع المعركة' },
-    barracks: { name: 'الثكنة', icon: '⚔️', side: 'atk', pow: 10, desc: 'قوة الهجوم في المعركة' },
-    catapult: { name: 'المنجنيق', icon: '🏹', side: 'atk', pow: 8, desc: 'قوة الهجوم، ويمنح قذيفة إضافية في القصف' }
+    house: { name: 'منزل', cost: [20, 30], desc: 'بيت لأهل القرية' },
+    farm: { name: 'مزرعة', cost: [25, 35], desc: 'حقول خضراء حول القرية' },
+    market: { name: 'سوق', cost: [35, 45], desc: 'دكاكين ومظلات ملونة' },
+    workshop: { name: 'ورشة', cost: [35, 45], desc: 'ورشة يتصاعد منها الدخان' },
+    library: { name: 'مكتبة', cost: [45, 55], desc: 'مكتبة بقبة وأعمدة' },
+    castle: { name: 'قلعة', cost: [60, 80], desc: 'قلعة حجرية بأبراج' }
   };
-  const BUILD_COST = [20, 40, 70]; // كلفة الوصول للمستوى 1 ثم 2 ثم 3
+  const BUILD_KEYS = ['house', 'farm', 'market', 'workshop', 'library', 'castle'];
+  // طابع القرية: يغيّر المظهر فقط، ولا يؤثر في فرص الفوز
+  const THEMES = {
+    agri: { name: 'زراعية', mark: 'طاحونة هواء', ground: '#7cb36b', roof: '#c4552d', wall: '#f1e3c4', accent: '#e8c64a' },
+    trade: { name: 'تجارية', mark: 'مرسى ومراكب', ground: '#d9c08a', roof: '#2f6db5', wall: '#f6ead2', accent: '#e0712c' },
+    science: { name: 'علمية', mark: 'مرصد فلكي', ground: '#8fb9a8', roof: '#5b4bb3', wall: '#eef1f6', accent: '#2fb3c9' },
+    fort: { name: 'حصينة', mark: 'سور خشبي', ground: '#9aa36d', roof: '#6d4a35', wall: '#cfc7b8', accent: '#8a8f96' }
+  };
+  const THEME_KEYS = ['agri', 'trade', 'science', 'fort'];
 
-  // اختراق الخزنة: كل رقم من الرمز يأتي من تلميح، ويوزَّع التلميحات على أعضاء الفريق
   const VAULT = [
     ['5386', ['الرقم الأول = عدد أركان الإسلام', 'الرقم الثاني = عدد قلوب الأخطبوط', 'الرقم الثالث = عدد أرجل العنكبوت', 'الرقم الرابع = عدد أركان الإيمان']],
     ['4754', ['الرقم الأول = عدد حجرات قلب الإنسان', 'الرقم الثاني = عدد آيات سورة الفاتحة', 'الرقم الثالث = عدد حلقات الشعار الأولمبي', 'الرقم الرابع = عدد الخلفاء الراشدين']],
@@ -349,25 +334,35 @@
     ['2839', ['الرقم الأول = عدد أجنحة الطائر', 'الرقم الثاني = عدد أذرع الأخطبوط', 'الرقم الثالث = عدد آيات سورة الكوثر', 'الرقم الرابع = أكبر عدد من منزلة واحدة']]
   ];
 
-  Object.assign(GAMES, {
-    council: { name: 'مجلس القرية', icon: '🏗️', mode: 'all', kind: 'council', desc: 'كل عضو يصوّت من جواله: ماذا نبني بذهبنا؟ يُبنى الأكثر تصويتًا ما دام الذهب يكفي.', count: 1, time: 45 },
-    bombard: { name: 'القصف', icon: '💣', mode: 'buzz', kind: 'mcq', bomb: true, desc: 'أجب صحيحًا لتربح قذيفة، ثم اختر من جوالك خانة في قلعة خصم. خلف كل خانة نقاط مخفية، والسور يحمي بعضها.', filter: { d: [1, 2, 3] }, count: 8, time: 20 },
-    traitor: { name: 'الاتهام', icon: '🎭', mode: 'all', kind: 'traitor', desc: 'في كل فريق مخرّب سري يعرف نفسه من جواله. إجابة الفريق = رأي أغلبيته. وفي النهاية: من المخرّب؟', count: 4, time: 30 },
-    vault: { name: 'اختراق الخزنة', icon: '💻', mode: 'special', kind: 'vault', desc: 'لكل عضو تلميح سري في جواله يكشف رقمًا من رمز الخزنة. اجمعوا الأرقام وأدخلوا الرمز قبل الفرق الأخرى.', count: 2, time: 150 },
-    battle: { name: 'المعركة الكبرى', icon: '🏰', mode: 'special', kind: 'battle', desc: 'كل فريق يهاجم البقية بقوة ثكنته ومنجنيقه، ويصدّ بسوره وبرجه. لا حظ هنا: ما بنيتموه هو ما يقاتل.', count: 1 }
-  });
+  // قوة الملاحظة: عناصر المشهد المرسوم
+  const SCENE = {
+    palm: 'نخلة', boat: 'قارب', camel: 'جمل', tent: 'خيمة', bird: 'طائر', sun: 'شمس', cloud: 'غيمة',
+    fish: 'سمكة', well: 'بئر', flag: 'راية', rock: 'صخرة', lantern: 'فانوس', tree: 'شجرة', chest: 'صندوق'
+  };
+  const SCENE_COLORS = { red: 'أحمر', blue: 'أزرق', green: 'أخضر', yellow: 'أصفر', purple: 'بنفسجي', orange: 'برتقالي' };
 
-  // البرنامج الافتراضي — 60 دقيقة: قصة قرية الحرب من البداية للتتويج
+  // ===== الجولات الخمس =====
+  // how: تعليمات لا تتجاوز ثلاث جمل قصيرة تظهر قبل الجولة
+  const GAMES = {
+    kickoff: { name: 'الانطلاقة', icon: '🚀', mode: 'all', kind: 'mcq', filter: { d: [1, 2] }, count: 8, time: 15, base: 20,
+      how: ['سؤال على الشاشة، والخيارات في جوالك.', 'أجب قبل انتهاء الوقت، ولا تغيير بعد الإرسال.', 'نقاط فريقك حسب نسبة من أجاب صحيحًا من أعضائه.'] },
+    observe: { name: 'قوة الملاحظة', icon: '👁️', mode: 'all', kind: 'observe', count: 5, time: 15, base: 20,
+      how: ['تظهر صورة على الشاشة لثوانٍ معدودة.', 'ثم سؤال عمّا رأيت أو عمّا تغيّر فيها.', 'أجب من جوالك قبل انتهاء الوقت.'] },
+    arena: { name: 'ساحة المواجهة', icon: '⚔️', mode: 'buzz', kind: 'mcq', pairs: true, treasure: true, filter: { d: [1, 2, 3] }, count: 8, time: 15,
+      how: ['فريقان وجهًا لوجه في كل سؤال.', 'أول من يضغط زر الاستباق يجيب بصوت عالٍ.', 'الخطأ يعطي الفرصة للفريق الآخر.'] },
+    cipher: { name: 'فك الشفرة', icon: '🔐', mode: 'special', kind: 'vault', count: 3, time: 150,
+      how: ['لكل عضو تلميح سري في جواله يكشف رقمًا من رمز الخزنة.', 'اجمعوا الأرقام معًا وأدخلوا الرمز المكوّن من أربعة أرقام.', 'الأسرع يكسب أكثر، والرمز الخاطئ يقفل الخزنة 8 ثوانٍ.'] },
+    final: { name: 'الحسم', icon: '🏁', mode: 'buzz', kind: 'mcq', mult: 2, wager: true, filter: { d: [2, 3] }, count: 4, time: 15,
+      how: ['أسئلة استباق لكل الفرق بنقاط مضاعفة.', 'ثم سؤال أخير يراهن فيه كل فريق بجزء من نقاطه.', 'الرهان لا يتجاوز ربع نقاطكم.'] }
+  };
+  const PITCH = ['أنتم فرق متنافسة، ولكل فريق قرية على الجزيرة.', 'كل إجابة صحيحة تمنحكم نقاطًا وذهبًا.', 'النقاط تحدد الفائز، والذهب يبني قريتكم أمام الجميع.', 'قائد كل فريق يشتري المباني من جواله.'];
+
+  // البرنامج: 60 دقيقة تشمل البداية والختام
   const DEFAULT_PLAN = [
-    { g: 'opening', min: 4 }, { g: 'kickoff', min: 7 }, { g: 'council', min: 2 }, { g: 'bombard', min: 8 },
-    { g: 'traitor', min: 8 }, { g: 'vault', min: 7 }, { g: 'council', min: 2 }, { g: 'arena', min: 7 },
-    { g: 'final', min: 7 }, { g: 'battle', min: 5 }, { g: 'crown', min: 3 }
-  ];
-  const CLASSIC_PLAN = [
-    { g: 'opening', min: 5 }, { g: 'kickoff', min: 8 }, { g: 'memory', min: 7 }, { g: 'arena', min: 10 },
-    { g: 'cipher', min: 8 }, { g: 'wheel', min: 4 }, { g: 'live', min: 6 }, { g: 'final', min: 9 }, { g: 'crown', min: 3 }
+    { g: 'opening', min: 5 }, { g: 'kickoff', min: 10 }, { g: 'observe', min: 9 }, { g: 'arena', min: 12 },
+    { g: 'cipher', min: 10 }, { g: 'final', min: 10 }, { g: 'crown', min: 4 }
   ];
 
-  const DATA = { CATS, MCQ, TF, ORDER, WHOAMI, CIPHER, ESTIMATE, CONSENSUS, TABOO, LIVE, MISSIONS, WHEEL, BOXES, MEMORY_POOL, MEMORY_NAMES, GAMES, DEFAULT_PLAN, CLASSIC_PLAN, BUILD, BUILD_COST, VAULT };
+  const DATA = { CATS, MCQ, TF, ORDER, WHOAMI, CIPHER, ESTIMATE, CONSENSUS, TABOO, LIVE, MISSIONS, WHEEL, BOXES, MEMORY_POOL, MEMORY_NAMES, GAMES, DEFAULT_PLAN, BUILD, BUILD_KEYS, THEMES, THEME_KEYS, VAULT, SCENE, SCENE_COLORS, PITCH };
   if (typeof module !== 'undefined' && module.exports) module.exports = DATA; else root.BENA_DATA = DATA;
 })(typeof window !== 'undefined' ? window : globalThis);

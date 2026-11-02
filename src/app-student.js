@@ -117,7 +117,7 @@ const Student = {
       return `<div class="pl-state big">🏝️ تابع الشاشة الكبيرة</div>${this.villageBox(t)}${capLine}`;
     }
     if (P.g === 'crown') { const rk = (P.rk || []).find(r => r[0] === me.team); const show = P.ph === 'winner'; return `${this.villageBox(t)}<div class="pl-state big ${show && rk && rk[2] === 1 ? 'win' : ''}">${show && rk ? (rk[2] === 1 ? '🏆 فريقك هو البطل!' : 'مركز فريقك: ' + rk[2]) : 'تابع الشاشة… 🥁'}</div>`; }
-    if (P.ph === 'intro') return `<div class="pl-state big">${esc(P.gi || '')} ${esc(P.gn)}</div><div class="pl-how">${(P.how || []).map(x => `<div>${esc(x)}</div>`).join('')}</div>`;
+    if (P.ph === 'intro') return `<div class="pl-state big">${esc(P.gi || '')} ${esc(P.gn)}</div><div class="pl-how">${(P.how || []).map(x => { const k = x.indexOf(': '); return `<div>${k > 0 ? `<b>${esc(x.slice(0, k))}:</b> ${esc(x.slice(k + 2))}` : esc(x)}</div>`; }).join('')}</div>`;
     if (P.ph === 'done') return `<div class="pl-state big">انتهت الجولة</div>${this.villageBox(t)}${capLine}`;
     if (!P.I) return `<div class="pl-state">تابع الشاشة…</div>`;
     const mine = this.local[I.qid];
@@ -181,7 +181,7 @@ const Student = {
   shopHTML(t) {
     const lv = this.levels(t);
     return `<div class="row"><b class="h" style="font-size:20px">🏗️ سوق البناء</b><span class="grow"></span><button class="btn sm" data-act="close">رجوع</button></div>${this.villageBox(t)}<div class="mut" style="text-align:center">💰 ذهب فريقك: <b style="color:var(--gold)">${t.gold}</b></div>
-      <div class="shop">${D.BUILD_KEYS.map(k => { const L = lv[k], B = D.BUILD[k], c = L >= 2 ? null : B.cost[L], can = c != null && c <= t.gold; return `<div class="item ${L >= 2 ? 'max' : ''}"><div class="ic">${villageSVG({ id: t.id, color: t.color, theme: t.theme }, { [k]: Math.max(1, Math.min(2, L + 1)) })}</div><div class="tx"><b>${B.name}</b><small>${L === 0 ? 'جديد' : L === 1 ? 'ترقية للمستوى 2' : 'مكتمل ✓'}</small></div>${c != null ? `<button class="btn ${can ? 'pri' : ''}" data-buy="${k}" ${can ? '' : 'disabled'}>${L ? 'ترقية' : 'بناء'} · ${c}💰</button>` : ''}</div>`; }).join('')}</div>`;
+      <div class="shop">${D.BUILD_KEYS.map(k => { const L = lv[k], B = D.BUILD[k], c = L >= 2 ? null : B.cost[L], can = c != null && c <= t.gold; return `<div class="item ${L >= 2 ? 'max' : ''}"><div class="ic">${buildingSVG({ id: t.id, color: t.color, theme: t.theme }, k, Math.max(1, Math.min(2, L + 1)))}</div><div class="tx"><b>${B.name}${L === 1 ? ' ⬆' : ''}</b><small>${L === 0 ? B.desc : L === 1 ? 'المستوى 2: ' + B.up : 'مكتمل ✓'}</small></div>${c != null ? `<button class="btn ${can ? 'pri' : ''}" data-buy="${k}" ${can ? '' : 'disabled'}>${L ? 'ترقية' : 'بناء'} · ${c}💰</button>` : ''}</div>`; }).join('')}</div>`;
   },
   bind() {
     const P = this.P, I = (P && P.I) || {}, me = this.me();

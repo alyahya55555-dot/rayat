@@ -83,6 +83,7 @@ button{cursor:pointer;border:0;background:none}
 .bar i{display:block;height:100%;background:var(--tc,var(--brand));border-radius:9px;transition:width .4s}
 .cards-row{display:flex;gap:6px;flex-wrap:wrap}
 .chipbtn{font-size:12px;padding:5px 8px;border-radius:8px;background:var(--card2);border:1px solid var(--line);font-weight:600}
+.chipbtn.win{background:#f4c43022;border-color:#f4c430;color:#f4d35e}
 .chipbtn.armed{background:var(--brand2);color:#1A1203}
 .tbl{width:100%;border-collapse:collapse;font-size:14px}
 .tbl td,.tbl th{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;vertical-align:top}
@@ -110,21 +111,29 @@ button{cursor:pointer;border:0;background:none}
 .stage-host{position:fixed;inset:0;background:#062a38;overflow:hidden}
 .stage{position:absolute;top:0;left:0;width:1920px;height:1080px;transform-origin:0 0;overflow:hidden;font-family:var(--fb);background:#083a52}
 .isl-wrap{position:absolute;inset:0;transition:transform 1s cubic-bezier(.3,.8,.2,1),opacity .6s,filter .6s;transform-origin:0 0}
-.isl{width:1920px;height:1080px;display:block}
+.isl{width:1920px;height:1080px;display:block;overflow:visible}
 .stage[data-mode="side"] .isl-wrap{transform:translate(20px,170px) scale(.53)}
 .stage[data-mode="focus"] .isl-wrap{opacity:.18;filter:blur(3px)}
 .isl text{font-family:var(--fh)}
 .waves path{animation:wave 6s ease-in-out infinite alternate}
 .waves path:nth-child(2n){animation-duration:8s}
 @keyframes wave{to{transform:translateX(30px)}}
-.mill{animation:spin 6s linear infinite}
+.mill{animation:spin 6s linear infinite;transform-box:fill-box;transform-origin:center}
+.gear{animation:spin 4s linear infinite;transform-box:fill-box;transform-origin:center}
+.foam{animation:foam 9s linear infinite}@keyframes foam{to{stroke-dashoffset:-400}}
+.bob{animation:bob 3s ease-in-out infinite alternate}@keyframes bob{to{transform:translateY(4px) rotate(1deg)}}
+.sail-far{animation:sail 60s linear infinite alternate}.sail-far2{animation:sail 80s linear infinite alternate-reverse}@keyframes sail{to{transform:translateX(-160px)}}
+.gulls{animation:gull 30s linear infinite alternate}@keyframes gull{to{transform:translate(120px,-20px)}}
+.spout{animation:spout 1.2s ease-in-out infinite alternate}@keyframes spout{to{opacity:.4}}
+.fire{animation:fire .5s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:50% 100%}@keyframes fire{to{transform:scaleY(1.25)}}
+.ripple{animation:wave 5s ease-in-out infinite alternate}
 @keyframes spin{to{transform:rotate(360deg)}}
 .smoke circle{animation:smoke 3s ease-out infinite}
 .smoke circle:nth-child(2){animation-delay:1s}.smoke circle:nth-child(3){animation-delay:2s}
 @keyframes smoke{0%{opacity:0;transform:translateY(10px)}40%{opacity:1}100%{opacity:0;transform:translateY(-30px)}}
 .flag{animation:flagw 2s ease-in-out infinite alternate;transform-box:fill-box;transform-origin:left center}
 @keyframes flagw{to{transform:skewY(-8deg) scaleX(.9)}}
-.bld{transform-box:view-box}
+.bld{transform-box:fill-box;transform-origin:50% 100%}
 .bld.b-new{animation:rise 1.1s cubic-bezier(.2,1.6,.4,1) both}
 @keyframes rise{0%{transform:scale(0);opacity:0}60%{opacity:1}100%{transform:scale(1)}}
 .dust{animation:dust 1.6s ease-out forwards}
@@ -193,7 +202,8 @@ button{cursor:pointer;border:0;background:none}
 .center{position:absolute;inset:150px 60px 50px;z-index:3;display:flex;align-items:center;justify-content:center;pointer-events:none}
 .card-c{background:rgba(4,20,26,.86);border:1px solid rgba(255,255,255,.14);border-radius:40px;padding:46px 70px;text-align:center;max-width:1300px;backdrop-filter:blur(6px);animation:pop .6s cubic-bezier(.2,1.3,.4,1) both}
 .card-c.slim{padding:22px 50px}
-.card-c.top{align-self:flex-start;margin-top:-10px}
+.card-c.top{align-self:flex-start;margin-top:-128px;padding:14px 46px}
+.card-c.top .h1{font-size:54px}
 .card-c .ico{font-size:120px;line-height:1}
 .card-c .h1,.join-card .h1,.win-card .h1{font-family:var(--fh);font-size:60px;font-weight:900}
 .card-c .h1.big{font-size:100px;margin-top:10px}
@@ -226,6 +236,7 @@ button{cursor:pointer;border:0;background:none}
 .scene-h{font-family:var(--fh);font-size:44px;font-weight:800;background:rgba(4,20,26,.8);padding:8px 30px;border-radius:99px}
 .scene-q{font-family:var(--fh);font-size:46px;font-weight:800;background:rgba(4,20,26,.85);padding:10px 34px;border-radius:24px}
 .notes{position:absolute;left:40px;bottom:30px;z-index:6;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.how .hk{color:#f4d35e;font-weight:800;margin-inline-end:14px;white-space:nowrap}
 .note-b{padding:14px 26px;border-radius:99px;background:rgba(4,20,26,.9);border:3px solid var(--tc);font-size:28px;font-family:var(--fh);animation:fadeUp .5s both}
 .banner-layer{position:absolute;inset:0;display:grid;place-items:center;z-index:7;pointer-events:none}
 .bb{padding:36px 80px;border-radius:40px;background:var(--tc);color:#fff;text-align:center;box-shadow:0 30px 120px rgba(0,0,0,.45);animation:slam .5s cubic-bezier(.2,1.6,.4,1)}
@@ -326,6 +337,24 @@ button{cursor:pointer;border:0;background:none}
 .sched .s.cur{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 18%,transparent)}
 .sched .s.past{opacity:.5}
 hr{border:0;border-top:1px solid var(--line)}
+
+.sndbox{position:fixed;bottom:6px;right:8px;z-index:40;display:flex;gap:8px;align-items:center;opacity:.35;transition:opacity .3s}
+.sndbox:hover{opacity:1}
+.sndbox input{width:0;opacity:0;transition:width .3s,opacity .3s;accent-color:var(--brand)}
+.sndbox:hover input{width:130px;opacity:1}
+.hl-b{display:grid;gap:10px;margin-top:22px}
+.hl-b>div{display:flex;align-items:center;gap:18px;padding:8px 22px;border-radius:20px;background:rgba(255,255,255,.05);border-inline-start:10px solid var(--tc)}
+.hl-b b{font-family:var(--fh);font-size:32px;min-width:130px;text-align:right}
+.hl-b .bi{display:flex;gap:10px;flex-wrap:wrap}
+.hl-b i{font-style:normal;display:flex;flex-direction:column;align-items:center;width:96px}
+.hl-b i svg{width:86px;height:auto}
+.hl-b em{font-style:normal;font-size:18px;color:var(--mut)}
+.vs{display:flex;align-items:center;gap:30px;animation:fadeOutLate 1.5s both;padding:60px 80px;border-radius:50px;background:rgba(4,20,26,.72);box-shadow:0 0 0 2000px rgba(4,20,26,.35)}
+.vs-a,.vs-b{font-family:var(--fh);font-size:110px;font-weight:900;color:#fff;background:var(--tc);padding:30px 70px;border-radius:36px;box-shadow:0 30px 90px rgba(0,0,0,.5)}
+.vs-a{animation:vsL .45s cubic-bezier(.2,1.5,.4,1) both}.vs-b{animation:vsR .45s cubic-bezier(.2,1.5,.4,1) both}
+.vs-x{font-size:120px;animation:slam .4s .3s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes vsL{from{transform:translateX(900px)}}@keyframes vsR{from{transform:translateX(-900px)}}
+@keyframes fadeOutLate{80%{opacity:1}100%{opacity:0}}
 </style>
 </head>
 <body>
@@ -2881,12 +2910,12 @@ var qrcode = function() {
   // ===== جزيرة القرى =====
   // ستة مبانٍ، ولكل مبنى مستويان فقط. الذهب يُصرف عليها ولا يُنقص النقاط.
   const BUILD = {
-    house: { name: 'منزل', cost: [20, 30], desc: 'بيت لأهل القرية' },
-    farm: { name: 'مزرعة', cost: [25, 35], desc: 'حقول خضراء' },
-    market: { name: 'سوق', cost: [35, 45], desc: 'دكاكين ومظلات' },
-    workshop: { name: 'ورشة', cost: [35, 45], desc: 'ورشة يتصاعد دخانها' },
-    library: { name: 'مكتبة', cost: [45, 55], desc: 'مكتبة بقبة وأعمدة' },
-    castle: { name: 'قلعة', cost: [60, 80], desc: 'قلعة حجرية بأبراج' }
+    house: { name: 'منزل', cost: [20, 30], desc: 'بيت لأهل القرية', up: 'بيتان، أحدهما بطابقين' },
+    farm: { name: 'مزرعة', cost: [25, 35], desc: 'حقل أخضر وفزّاعة', up: 'حصاد ذهبي وحظيرة وصومعة' },
+    market: { name: 'سوق', cost: [35, 45], desc: 'دكان بمظلة وبضائع', up: 'سوق بدكانين وفوانيس' },
+    workshop: { name: 'ورشة', cost: [35, 45], desc: 'ورشة يتصاعد دخانها', up: 'ورشة أكبر بمدخنتين وترس' },
+    library: { name: 'مكتبة', cost: [45, 55], desc: 'مكتبة بأعمدة', up: 'مكتبة بقبة علمية' },
+    castle: { name: 'قلعة', cost: [60, 80], desc: 'برج حجري', up: 'قلعة بثلاثة أبراج وسور' }
   };
   const BUILD_KEYS = ['house', 'farm', 'market', 'workshop', 'library', 'castle'];
   // طابع القرية: يغيّر المظهر فقط، ولا يؤثر في فرص الفوز
@@ -2920,15 +2949,15 @@ var qrcode = function() {
   // how: تعليمات لا تتجاوز ثلاث جمل قصيرة تظهر قبل الجولة
   const GAMES = {
     kickoff: { name: 'الانطلاقة', icon: '🚀', mode: 'all', kind: 'mcq', filter: { d: [1, 2] }, count: 10, time: 15, base: 20,
-      how: ['السؤال على الشاشة، والخيارات في جوالك.', 'أجب قبل انتهاء الوقت.', 'نقاط فريقك حسب عدد من أجاب صحيحًا من أعضائه.'] },
+      how: ['المطلوب: أسئلة سريعة متنوعة.', 'طريقة الإجابة: كل واحد يجيب من جواله قبل انتهاء الوقت.', 'المكافأة: نقاط وذهب بقدر الصحيحين في فريقك.'] },
     observe: { name: 'قوة الملاحظة', icon: '👁️', mode: 'all', kind: 'observe', count: 8, time: 15, base: 20,
-      how: ['تظهر صورة على الشاشة لثوانٍ.', 'ركّز جيدًا، فقد تتغيّر الصورة.', 'ثم أجب من جوالك عمّا رأيت.'] },
+      how: ['المطلوب: تأمّل الصورة، فهي تظهر لثوانٍ ثم تختفي أو تتغيّر.', 'طريقة الإجابة: كل واحد يجيب من جواله عمّا رآه.', 'المكافأة: نقاط وذهب بقدر الصحيحين في فريقك.'] },
     arena: { name: 'ساحة المواجهة', icon: '⚔️', mode: 'buzz', kind: 'mcq', pairs: true, treasure: true, filter: { d: [1, 2, 3] }, count: 11, time: 15,
-      how: ['فريقان وجهًا لوجه في كل سؤال.', 'أول من يضغط زر الاستباق في جواله يجيب بصوته.', 'إن أخطأ انتقلت الفرصة للفريق الآخر.'] },
+      how: ['المطلوب: فريقان وجهًا لوجه في كل سؤال.', 'طريقة الإجابة: أسرع ضغطة على زر الجوال تمنح فريقك حق الإجابة بصوتك.', 'المكافأة: نقاط وذهب للصحيحة، وإن أخطأتم انتقلت الفرصة للخصم.'] },
     cipher: { name: 'فك الشفرة', icon: '🔐', mode: 'team', kind: 'vault', count: 3, time: 140,
-      how: ['كل عضو يرى في جواله تلميحًا يكشف رقمًا من رمز الخزنة.', 'اجمعوا الأرقام معًا وأدخلوا الرمز.', 'الأسرع يكسب أكثر.'] },
+      how: ['المطلوب: افتحوا الخزنة برمز من أرقام.', 'طريقة الإجابة: كل عضو يرى تلميحًا في جواله؛ تشاوروا ثم يُدخل ممثلكم الرمز.', 'المكافأة: الأسرع يكسب أكثر: 30 ثم 20 ثم 10.'] },
     final: { name: 'الحسم', icon: '🏁', mode: 'buzz', kind: 'mcq', mult: 2, wager: true, filter: { d: [2, 3] }, count: 6, time: 15,
-      how: ['أسئلة استباق لكل الفرق، والنقاط مضاعفة.', 'وفي الختام سؤال رهان: يراهن القائد بجزء من نقاط فريقه.', 'الإجابة الصحيحة تضيف الرهان، والخاطئة تخصمه.'] }
+      how: ['المطلوب: أسئلة حاسمة لكل الفرق، والنقاط مضاعفة.', 'طريقة الإجابة: الاستباق من الجوال، وفي الختام سؤال رهان يحدده القائد.', 'المكافأة: الرهان الصحيح يُضاف، والخاطئ يُخصم.'] }
   };
   const PITCH = n => [`أنتم ${['', '', 'فريقان', 'ثلاثة فرق', 'أربعة فرق'][n] || n + ' فرق'}، ولكل فريق قرية على الجزيرة.`, 'كل إجابة صحيحة تمنحكم نقاطًا وذهبًا.', 'النقاط تحدد الفائز، والذهب تبنون به قريتكم.', 'كل بناء يشتريه قائد فريقكم من جواله يظهر أمام الجميع على الشاشة.', 'الفريق الأعلى نقاطًا في النهاية هو الفائز.'];
 
@@ -2975,10 +3004,10 @@ var qrcode = function() {
         plan: clone(this.D.DEFAULT_PLAN), planIdx: -1, clock: { startedAt: null, segStart: null },
         seg: null, seq: 0, used: {}, timer: null, fx: { n: 0, k: null }, undo: [], leader: null, ended: false
       };
-      teams.forEach(t => { s.vil[t.id] = this.newVillage(); });
+      teams.forEach((t, i) => { s.vil[t.id] = this.newVillage(this.D.THEME_KEYS[i % this.D.THEME_KEYS.length]); });
       return s;
     }
-    newVillage() { const b = {}; this.D.BUILD_KEYS.forEach(k => { b[k] = 0; }); return { gold: 0, earned: 0, b, theme: null }; }
+    newVillage(theme) { const b = {}; this.D.BUILD_KEYS.forEach(k => { b[k] = 0; }); return { gold: 0, earned: 0, b, theme: theme || null }; }
     makeCode() { let c = ''; for (let i = 0; i < 4; i++) c += Math.floor(this.rng() * 10); return c === '0000' ? '1357' : c; }
     touch(fxKind, fxData) { this.s.v++; if (fxKind) this.s.fx = { n: this.s.fx.n + 1, k: fxKind, d: fxData || null }; this.onChange(this.s); }
     pick(arr) { return arr[Math.floor(this.rng() * arr.length)]; }
@@ -3051,7 +3080,7 @@ var qrcode = function() {
     setTeams(list) {
       const s = this.s;
       s.teams = list.slice(0, 4).map((t, i) => ({ id: t.id || ('t' + (i + 1)), name: String(t.name || TEAM_NAMES[i] || 'فريق').slice(0, 20), color: t.color || TEAM_COLORS[i] }));
-      s.teams.forEach(t => { if (!s.vil[t.id]) s.vil[t.id] = this.newVillage(); });
+      s.teams.forEach((t, i) => { if (!s.vil[t.id]) s.vil[t.id] = this.newVillage(this.D.THEME_KEYS[i % this.D.THEME_KEYS.length]); });
       const ids = new Set(s.teams.map(t => t.id));
       Object.values(s.students).forEach(st => { if (!ids.has(st.team)) st.team = this.smallestTeam(); });
       Object.keys(s.captain).forEach(t => { if (!ids.has(t)) delete s.captain[t]; });
@@ -3061,7 +3090,7 @@ var qrcode = function() {
     setSetting(k, v) { this.s.settings[k] = v; this.touch(); }
 
     // ---------- النقاط والذهب ----------
-    vil(tid) { const s = this.s; if (!s.vil[tid]) s.vil[tid] = this.newVillage(); return s.vil[tid]; }
+    vil(tid) { const s = this.s; if (!s.vil[tid]) { const i = Math.max(0, s.teams.findIndex(t => t.id === tid)); s.vil[tid] = this.newVillage(this.D.THEME_KEYS[i % this.D.THEME_KEYS.length]); } return s.vil[tid]; }
     scores() { const sc = {}; this.s.teams.forEach(t => { sc[t.id] = 0; }); this.s.ledger.forEach(e => { if (sc[e.team] !== undefined) sc[e.team] += e.d || 0; }); return sc; }
     ranking() {
       const sc = this.scores();
@@ -3092,6 +3121,8 @@ var qrcode = function() {
     giveGold(tid, g, why, tx) { if (!this.team(tid) || !g) return; const v = this.vil(tid); v.gold = Math.max(0, v.gold + g); if (g > 0) v.earned += g; this.s.ledger.push({ tx, t: this.now(), team: tid, d: 0, g, why }); }
     afterScore() { const L = this.leaderId(), prev = this.s.leader; this.s.leader = L; if (L && L !== prev) this.touch('lead', { team: L }); else this.touch('score'); }
     manualAdjust(tid, d, why) { const tx = this.beginTx('تعديل يدوي'); this.award(tid, d, why || 'تعديل من المشرف', tx, { noGold: true }); this.afterScore(); }
+    // تحدٍّ حضوري يحكم فيه المشرف: نقاط وذهب معًا
+    liveWin(tid, pts = 20) { if (!this.team(tid)) return; const tx = this.beginTx('تحدٍّ حضوري'); this.award(tid, pts, 'فوز في تحدٍّ حضوري', tx); this.afterScore(); }
     manualGold(tid, g, why) { const tx = this.beginTx('تعديل الذهب'); this.giveGold(tid, g, why || 'تعديل الذهب من المشرف', tx); this.touch('gold'); }
 
     // ---------- البناء ----------
@@ -3110,10 +3141,10 @@ var qrcode = function() {
       this.touch('build', { team: tid, key, lv }); return { ok: true };
     }
     buildScore(tid) { const b = this.vil(tid).b; return this.D.BUILD_KEYS.reduce((a, k) => a + b[k], 0); }
-    // طابع القرية: يختاره القائد في الافتتاح، ويستطيع المشرف تغييره متى شاء
+    // طابع القرية: افتراضي لكل فريق، ويغيّره المشرف قبل المسابقة (شكل فقط)
     setTheme(tid, theme, sid) {
       const s = this.s; if (!this.team(tid) || !this.D.THEMES[theme]) return false;
-      if (sid != null) { if (s.captain[tid] !== sid) return false; if (!s.seg || s.seg.g !== 'opening') return false; }
+      if (sid != null) return false;
       this.vil(tid).theme = theme; this.touch('theme', { team: tid, theme }); return true;
     }
 
@@ -3364,9 +3395,8 @@ var qrcode = function() {
     // ---------- نهاية الجولة والافتتاح والتتويج ----------
     finishSeg() { const seg = this.s.seg; this.s.timer = null; seg.phase = 'done'; seg.idx = seg.items.length; this.touch('segdone'); }
     openingNext() {
-      const seg = this.s.seg, order = ['welcome', 'explain', 'themes', 'done'];
+      const seg = this.s.seg, order = ['welcome', 'explain', 'done'];
       const i = order.indexOf(seg.phase); seg.phase = order[Math.min(order.length - 1, i + 1)];
-      if (seg.phase === 'themes') this.startTimer(40, 'اختيار طابع القرية');
       if (seg.phase === 'done') { this.s.timer = null; this.fillThemes(); }
       this.touch('seg');
     }
@@ -3504,8 +3534,9 @@ const Brand = {
 
 // ---------- المؤثرات الصوتية: تسجيلات حقيقية مرخّصة، بلا موسيقى ولا أصوات بشرية ----------
 const SFX = {
-  ctx: null, on: true, buf: {}, ambientOn: true,
-  unlock() { try { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination); this.load(); } if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => { }); } catch (e) { } },
+  ctx: null, on: true, buf: {}, ambientOn: true, vol: 1,
+  setVol(v) { this.vol = Math.max(0, Math.min(1, v)); if (this.master) this.master.gain.value = this.vol; },
+  unlock() { try { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = this.vol; this.master.connect(this.ctx.destination); this.load(); } if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => { }); } catch (e) { } },
   load() {
     if (typeof SFX_DATA !== 'object' || !SFX_DATA) return;
     Object.entries(SFX_DATA).forEach(([k, b64]) => { try { const bin = atob(b64); const a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); this.ctx.decodeAudioData(a.buffer).then(b => { this.buf[k] = b; }).catch(() => { }); } catch (e) { } });
@@ -3538,7 +3569,8 @@ const SFX = {
         case 'deny': this.rec('kill', .9); break;
         case 'theme': this.rec('step', .6); this.rec('land', .5, .15); break;
         case 'draw': for (let i = 0; i < 4; i++) this.rec('coin', .3, i * .15, .9 + i * .1); break;
-        case 'rank': this.rec('impact', .7); break;
+        case 'vs': this.rec('impact', .8); this.rec('hit', .9, .38); break;
+      case 'rank': this.rec('impact', .7); break;
         case 'crown': this.rec('big_kill', .7); [.4, .8, 1.2, 1.6].forEach(t => this.rec('impact', .6, t, 1.2)); for (let i = 0; i < 8; i++) this.rec('coin', .4, 1.8 + i * .1, .9 + i * .03); break;
       }
     } catch (e) { }
@@ -3785,127 +3817,288 @@ class Mq {
   }
 }
 
-/* ===== رسم الجزيرة والقرى (منظور متساوي القياس) + شاشة الجمهور ===== */
-const ISO_A = 78; // نصف عرض البلاطة
-const SLOT = { castle: [0, 0], library: [1, 0], workshop: [2, 0], house: [0, 1], market: [1, 1], farm: [2, 1] };
-const BICON = { house: '🏠', farm: '🌾', market: '🏪', workshop: '🔨', library: '📚', castle: '🏰' };
-function shade(hex, k) { const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255; const f = v => Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k))); return '#' + [f(r), f(g), f(b)].map(v => v.toString(16).padStart(2, '0')).join(''); }
-const pts = a => a.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+/* ===== فن الجزيرة: تضاريس وشواطئ وطرق وأشجار وقرى ومبانٍ بمنظور متساوي القياس (SVG خفيف) ===== */
+const ISO_A = 78;          // نصف عرض بلاطة البناء
+const VSC = 1.15;          // تكبير القرية على الجزيرة
+const SLOT = { library: [0, 0], market: [1, 0], castle: [2, 0], house: [0, 1], workshop: [1, 1], farm: [2, 1] };
+function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function shade(hex, k) { if (hex.length === 4) hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3]; const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255; const f = v => Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k))); return '#' + [f(r), f(g), f(b)].map(v => v.toString(16).padStart(2, '0')).join(''); }
+const f1 = v => (+v).toFixed(1);
+const pts = a => a.map(p => f1(p[0]) + ',' + f1(p[1])).join(' ');
 const poly = (a, fill, extra = '') => `<polygon points="${pts(a)}" fill="${fill}" ${extra}/>`;
-// صندوق متساوي القياس قاعدته معيّن حول (x,y)
 function isoBox(x, y, s, h, c, o = {}) {
   const L = [x - s, y], F = [x, y + s / 2], R = [x + s, y], K = [x, y - s / 2];
-  const up = p => [p[0], p[1] - h];
-  let g = poly([L, F, up(F), up(L)], shade(c, -.12), 'stroke="rgba(0,0,0,.25)" stroke-width="1"') + poly([F, R, up(R), up(F)], shade(c, -.3), 'stroke="rgba(0,0,0,.25)" stroke-width="1"');
-  if (!o.noTop) g += poly([up(L), up(F), up(R), up(K)], o.top || shade(c, .12), 'stroke="rgba(0,0,0,.2)" stroke-width="1"');
+  const up = p => [p[0], p[1] - h], ln = 'stroke="rgba(0,0,0,.22)" stroke-width="1"';
+  let g = poly([L, F, up(F), up(L)], shade(c, -.08), ln) + poly([F, R, up(R), up(F)], shade(c, -.3), ln);
+  if (!o.noTop) g += poly([up(L), up(F), up(R), up(K)], o.top || shade(c, .14), ln);
   return g;
 }
 const faceL = (x, y, s, u, v) => [x - s + s * u, y + (s / 2) * u - v];
 const faceR = (x, y, s, u, v) => [x + s * u, y + s / 2 - (s / 2) * u - v];
 const quadL = (x, y, s, u0, u1, v0, v1, fill) => poly([faceL(x, y, s, u0, v0), faceL(x, y, s, u1, v0), faceL(x, y, s, u1, v1), faceL(x, y, s, u0, v1)], fill);
 const quadR = (x, y, s, u0, u1, v0, v1, fill) => poly([faceR(x, y, s, u0, v0), faceR(x, y, s, u1, v0), faceR(x, y, s, u1, v1), faceR(x, y, s, u0, v1)], fill);
-function pyramid(x, y, s, h, rh, c) { const L = [x - s, y - h], F = [x, y + s / 2 - h], R = [x + s, y - h], A = [x, y - h - rh]; return poly([L, F, A], shade(c, -.05), 'stroke="rgba(0,0,0,.25)"') + poly([F, R, A], shade(c, -.28), 'stroke="rgba(0,0,0,.25)"'); }
-function flag(x, y, h, c) { return `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - h}" stroke="#eee" stroke-width="2.5"/><polygon class="flag" points="${x},${y - h} ${x + 26},${y - h + 7} ${x},${y - h + 14}" fill="${c}"/>`; }
+// سقف جملوني متساوي القياس (أجمل من الهرم)
+function gable(x, y, s, h, rh, c) {
+  const L = [x - s, y - h], F = [x, y + s / 2 - h], R = [x + s, y - h], K = [x, y - s / 2 - h];
+  const A = [x - s / 2, y - s / 4 - h - rh], B = [x + s / 2, y + s / 4 - h - rh];
+  const st = 'stroke="rgba(0,0,0,.25)" stroke-width="1"';
+  return poly([L, F, B, A], shade(c, .05), st) + poly([F, R, B], shade(c, -.32), st) + poly([K, R, B, A], shade(c, -.18), st) +
+    `<line x1="${f1(A[0])}" y1="${f1(A[1])}" x2="${f1(B[0])}" y2="${f1(B[1])}" stroke="${shade(c, -.45)}" stroke-width="2.5"/>`;
+}
+function pyramid(x, y, s, h, rh, c) { const L = [x - s, y - h], F = [x, y + s / 2 - h], R = [x + s, y - h], A = [x, y - h - rh]; return poly([L, F, A], shade(c, -.02), 'stroke="rgba(0,0,0,.25)"') + poly([F, R, A], shade(c, -.28), 'stroke="rgba(0,0,0,.25)"'); }
+function flag(x, y, h, c, w = 26) { return `<line x1="${f1(x)}" y1="${f1(y)}" x2="${f1(x)}" y2="${f1(y - h)}" stroke="#e9e4d8" stroke-width="2.5"/><circle cx="${f1(x)}" cy="${f1(y - h)}" r="2.5" fill="#f4d35e"/><polygon class="flag" points="${f1(x)},${f1(y - h + 1)} ${f1(x + w)},${f1(y - h + w * .28)} ${f1(x)},${f1(y - h + w * .56)}" fill="${c}"/>`; }
 const tileDiamond = (x, y, s) => [[x - s, y], [x, y + s / 2], [x + s, y], [x, y - s / 2]];
+const shadowE = (x, y, rx, ry) => `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(rx)}" ry="${f1(ry)}" fill="rgba(20,30,10,.22)"/>`;
+function smoothPath(P) {
+  const n = P.length; let d = `M ${f1(P[0][0])} ${f1(P[0][1])}`;
+  for (let i = 0; i < n; i++) { const p0 = P[(i - 1 + n) % n], p1 = P[i], p2 = P[(i + 1) % n], p3 = P[(i + 2) % n]; d += ` C ${f1(p1[0] + (p2[0] - p0[0]) / 6)} ${f1(p1[1] + (p2[1] - p0[1]) / 6)} ${f1(p2[0] - (p3[0] - p1[0]) / 6)} ${f1(p2[1] - (p3[1] - p1[1]) / 6)} ${f1(p2[0])} ${f1(p2[1])}`; }
+  return d + ' Z';
+}
+function blob(cx, cy, rx, ry, seed, amp = .08, n = 28) { const r = rng(seed), ph = [r() * 6, r() * 6, r() * 6]; const P = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, k = 1 + amp * (Math.sin(3 * a + ph[0]) * .6 + Math.sin(5 * a + ph[1]) * .3 + Math.sin(7 * a + ph[2]) * .2); P.push([cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k]); } return smoothPath(P); }
 
-// ---------- المباني الستة (مستويان) ----------
+// ---------- عناصر الطبيعة ----------
+function treeRound(x, y, s = 1, hue = 0) {
+  const c = ['#3f8a3a', '#4b9441', '#357a3a', '#5a9a3c'][hue % 4];
+  return shadowE(x + 10 * s, y + 2, 26 * s, 9 * s) + `<rect x="${f1(x - 3.5 * s)}" y="${f1(y - 22 * s)}" width="${f1(7 * s)}" height="${f1(24 * s)}" fill="#6b4a2b"/>` +
+    `<circle cx="${f1(x)}" cy="${f1(y - 36 * s)}" r="${f1(22 * s)}" fill="${shade(c, -.18)}"/><circle cx="${f1(x - 12 * s)}" cy="${f1(y - 30 * s)}" r="${f1(15 * s)}" fill="${c}"/><circle cx="${f1(x + 10 * s)}" cy="${f1(y - 44 * s)}" r="${f1(14 * s)}" fill="${shade(c, -.08)}"/><circle cx="${f1(x - 6 * s)}" cy="${f1(y - 46 * s)}" r="${f1(10 * s)}" fill="${shade(c, .22)}"/>`;
+}
+function treePine(x, y, s = 1) {
+  let g = shadowE(x + 8 * s, y + 2, 20 * s, 7 * s) + `<rect x="${f1(x - 3 * s)}" y="${f1(y - 14 * s)}" width="${f1(6 * s)}" height="${f1(16 * s)}" fill="#5b3d22"/>`;
+  [[0, 24, 26], [16, 19, 24], [30, 13, 22]].forEach(([dy, w, h]) => { const by = y - 10 * s - dy * s; g += `<polygon points="${f1(x - w * s)},${f1(by)} ${f1(x)},${f1(by - h * s)} ${f1(x)},${f1(by + 3 * s)}" fill="#2f7a46"/><polygon points="${f1(x)},${f1(by + 3 * s)} ${f1(x)},${f1(by - h * s)} ${f1(x + w * s)},${f1(by)}" fill="#245f37"/>`; });
+  return g;
+}
+function bush(x, y, s = 1, c = '#4f9a45') { return shadowE(x + 4 * s, y + 2, 14 * s, 5 * s) + `<circle cx="${f1(x - 7 * s)}" cy="${f1(y - 6 * s)}" r="${f1(8 * s)}" fill="${shade(c, -.12)}"/><circle cx="${f1(x + 6 * s)}" cy="${f1(y - 7 * s)}" r="${f1(9 * s)}" fill="${c}"/><circle cx="${f1(x)}" cy="${f1(y - 12 * s)}" r="${f1(7 * s)}" fill="${shade(c, .18)}"/>`; }
+function rock(x, y, s = 1) { return shadowE(x + 4 * s, y + 3 * s, 16 * s, 5 * s) + `<polygon points="${f1(x - 16 * s)},${f1(y + 2 * s)} ${f1(x - 9 * s)},${f1(y - 10 * s)} ${f1(x + 3 * s)},${f1(y - 14 * s)} ${f1(x + 15 * s)},${f1(y - 5 * s)} ${f1(x + 14 * s)},${f1(y + 3 * s)}" fill="#8f9396"/><polygon points="${f1(x - 9 * s)},${f1(y - 10 * s)} ${f1(x + 3 * s)},${f1(y - 14 * s)} ${f1(x + 1 * s)},${f1(y - 3 * s)} ${f1(x - 6 * s)},${f1(y)}" fill="#b4b8ba"/>`; }
+function flowers(x, y, r) { let g = ''; const cs = ['#f4d35e', '#ffffff', '#e86a8a', '#b28be0']; for (let i = 0; i < 5; i++) g += `<circle cx="${f1(x + (r() - .5) * 26)}" cy="${f1(y + (r() - .5) * 10)}" r="2.6" fill="${cs[Math.floor(r() * 4)]}"/>`; return g; }
+function tuft(x, y) { return `<path d="M ${f1(x - 6)} ${f1(y)} l 2 -9 M ${f1(x)} ${f1(y)} l 0 -11 M ${f1(x + 6)} ${f1(y)} l -2 -9" stroke="#3d7a35" stroke-width="2.2" stroke-linecap="round"/>`; }
+function palm(x, y, i = 0) {
+  const lean = (i % 2 ? 1 : -1) * 10;
+  return shadowE(x + 22, y + 3, 30, 8) + `<path d="M ${x} ${y} Q ${x + lean * .4} ${y - 40} ${x + lean} ${y - 78}" stroke="#8b6239" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M ${x} ${y - 20} l ${lean * .1} -2 M ${x + lean * .2} ${y - 40} l 3 -2 M ${x + lean * .5} ${y - 58} l 3 -2" stroke="#6b4a2b" stroke-width="2"/>` +
+    [-70, -30, 10, 50, 150, 200].map((a, k) => { const r = a * Math.PI / 180, px = x + lean, py = y - 78; return `<path d="M ${px} ${py} q ${f1(Math.cos(r) * 26)} ${f1(-14 + Math.sin(r) * 10)} ${f1(Math.cos(r) * 50)} ${f1(12 + Math.sin(r) * 18)}" stroke="${k % 2 ? '#2f7d32' : '#3f9a3a'}" stroke-width="8" fill="none" stroke-linecap="round"/>`; }).join('') +
+    `<circle cx="${x + lean - 3}" cy="${y - 74}" r="4" fill="#6b4a2b"/><circle cx="${x + lean + 4}" cy="${y - 73}" r="4" fill="#7a5530"/>`;
+}
+function boat(x, y, c = '#a0522d', sail = '#f6efe0', s = 1) {
+  return `<g class="bob"><ellipse cx="${x}" cy="${y + 6 * s}" rx="${44 * s}" ry="${8 * s}" fill="rgba(255,255,255,.25)"/><path d="M ${x - 38 * s} ${y - 4 * s} L ${x + 38 * s} ${y - 4 * s} L ${x + 26 * s} ${y + 8 * s} L ${x - 26 * s} ${y + 8 * s} Z" fill="${c}" stroke="${shade(c, -.4)}" stroke-width="1.5"/><line x1="${x}" y1="${y - 4 * s}" x2="${x}" y2="${y - 58 * s}" stroke="#5b3a1e" stroke-width="${2.5 * s}"/><polygon points="${x + 2 * s},${y - 56 * s} ${x + 30 * s},${y - 10 * s} ${x + 2 * s},${y - 10 * s}" fill="${sail}" stroke="rgba(0,0,0,.2)"/><polygon points="${x - 2 * s},${y - 48 * s} ${x - 22 * s},${y - 10 * s} ${x - 2 * s},${y - 10 * s}" fill="${shade(sail, -.1)}"/></g>`;
+}
+
+// ---------- المباني الستة (مستويان) — إحداثيات محلية للقرية ----------
 const BUILDERS = {
   house(x, y, T, tc, lv) {
-    const s = 34, h = lv > 1 ? 54 : 30; let g = isoBox(x, y, s, h, T.wall);
-    g += quadR(x, y, s, .55, .8, 0, 18, '#5b3a1e') + quadL(x, y, s, .35, .62, 12, 24, '#7fb3d9');
-    if (lv > 1) g += quadL(x, y, s, .35, .62, 34, 46, '#ffe9a8') + quadR(x, y, s, .2, .45, 34, 46, '#ffe9a8');
-    g += pyramid(x, y, s + 4, h, 26, T.roof);
-    if (lv > 1) g += isoBox(x + 14, y - h - 4, 6, 18, '#8a5a3c');
-    return g;
+    const one = (hx, hy, s, h) => { let g = shadowE(hx + 12, hy + 6, s * 1.4, s * .5) + isoBox(hx, hy, s, h, T.wall); g += quadR(hx, hy, s, .55, .78, 0, 18, '#5b3a1e') + quadL(hx, hy, s, .3, .55, 10, 22, '#8fc3e6') + quadL(hx, hy, s, .3, .55, 10, 11.5, '#fff'); if (h > 36) g += quadL(hx, hy, s, .3, .55, h - 20, h - 9, '#ffe9a8') + quadR(hx, hy, s, .18, .4, h - 20, h - 9, '#ffe9a8'); g += gable(hx, hy, s + 3, h, 24, T.roof) + isoBox(hx + s * .45, hy - h - 6, 4.5, 16, '#8a5a3c'); return g; };
+    if (lv > 1) return one(x - 14, y - 8, 28, 48) + one(x + 22, y + 12, 22, 26) + `<path d="M ${x - 40} ${y + 30} l 30 15" stroke="#8b6b3d" stroke-width="3"/>`;
+    return one(x, y, 30, 30) + `<path d="M ${x - 34} ${y + 14} l 22 11 M ${x - 30} ${y + 10} l 0 6 M ${x - 20} ${y + 15} l 0 6" stroke="#8b6b3d" stroke-width="2.5"/>`;
   },
   farm(x, y, T, tc, lv) {
-    const s = 62; let g = poly(tileDiamond(x, y + 4, s), '#5e9e45', 'stroke="#3f7a2e" stroke-width="2"');
-    for (let k = -2; k <= 2; k++) g += `<line x1="${x - s * .8 + Math.abs(k) * 6 + k * 14}" y1="${y + 4 + k * 7}" x2="${x + s * .8 - Math.abs(k) * 6 + k * 14}" y2="${y + 4 + k * 7}" stroke="${lv > 1 ? '#e8c64a' : '#7fc15d'}" stroke-width="5" stroke-linecap="round" transform="rotate(26 ${x} ${y})"/>`;
-    g += `<ellipse cx="${x + 30}" cy="${y + 10}" rx="9" ry="6" fill="#e3c05b" stroke="#a8862f"/>`;
-    if (lv > 1) { g += isoBox(x - 26, y - 6, 20, 24, '#b33a2b') + pyramid(x - 26, y - 6, 22, 24, 16, '#5a2b22'); }
+    const s = 60; let g = poly(tileDiamond(x, y + 4, s), '#7a5a35', 'stroke="#5e4428" stroke-width="2"');
+    for (let k = -3; k <= 3; k++) { const a = faceL(x, y + 4, s, .5 + k * .13, 0), b = [a[0] + s, a[1] - s / 2]; g += `<line x1="${f1(a[0] + s * .06)}" y1="${f1(a[1] - s * .03)}" x2="${f1(b[0] - s * .06)}" y2="${f1(b[1] + s * .03)}" stroke="${lv > 1 ? '#e2c04a' : '#6fb84f'}" stroke-width="6" stroke-linecap="round"/>`; }
+    // فزّاعة
+    g += `<line x1="${x + 18}" y1="${y + 8}" x2="${x + 18}" y2="${y - 26}" stroke="#6b4a2b" stroke-width="3"/><line x1="${x + 6}" y1="${y - 16}" x2="${x + 30}" y2="${y - 16}" stroke="#6b4a2b" stroke-width="3"/><circle cx="${x + 18}" cy="${y - 30}" r="6" fill="#e9c27a"/><polygon points="${x + 10},${y - 34} ${x + 18},${y - 44} ${x + 26},${y - 34}" fill="#8b5a2b"/>`;
+    if (lv > 1) g += shadowE(x - 18, y - 10, 30, 10) + isoBox(x - 30, y - 16, 20, 26, '#b33a2b') + gable(x - 30, y - 16, 22, 26, 16, '#5a2b22') + quadL(x - 30, y - 16, 20, .35, .7, 0, 16, '#f1e3c4') +
+      `<rect x="${x - 4}" y="${y - 58}" width="16" height="46" fill="#cfd5d9" stroke="#8a9196"/><ellipse cx="${x + 4}" cy="${y - 58}" rx="8" ry="4" fill="#9aa3a8"/>`;
     return g;
   },
   market(x, y, T, tc, lv) {
-    const one = (cx, cy) => { let g = isoBox(cx, cy, 26, 14, '#a0703c'); g += isoBox(cx - 10, cy + 2, 6, 6, '#c98b48') + `<circle cx="${cx + 8}" cy="${cy - 18}" r="4" fill="#e74c3c"/><circle cx="${cx + 15}" cy="${cy - 16}" r="4" fill="#f1c40f"/>`; for (let i = 0; i < 4; i++) { const u0 = i / 4, u1 = (i + 1) / 4; g += poly([faceR(cx, cy - 34, 30, u0, 0), faceR(cx, cy - 34, 30, u1, 0), faceR(cx, cy - 46, 30, u1, -10), faceR(cx, cy - 46, 30, u0, -10)], i % 2 ? '#fff' : tc); } g += `<line x1="${cx}" y1="${cy + 13}" x2="${cx}" y2="${cy - 34}" stroke="#5b3a1e" stroke-width="3"/><line x1="${cx + 30}" y1="${cy - 2}" x2="${cx + 30}" y2="${cy - 49}" stroke="#5b3a1e" stroke-width="3"/>`; return g; };
-    let g = lv > 1 ? one(x - 22, y - 8) + one(x + 18, y + 10) : one(x - 6, y);
-    if (lv > 1) g += `<path d="M ${x - 40} ${y - 58} Q ${x} ${y - 40} ${x + 44} ${y - 58}" stroke="#eee" fill="none" stroke-width="1.5"/>` + [0, 1, 2, 3].map(i => `<polygon points="${x - 32 + i * 22},${y - 54 + (i === 1 || i === 2 ? 6 : 0)} ${x - 26 + i * 22},${y - 44 + (i === 1 || i === 2 ? 6 : 0)} ${x - 20 + i * 22},${y - 54 + (i === 1 || i === 2 ? 6 : 0)}" fill="${i % 2 ? T.accent : tc}"/>`).join('');
-    return g;
+    const shop = (cx, cy, s, h, c) => {
+      let g = shadowE(cx + 10, cy + 6, s * 1.45, s * .5) + isoBox(cx, cy, s, h, T.wall);
+      g += quadL(cx, cy, s, .12, .42, 0, 16, '#5b3a1e') + quadL(cx, cy, s, .55, .88, 6, 18, '#8fc3e6') + quadR(cx, cy, s, .3, .7, 8, 18, '#8fc3e6');
+      for (let i = 0; i < 5; i++) { const u0 = i / 5, u1 = (i + 1) / 5, a0 = faceL(cx, cy, s, u0, h - 6), a1 = faceL(cx, cy, s, u1, h - 6); g += poly([a0, a1, [a1[0] - 11, a1[1] + 9], [a0[0] - 11, a0[1] + 9]], i % 2 ? '#ffffff' : c, 'stroke="rgba(0,0,0,.15)"'); }
+      return g + gable(cx, cy, s + 2, h, 18, shade(c, -.25));
+    };
+    if (lv > 1) return shop(x - 20, y - 12, 26, 30, tc) + shop(x + 24, y + 12, 22, 24, T.accent) + `<path d="M ${x - 46} ${y - 40} Q ${x} ${y - 20} ${x + 46} ${y - 22}" stroke="#eee" fill="none" stroke-width="1.5"/>` + [0, 1, 2, 3, 4].map(i => `<circle cx="${x - 36 + i * 18}" cy="${y - 34 + (i === 2 ? 8 : i === 1 || i === 3 ? 5 : 0)}" r="3.5" fill="#ffe27a"/>`).join('') + DECO.crates(x - 46, y + 18) + DECO.barrels(x + 50, y - 6);
+    return shop(x, y, 28, 28, tc) + DECO.crates(x - 34, y + 18) + `<circle cx="${x - 20}" cy="${y + 8}" r="4" fill="#e74c3c"/><circle cx="${x - 13}" cy="${y + 11}" r="4" fill="#f1c40f"/>`;
   },
   workshop(x, y, T, tc, lv) {
-    const s = lv > 1 ? 40 : 32, h = lv > 1 ? 42 : 32; let g = isoBox(x, y, s, h, '#7b5a3c', { top: '#4a3a2c' });
-    g += quadR(x, y, s, .25, .7, 0, 22, '#2f241a') + quadL(x, y, s, .4, .7, 14, 26, '#ffb35c');
-    const ch = (cx, cy) => isoBox(cx, cy, 7, 26, '#6b6b6b') + `<g class="smoke"><circle cx="${cx}" cy="${cy - 36}" r="7" fill="rgba(220,220,220,.7)"/><circle cx="${cx + 6}" cy="${cy - 52}" r="9" fill="rgba(220,220,220,.5)"/><circle cx="${cx + 2}" cy="${cy - 70}" r="11" fill="rgba(220,220,220,.3)"/></g>`;
-    g += ch(x + 10, y - h - 8); if (lv > 1) g += ch(x - 16, y - h - 2) + `<circle cx="${x - s * .55}" cy="${y - h * .55}" r="10" fill="none" stroke="${T.accent}" stroke-width="5" stroke-dasharray="4 3"/>`;
+    const s = lv > 1 ? 40 : 32, h = lv > 1 ? 40 : 30; let g = shadowE(x + 12, y + 6, s * 1.4, s * .5) + isoBox(x, y, s, h, '#86603e', { top: '#4a3a2c' });
+    g += quadR(x, y, s, .2, .62, 0, 24, '#2f241a') + quadR(x, y, s, .22, .6, 2, 20, 'rgba(255,170,80,.55)') + quadL(x, y, s, .4, .7, 14, 26, '#ffb35c');
+    g += gable(x, y, s + 2, h, 16, '#5d4a3a');
+    const ch = (cx, cy) => isoBox(cx, cy, 6, 24, '#777') + `<g class="smoke"><circle cx="${cx}" cy="${cy - 34}" r="7" fill="rgba(220,220,220,.7)"/><circle cx="${cx + 6}" cy="${cy - 50}" r="9" fill="rgba(220,220,220,.5)"/><circle cx="${cx + 2}" cy="${cy - 68}" r="11" fill="rgba(220,220,220,.3)"/></g>`;
+    g += ch(x + 14, y - h - 10);
+    g += isoBox(x + s + 8, y + 10, 8, 10, '#a3a7aa') + `<rect x="${x - s - 14}" y="${y - 6}" width="6" height="14" fill="#6b4a2b"/><rect x="${x - s - 20}" y="${y - 9}" width="18" height="4" fill="#555"/>`;
+    if (lv > 1) g += ch(x - 14, y - h - 2) + `<circle cx="${x - s * .5}" cy="${y - h * .5}" r="11" fill="none" stroke="${T.accent}" stroke-width="5" stroke-dasharray="4 3" class="gear"/>`;
     return g;
   },
   library(x, y, T, tc, lv) {
-    const s = 38, h = 34; let g = isoBox(x, y, s, h, T.wall);
-    for (let i = 0; i < 4; i++) g += quadR(x, y, s, .12 + i * .22, .18 + i * .22, 0, h - 4, '#ffffff');
-    g += quadL(x, y, s, .4, .62, 0, 18, '#5b3a1e');
-    g += poly([[x - s - 4, y - h], [x, y + s / 2 - h + 2], [x + s + 4, y - h], [x, y - s / 2 - h - 2]], shade(T.wall, -.15)) + poly([[x, y + s / 2 - h + 2], [x + s + 4, y - h], [x + s / 2, y - h - 12]], shade(T.roof, -.1));
-    if (lv > 1) g += `<ellipse cx="${x}" cy="${y - h - 6}" rx="${s * .55}" ry="${s * .28}" fill="${shade(T.roof, -.2)}"/><path d="M ${x - s * .55} ${y - h - 6} A ${s * .55} ${s * .6} 0 0 1 ${x + s * .55} ${y - h - 6} Z" fill="${T.roof}"/><rect x="${x - 2}" y="${y - h - 40}" width="4" height="14" fill="#ddd"/><circle cx="${x}" cy="${y - h - 42}" r="4" fill="${T.accent}"/>`;
+    const s = lv > 1 ? 42 : 36, h = lv > 1 ? 40 : 32; let g = shadowE(x + 12, y + 6, s * 1.45, s * .5) + isoBox(x, y + 4, s + 6, 6, '#d9d2c3') + isoBox(x, y, s, h, T.wall);
+    for (let i = 0; i < 4; i++) g += quadR(x, y, s, .1 + i * .22, .17 + i * .22, 0, h - 5, '#ffffff') + quadR(x, y, s, .17 + i * .22, .2 + i * .22, 0, h - 5, '#d6d6d6');
+    g += quadL(x, y, s, .4, .6, 0, 18, '#5b3a1e') + quadL(x, y, s, .12, .28, 14, 24, '#8fc3e6') + quadL(x, y, s, .72, .88, 14, 24, '#8fc3e6');
+    g += poly([[x - s - 4, y - h], [x, y + s / 2 - h + 2], [x + s + 4, y - h], [x, y - s / 2 - h - 2]], shade(T.wall, -.12)) + poly([[x, y + s / 2 - h + 2], [x + s + 4, y - h], [x + s * .5, y - h - 14]], shade(T.roof, -.1));
+    if (lv > 1) g += `<ellipse cx="${x}" cy="${y - h - 4}" rx="${s * .55}" ry="${s * .27}" fill="${shade(T.roof, -.25)}"/><path d="M ${x - s * .55} ${y - h - 4} A ${s * .55} ${s * .62} 0 0 1 ${x + s * .55} ${y - h - 4} Z" fill="${T.roof}"/><path d="M ${x - s * .2} ${y - h - 20} A ${s * .3} ${s * .3} 0 0 1 ${x + s * .1} ${y - h - 26}" stroke="rgba(255,255,255,.45)" stroke-width="3" fill="none"/><rect x="${x - 2}" y="${y - h - 46}" width="4" height="14" fill="#ddd"/><circle cx="${x}" cy="${y - h - 48}" r="4" fill="${T.accent}"/>`;
+    else g += pyramid(x, y, s * .5, h + 2, 18, T.roof);
     return g;
   },
   castle(x, y, T, tc, lv) {
-    const stone = '#a9a39a';
-    const tower = (cx, cy, s, h) => { let g = isoBox(cx, cy, s, h, stone); for (let i = 0; i < 3; i++) g += isoBox(cx - s * .6 + i * s * .6, cy - h - s * .15 + (i === 1 ? -s * .1 : 0), s * .22, 8, stone); g += quadL(cx, cy, s, .4, .6, h * .55, h * .7, '#2b2b2b') + flag(cx, cy - h - 8, 30, tc); return g; };
-    if (lv > 1) { let g = isoBox(x, y + 4, 40, 30, stone) + quadR(x, y + 4, 40, .35, .65, 0, 20, '#3b2a1a'); g += tower(x - 36, y - 4, 16, 64) + tower(x + 36, y - 4, 16, 64) + tower(x, y - 20, 20, 84); return g; }
-    return tower(x, y, 22, 74);
+    const stone = '#aaa49b';
+    const tower = (cx, cy, s, h) => { let g = isoBox(cx, cy, s, h, stone); for (let i = 0; i < 3; i++) g += isoBox(cx - s * .6 + i * s * .6, cy - h - s * .15 + (i === 1 ? -s * .1 : 0), s * .22, 8, stone); g += quadL(cx, cy, s, .4, .6, h * .55, h * .72, '#2b2b2b') + quadR(cx, cy, s, .4, .6, h * .4, h * .55, '#2b2b2b'); for (let k = 1; k < 4; k++) g += quadL(cx, cy, s, 0, 1, h * k / 4, h * k / 4 + 1, 'rgba(0,0,0,.12)'); return g + flag(cx, cy - h - 8, 30, tc); };
+    if (lv > 1) { let g = shadowE(x + 14, y + 10, 66, 22) + isoBox(x, y + 6, 44, 30, stone); [.12, .32, .52, .72, .92].forEach(u => { const p = faceL(x, y + 6, 44, u, 30), q = faceR(x, y + 6, 44, u, 30); g += isoBox(p[0], p[1] + 2, 4, 6, stone) + isoBox(q[0], q[1] + 2, 4, 6, stone); }); g += quadR(x, y + 6, 44, .38, .62, 0, 22, '#3b2a1a') + poly([faceR(x, y + 6, 44, .38, 22), faceR(x, y + 6, 44, .5, 28), faceR(x, y + 6, 44, .62, 22)], '#3b2a1a'); g += tower(x - 40, y - 4, 16, 60) + tower(x + 40, y - 4, 16, 60) + tower(x, y - 24, 20, 80); return g; }
+    return shadowE(x + 12, y + 6, 34, 12) + tower(x, y, 22, 70) + isoBox(x + 30, y + 10, 16, 18, stone);
   }
 };
-// علامة طابع القرية (زخرفة بصرية فقط)
+
+// ---------- معالم الطابع (تميّز القرية منذ البداية) ----------
 const THEME_MARK = {
-  agri(x, y, T, tc) { return isoBox(x, y, 12, 58, '#e8dcc0') + pyramid(x, y, 14, 58, 14, '#8a4b2a') + `<g class="mill" style="transform-origin:${x}px ${y - 52}px">${[0, 90, 180, 270].map(a => `<rect x="${x - 3}" y="${y - 92}" width="6" height="40" fill="#f5f0e1" stroke="#9a8c6c" transform="rotate(${a} ${x} ${y - 52})"/>`).join('')}</g><circle cx="${x}" cy="${y - 52}" r="4" fill="#5b3a1e"/>`; },
-  trade(x, y, T, tc) { return `<path d="M ${x - 40} ${y} L ${x + 40} ${y} L ${x + 28} ${y + 16} L ${x - 28} ${y + 16} Z" fill="#8b5a2b" stroke="#5b3a1e" stroke-width="2"/><line x1="${x}" y1="${y}" x2="${x}" y2="${y - 62}" stroke="#5b3a1e" stroke-width="3"/><polygon points="${x + 2},${y - 60} ${x + 34},${y - 10} ${x + 2},${y - 10}" fill="#f6ead2" stroke="#ccc"/><polygon points="${x - 2},${y - 50} ${x - 26},${y - 10} ${x - 2},${y - 10}" fill="${T.accent}"/>`; },
-  science(x, y, T, tc) { return isoBox(x, y, 20, 26, '#e9edf3') + `<path d="M ${x - 20} ${y - 26} A 20 20 0 0 1 ${x + 20} ${y - 26} Z" fill="${T.roof}"/><line x1="${x}" y1="${y - 36}" x2="${x + 26}" y2="${y - 58}" stroke="#333" stroke-width="5" stroke-linecap="round"/><circle cx="${x + 27}" cy="${y - 59}" r="4" fill="${T.accent}"/>`; },
-  fort(x, y, T, tc) { let g = ''; for (let i = 0; i < 7; i++) { const px = x - 54 + i * 18, py = y - 24 + i * 9; g += `<rect x="${px - 4}" y="${py - 30}" width="8" height="30" fill="#8b5a2b" stroke="#5b3a1e"/><polygon points="${px - 4},${py - 30} ${px},${py - 38} ${px + 4},${py - 30}" fill="#8b5a2b"/>`; } return g; }
+  agri(x, y, T, tc) { return shadowE(x + 10, y + 4, 22, 8) + isoBox(x, y, 13, 62, '#e8dcc0') + pyramid(x, y, 15, 62, 16, '#8a4b2a') + quadL(x, y, 13, .35, .65, 0, 14, '#5b3a1e') + `<g class="mill">${[0, 90, 180, 270].map(a => `<g transform="rotate(${a} ${x} ${y - 56})"><rect x="${x - 2}" y="${y - 98}" width="4" height="42" fill="#7a5a3a"/><rect x="${x + 2}" y="${y - 96}" width="9" height="32" fill="#f5f0e1" stroke="#9a8c6c"/></g>`).join('')}</g><circle cx="${x}" cy="${y - 56}" r="4.5" fill="#5b3a1e"/>`; },
+  trade(x, y, T, tc) { return `<path d="${blob(x, y + 4, 56, 26, 91, .1, 18)}" fill="#3b95b5" stroke="#d9c79a" stroke-width="4"/><path d="M ${x - 30} ${y + 4} q 10 -4 20 0" stroke="rgba(255,255,255,.5)" stroke-width="2" fill="none"/>` + poly([[x + 6, y - 10], [x + 52, y + 13], [x + 44, y + 17], [x - 2, y - 6]], '#8b6239', 'stroke="#5b3a1e"') + boat(x - 14, y + 6, '#9c4a22', '#f6ead2', .8) + isoBox(x + 46, y - 8, 7, 9, '#b88a4a') + isoBox(x + 56, y - 2, 6, 8, '#a0703c'); },
+  science(x, y, T, tc) { return shadowE(x + 10, y + 4, 28, 10) + isoBox(x, y, 22, 28, '#e9edf3') + `<path d="M ${x - 22} ${y - 28} A 22 22 0 0 1 ${x + 22} ${y - 28} Z" fill="${T.roof}"/><path d="M ${x - 6} ${y - 46} L ${x + 4} ${y - 49} L ${x + 4} ${y - 28} L ${x - 6} ${y - 28} Z" fill="#1d1f3a"/><line x1="${x}" y1="${y - 40}" x2="${x + 28}" y2="${y - 62}" stroke="#333" stroke-width="6" stroke-linecap="round"/><circle cx="${x + 29}" cy="${y - 63}" r="4" fill="${T.accent}"/>`; },
+  fort(x, y, T, tc) { let g = shadowE(x + 10, y + 4, 22, 8); [[-12, 0], [12, 0]].forEach(([dx]) => { g += `<line x1="${x + dx}" y1="${y + 6}" x2="${x + dx * .6}" y2="${y - 70}" stroke="#6b4a2b" stroke-width="5"/>`; }); g += `<path d="M ${x - 11} ${y - 10} L ${x + 11} ${y - 30} M ${x + 11} ${y - 10} L ${x - 11} ${y - 30} M ${x - 9} ${y - 40} L ${x + 9} ${y - 58}" stroke="#7a5530" stroke-width="3"/>` + isoBox(x, y - 70, 18, 14, '#8b6239') + pyramid(x, y - 70, 20, 14, 18, '#5b3a1e') + flag(x, y - 102, 22, tc, 20); return g; }
 };
-
-// مواقع القرى على الجزيرة حسب عدد الفرق
-function plotCenters(n) {
-  if (n === 2) return [[620, 610], [1300, 610]];
-  if (n === 3) return [[960, 470], [600, 760], [1320, 760]];
-  return [[620, 470], [1300, 470], [620, 830], [1300, 830]];
+// ---------- إضافات تظهر تدريجيًا مع نمو القرية (بحسب الطابع) ----------
+const DECO = {
+  hay: (x, y) => shadowE(x + 4, y + 3, 16, 5) + `<ellipse cx="${x}" cy="${y - 8}" rx="14" ry="10" fill="#e3c05b"/><path d="M ${x - 10} ${y - 10} q 10 -6 20 0" stroke="#b8963a" stroke-width="1.5" fill="none"/>`,
+  crops: (x, y) => poly(tileDiamond(x, y, 26), '#7a5a35') + [-1, 0, 1].map(k => `<line x1="${x - 18 + k * 8}" y1="${y + 4 + k * 4}" x2="${x + 2 + k * 8}" y2="${y - 6 + k * 4}" stroke="#86c35a" stroke-width="4" stroke-linecap="round"/>`).join(''),
+  cart: (x, y, c) => shadowE(x + 4, y + 4, 20, 6) + isoBox(x, y - 4, 14, 8, c || '#8b6239') + `<circle cx="${x - 8}" cy="${y + 2}" r="5" fill="none" stroke="#3b2a1a" stroke-width="2"/><circle cx="${x + 9}" cy="${y + 4}" r="5" fill="none" stroke="#3b2a1a" stroke-width="2"/>`,
+  sheep: (x, y) => [[0, 0], [16, 6], [-12, 8]].map(([dx, dy]) => shadowE(x + dx + 3, y + dy + 3, 9, 3) + `<ellipse cx="${x + dx}" cy="${y + dy - 6}" rx="8" ry="6" fill="#f4f1ea"/><circle cx="${x + dx + 7}" cy="${y + dy - 8}" r="3" fill="#333"/>`).join(''),
+  scarecrow: (x, y) => `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 34}" stroke="#6b4a2b" stroke-width="3"/><line x1="${x - 12}" y1="${y - 24}" x2="${x + 12}" y2="${y - 24}" stroke="#6b4a2b" stroke-width="3"/><circle cx="${x}" cy="${y - 37}" r="6" fill="#e9c27a"/>`,
+  crates: (x, y) => isoBox(x, y, 9, 12, '#b88a4a') + isoBox(x + 14, y + 6, 8, 10, '#a0703c') + isoBox(x + 4, y - 12, 7, 9, '#c79a58'),
+  barrels: (x, y) => [[0, 0], [12, 5], [-10, 6]].map(([dx, dy]) => `<rect x="${x + dx - 6}" y="${y + dy - 16}" width="12" height="16" rx="3" fill="#8b5a2b"/><ellipse cx="${x + dx}" cy="${y + dy - 16}" rx="6" ry="2.5" fill="#a87442"/><line x1="${x + dx - 6}" y1="${y + dy - 6}" x2="${x + dx + 6}" y2="${y + dy - 6}" stroke="#444" stroke-width="1.5"/>`).join(''),
+  stall: (x, y, c) => isoBox(x, y, 12, 8, '#a0703c') + `<line x1="${x - 12}" y1="${y}" x2="${x - 12}" y2="${y - 24}" stroke="#5b3a1e" stroke-width="2"/><line x1="${x + 12}" y1="${y}" x2="${x + 12}" y2="${y - 24}" stroke="#5b3a1e" stroke-width="2"/>` + poly([[x - 16, y - 24], [x, y - 32], [x + 16, y - 24], [x, y - 16]], c),
+  lamp: (x, y) => `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 34}" stroke="#3b3b3b" stroke-width="3"/><rect x="${x - 5}" y="${y - 44}" width="10" height="11" rx="2" fill="#ffe27a" stroke="#3b3b3b" stroke-width="1.5"/><circle cx="${x}" cy="${y - 38}" r="10" fill="rgba(255,226,122,.25)"/>`,
+  camel: (x, y) => shadowE(x + 4, y + 3, 18, 5) + `<g fill="#c89b5a"><ellipse cx="${x}" cy="${y - 14}" rx="14" ry="8"/><ellipse cx="${x - 3}" cy="${y - 21}" rx="6" ry="5"/><rect x="${x + 10}" y="${y - 28}" width="4" height="14"/><ellipse cx="${x + 15}" cy="${y - 29}" rx="5" ry="3"/><rect x="${x - 10}" y="${y - 9}" width="2.5" height="10"/><rect x="${x - 3}" y="${y - 9}" width="2.5" height="10"/><rect x="${x + 4}" y="${y - 9}" width="2.5" height="10"/><rect x="${x + 9}" y="${y - 9}" width="2.5" height="10"/></g>`,
+  telescope: (x, y) => `<path d="M ${x - 8} ${y} L ${x} ${y - 16} L ${x + 8} ${y}" stroke="#555" stroke-width="2.5" fill="none"/><line x1="${x - 10}" y1="${y - 10}" x2="${x + 14}" y2="${y - 30}" stroke="#3a4a7a" stroke-width="6" stroke-linecap="round"/>`,
+  garden: (x, y, c, r) => poly(tileDiamond(x, y, 22), '#5c9a48') + flowers(x, y - 2, r) + bush(x - 10, y + 2, .6),
+  bench: (x, y) => isoBox(x, y, 12, 6, '#8b6239') + `<rect x="${x - 10}" y="${y - 18}" width="20" height="5" fill="#a87442"/>`,
+  statue: (x, y, c) => isoBox(x, y, 10, 10, '#c9c3b8') + `<circle cx="${x}" cy="${y - 22}" r="9" fill="${c}" stroke="#555"/><path d="M ${x - 9} ${y - 22} h 18 M ${x} ${y - 31} v 18" stroke="#fff" stroke-width="1.5"/>`,
+  sundial: (x, y) => `<ellipse cx="${x}" cy="${y - 4}" rx="14" ry="7" fill="#d9d2c3" stroke="#999"/><polygon points="${x},${y - 4} ${x + 2},${y - 18} ${x + 8},${y - 4}" fill="#666"/>`,
+  wall: (x, y) => { let g = ''; for (let i = 0; i < 6; i++) { const px = x - 26 + i * 10, py = y - 12 + i * 5; g += `<rect x="${px - 4}" y="${py - 26}" width="8" height="26" fill="#8b5a2b" stroke="#5b3a1e" stroke-width="1"/><polygon points="${px - 4},${py - 26} ${px},${py - 33} ${px + 4},${py - 26}" fill="#8b5a2b"/>`; } return g; },
+  torch: (x, y) => `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 28}" stroke="#5b3a1e" stroke-width="3"/><path class="fire" d="M ${x - 5} ${y - 28} q 5 -16 10 0 z" fill="#ff9a2e"/><circle cx="${x}" cy="${y - 32}" r="9" fill="rgba(255,154,46,.2)"/>`,
+  banner: (x, y, c) => `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 46}" stroke="#5b3a1e" stroke-width="3"/><path d="M ${x} ${y - 44} h 16 v 22 l -8 -5 l -8 5 z" fill="${c}"/>`,
+  stones: (x, y) => rock(x, y, .8) + rock(x + 14, y + 6, .6),
+  tower: (x, y, c) => shadowE(x + 6, y + 3, 16, 6) + isoBox(x, y, 10, 46, '#9a948a') + isoBox(x, y - 46, 13, 6, '#8a847a') + flag(x, y - 52, 18, c, 16)
+};
+const DECO_BY = {
+  agri: ['hay', 'crops', 'sheep', 'cart', 'scarecrow', 'hay'],
+  trade: ['crates', 'barrels', 'stall', 'camel', 'lamp', 'cart'],
+  science: ['telescope', 'lamp', 'garden', 'statue', 'bench', 'sundial'],
+  fort: ['wall', 'torch', 'banner', 'tower', 'stones', 'wall']
+};
+const DECO_AT = [1, 2, 4, 6, 8, 10];
+const DECO_SPOT = [[205, -25], [-170, -70], [120, 106], [-232, 60], [22, 124], [55, -108]];
+function starterHut(x, y, T, theme) {
+  const roof = { agri: '#d8b45a', trade: '#d0603a', science: '#7d8fc8', fort: '#6b4a2b' }[theme] || T.roof;
+  return shadowE(x + 8, y + 5, 26, 8) + isoBox(x, y, 17, 16, theme === 'fort' ? '#9c7a52' : T.wall) + quadR(x, y, 17, .4, .7, 0, 11, '#5b3a1e') + gable(x, y, 19, 16, 14, roof);
 }
+function well(x, y) { return shadowE(x + 5, y + 4, 16, 6) + `<ellipse cx="${x}" cy="${y}" rx="13" ry="6.5" fill="#8a9196"/><rect x="${x - 13}" y="${y - 10}" width="26" height="10" fill="#9aa0a6"/><ellipse cx="${x}" cy="${y - 10}" rx="13" ry="6.5" fill="#aab0b4"/><ellipse cx="${x}" cy="${y - 10}" rx="9" ry="4.2" fill="#2e6f8e"/><line x1="${x - 11}" y1="${y - 10}" x2="${x - 11}" y2="${y - 32}" stroke="#6b4a2b" stroke-width="3"/><line x1="${x + 11}" y1="${y - 10}" x2="${x + 11}" y2="${y - 32}" stroke="#6b4a2b" stroke-width="3"/><polygon points="${x - 16},${y - 31} ${x},${y - 41} ${x + 16},${y - 31}" fill="#8b3a2b"/>`; }
+
+// ---------- القرية (إحداثيات محلية حول المركز 0,0) ----------
 const tilePos = (cx, cy, i, j) => [cx + (i - j - .5) * ISO_A, cy + (i + j - 1.5) * ISO_A / 2];
-// قرية واحدة: الأرض والمباني والعلامة
-function plotSVG(team, idx, cx, cy, opts = {}) {
-  const T = D.THEMES[team.theme] || { ground: '#9cbf7f', roof: '#a35a3a', wall: '#efe5cf', accent: '#d9b44a' };
-  const lv = opts.levels || {}, a = ISO_A, m = .45;
-  const G = [[-.5 - m, -.5 - m], [2.5 + m, -.5 - m], [2.5 + m, 1.5 + m], [-.5 - m, 1.5 + m]].map(([i, j]) => tilePos(cx, cy, i, j));
-  const down = p => [p[0], p[1] + 16];
-  let g = `<g class="plot" data-t="${team.id}">`;
-  g += poly([G[3], G[2], down(G[2]), down(G[3])], shade(T.ground, -.35)) + poly([G[2], G[1], down(G[1]), down(G[2])], shade(T.ground, -.5));
-  g += poly(G, T.ground, `stroke="${team.color}" stroke-width="5" stroke-linejoin="round"`);
-  if (team.theme && THEME_MARK[team.theme]) { const [mx, my] = tilePos(cx, cy, -1.25, .9); g += `<g class="mark">${THEME_MARK[team.theme](mx, my, T, team.color)}</g>`; }
-  // مركز القرية: علم الفريق
-  const [fx, fy] = tilePos(cx, cy, -.55, -.55); g += flag(fx, fy, 62, team.color);
-  const order = D.BUILD_KEYS.slice().sort((p, q) => (SLOT[p][0] + SLOT[p][1]) - (SLOT[q][0] + SLOT[q][1]) || SLOT[p][0] - SLOT[q][0]);
-  order.forEach(k => {
-    const [i, j] = SLOT[k], [x, y] = tilePos(cx, cy, i, j), L = lv[k] || 0;
-    if (!L) { g += `<g class="slot">${poly(tileDiamond(x, y, a * .78), 'rgba(255,255,255,.08)', 'stroke="rgba(255,255,255,.35)" stroke-width="2" stroke-dasharray="6 6"')}${opts.labels ? `<text x="${x}" y="${y + 6}" text-anchor="middle" font-size="15" fill="rgba(255,255,255,.75)" font-family="IBM Plex Sans Arabic">${D.BUILD[k].name}</text>` : ''}</g>`; return; }
-    g += `<g class="bld" data-k="${k}" data-lv="${L}" style="transform-origin:${x}px ${y}px">${BUILDERS[k](x, y, T, team.color, L)}</g>`;
+function villageArt(team, opts = {}) {
+  const th = team.theme || 'agri', T = D.THEMES[th] || D.THEMES.agri, tc = team.color, lv = opts.levels || {};
+  const seed = (team.id || 't1').charCodeAt(1) * 31 + th.length * 7, r = rng(seed);
+  const tot = D.BUILD_KEYS.reduce((a, k) => a + (lv[k] || 0), 0);
+  let g = `<path d="${blob(0, 8, 258, 134, seed, .06)}" fill="${shade(T.ground, -.25)}" opacity=".35"/><path d="${blob(0, 0, 242, 122, seed + 1, .05)}" fill="${T.ground}" opacity=".82"/>`;
+  for (let i = 0; i < 9; i++) g += `<ellipse cx="${f1((r() - .5) * 360)}" cy="${f1((r() - .5) * 170)}" rx="${f1(20 + r() * 40)}" ry="${f1(8 + r() * 14)}" fill="${shade(T.ground, r() > .5 ? .12 : -.08)}" opacity=".6"/>`;
+  // ممرات ترابية داخل القرية
+  g += `<path d="M -190 40 Q -60 70 60 30 T 220 -10" stroke="${shade(T.ground, -.2)}" stroke-width="16" fill="none" stroke-linecap="round" opacity=".55"/>`;
+  // سياج خفيف وأعلام الفريق على الأطراف
+  const fence = []; for (let a = 0; a < 360; a += 9) { if (a > 60 && a < 120) continue; const rad = a * Math.PI / 180, x = Math.cos(rad) * 238, y = Math.sin(rad) * 120; fence.push([x, y]); }
+  const back = [], front = [];
+  fence.forEach(([x, y]) => (y < 0 ? back : front).push(`<rect x="${f1(x - 1.6)}" y="${f1(y - 11)}" width="3.2" height="11" fill="#7a5a3a"/>`));
+  g += back.join('');
+  const items = [];
+  [[-150, -100], [160, -96]].forEach(([x, y]) => items.push([y, `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 48}" stroke="#5b3a1e" stroke-width="3"/><path d="M ${x} ${y - 46} h 18 v 24 l -9 -6 l -9 6 z" fill="${tc}"/>`]));
+  items.push([5, THEME_MARK[th] ? THEME_MARK[th](-200, 8, T, tc) : '']);
+  items.push([-64, shadowE(136, -60, 10, 4) + flag(130, -62, 76, tc, 34) + `<ellipse cx="130" cy="-62" rx="8" ry="4" fill="#8a847a"/>`]);
+  items.push([82, starterHut(-140, 82, T, th)]); items.push([100, starterHut(-62, 102, T, th)]);
+  items.push([66, well(185, 66)]);
+  const decos = DECO_BY[th] || DECO_BY.agri;
+  DECO_AT.forEach((need, k) => { if (tot >= need) { const [x, y] = DECO_SPOT[k]; items.push([y, `<g class="deco">${DECO[decos[k]](x, y, tc, r)}</g>`]); } });
+  D.BUILD_KEYS.forEach(k => {
+    const [i, j] = SLOT[k], [x, y] = tilePos(0, 0, i, j), L = lv[k] || 0;
+    if (!L) { items.push([y, `<g class="slot">${(i + j) % 2 ? treeRound(x + 10, y, .7, i + j) : treePine(x + 12, y + 2, .75)}${bush(x - 20, y + 6, .8)}${tuft(x + 4, y + 14)}${tuft(x - 30, y - 6)}${opts.labels ? `<text x="${x}" y="${y + 30}" text-anchor="middle" font-size="15" fill="rgba(255,255,255,.85)" stroke="rgba(0,0,0,.35)" stroke-width="3" paint-order="stroke">${D.BUILD[k].name}</text>` : ''}</g>`]); return; }
+    items.push([y, `<g class="bld" data-k="${k}" data-lv="${L}">${poly(tileDiamond(x, y + 2, 54), shade(T.ground, -.14), 'opacity=".7"')}<g transform="translate(${x} ${y}) scale(1.2) translate(${-x} ${-y})">${BUILDERS[k](x, y, T, tc, L)}</g></g>`]);
   });
-  return g + '</g>';
+  items.sort((a, b) => a[0] - b[0]);
+  return g + items.map(x => x[1]).join('') + front.join('');
 }
+function plotSVG(team, idx, cx, cy, opts = {}) { return `<g class="plot" data-t="${team.id}" transform="translate(${cx} ${cy}) scale(${VSC})">${villageArt(team, opts)}</g>`; }
 // قرية مستقلة (للجوال ولوحة المشرف)
-function villageSVG(team, levels, opts = {}) {
-  const cx = 300, cy = 230;
-  return `<svg viewBox="40 70 520 300" class="vsvg" xmlns="http://www.w3.org/2000/svg">${plotSVG(team, 0, cx, cy, { levels, labels: opts.labels })}</svg>`;
-}
-// الجزيرة كاملة
-function islandBase(n) {
-  return `<defs><linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d5c7a"/><stop offset="1" stop-color="#083a52"/></linearGradient><radialGradient id="sand" cx=".5" cy=".55" r=".6"><stop offset=".78" stop-color="#e6d39f"/><stop offset="1" stop-color="#c9b27a"/></radialGradient><radialGradient id="grass" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#78b862"/><stop offset="1" stop-color="#4f8f45"/></radialGradient></defs>
-  <rect width="1920" height="1080" fill="url(#sea)"/>
-  <g class="waves">${Array.from({ length: 14 }, (_, i) => `<path d="M ${(i * 211) % 1900} ${120 + (i * 137) % 900} q 20 -10 40 0 t 40 0" stroke="rgba(255,255,255,.18)" stroke-width="3" fill="none"/>`).join('')}</g>
-  <path d="M 960 150 C 1450 140 1800 330 1820 600 C 1840 870 1500 1050 960 1050 C 420 1050 80 870 100 600 C 120 330 470 160 960 150 Z" fill="#0e6b8a" opacity=".55" transform="translate(0,14)"/>
-  <path d="M 960 150 C 1450 140 1800 330 1820 600 C 1840 870 1500 1050 960 1050 C 420 1050 80 870 100 600 C 120 330 470 160 960 150 Z" fill="url(#sand)"/>
-  <path d="M 960 200 C 1400 195 1740 360 1760 600 C 1775 840 1460 1000 960 1000 C 460 1000 145 840 160 600 C 175 360 520 205 960 200 Z" fill="url(#grass)"/>
-  ${[[190, 560], [1735, 560], [960, 1005], [960, 210], [330, 900], [1590, 900]].map(([x, y], i) => palm(x, y, i)).join('')}
-  ${[[260, 420], [1660, 430], [800, 990], [1150, 205]].map(([x, y]) => `<ellipse cx="${x}" cy="${y}" rx="20" ry="11" fill="#9aa0a6"/><ellipse cx="${x - 6}" cy="${y - 4}" rx="10" ry="6" fill="#b8bec4"/>`).join('')}`;
-}
-function palm(x, y, i) { return `<g><path d="M ${x} ${y} Q ${x + 6} ${y - 40} ${x - 4} ${y - 80}" stroke="#8b5a2b" stroke-width="7" fill="none"/>${[-60, -20, 20, 60, 160].map(a => `<path d="M ${x - 4} ${y - 80} q ${Math.cos(a * Math.PI / 180) * 30} ${-10 + Math.sin(a * Math.PI / 180) * 18} ${Math.cos(a * Math.PI / 180) * 50} ${10 + Math.sin(a * Math.PI / 180) * 20}" stroke="#2f7d32" stroke-width="9" fill="none" stroke-linecap="round"/>`).join('')}</g>`; }
+function villageSVG(team, levels, opts = {}) { return `<svg viewBox="-268 -200 536 340" class="vsvg" xmlns="http://www.w3.org/2000/svg"><rect x="-268" y="-200" width="536" height="340" fill="#4f8f45"/>${villageArt(team, { levels, labels: opts.labels })}</svg>`; }
 
+// مبنى منفرد (لسوق البناء في الجوال)
+function buildingSVG(team, k, lv) { const T = D.THEMES[team.theme] || D.THEMES.agri; return `<svg viewBox="-85 -160 170 195" class="vsvg" xmlns="http://www.w3.org/2000/svg"><ellipse cx="0" cy="8" rx="78" ry="30" fill="${T.ground}"/>${BUILDERS[k](0, 0, T, team.color, lv)}</svg>`; }
+
+// ---------- الجزيرة ----------
+const IC = [960, 605], IR = [835, 448];
+const coastK = a => 1 + .045 * Math.sin(3 * a + .7) + .03 * Math.sin(5 * a + 2.1) + .018 * Math.sin(8 * a + .4) + .01 * Math.sin(13 * a + 1.3);
+function islandPath(k = 1, dy = 0, wob = 0) { const P = []; for (let i = 0; i < 96; i++) { const a = i / 96 * Math.PI * 2, kk = k * (coastK(a) + wob * Math.sin(11 * a + 3)); P.push([IC[0] + Math.cos(a) * IR[0] * kk, IC[1] + dy + Math.sin(a) * IR[1] * kk]); } return smoothPath(P); }
+function coastPt(a, k = 1) { const kk = k * coastK(a); return [IC[0] + Math.cos(a) * IR[0] * kk, IC[1] + Math.sin(a) * IR[1] * kk]; }
+function inIsland(x, y, k) { const dx = (x - IC[0]) / IR[0], dy = (y - IC[1]) / IR[1]; return Math.hypot(dx, dy) < k * coastK(Math.atan2(dy, dx)); }
+function plotCenters(n) {
+  if (n === 2) return [[600, 640], [1320, 640]];
+  if (n === 3) return [[960, 445], [590, 820], [1330, 820]];
+  return [[610, 452], [1310, 452], [610, 830], [1310, 830]];
+}
+function layoutFor(n) {
+  if (n === 3) return { plaza: [960, 690], hills: [[400, 420, 1], [1520, 420, 0]], lake: [960, 945], pier: .05 };
+  if (n === 2) return { plaza: [960, 640], hills: [[960, 330, 1]], lake: [1250, 925], pier: Math.PI / 2 };
+  return { plaza: [960, 640], hills: [[960, 318, 1]], lake: [960, 945], pier: .03 };
+}
+function hill(x, y, big) {
+  const s = big ? 1 : .8; let g = `<path d="${blob(x, y + 18 * s, 165 * s, 72 * s, 21, .08)}" fill="#3f7d3a" opacity=".55"/>`;
+  g += `<path d="${blob(x, y, 150 * s, 64 * s, 22, .09)}" fill="#5c9a4a"/><path d="${blob(x - 8, y - 22 * s, 110 * s, 46 * s, 23, .1)}" fill="#6aa653"/><path d="${blob(x - 14, y - 44 * s, 68 * s, 28 * s, 24, .12)}" fill="#8a8f80"/><path d="${blob(x - 22, y - 56 * s, 40 * s, 16 * s, 25, .15)}" fill="#a9ad9f"/>`;
+  g += `<path d="M ${x - 60 * s} ${y - 40 * s} q 20 -16 40 -10" stroke="rgba(255,255,255,.25)" stroke-width="3" fill="none"/>`;
+  const r = rng(Math.round(x + y)); const tr = []; for (let i = 0; i < 9; i++) { const a = r() * Math.PI * 2, d = .55 + r() * .35; tr.push([x + Math.cos(a) * 130 * s * d, y + Math.sin(a) * 52 * s * d + 8]); }
+  tr.sort((p, q) => p[1] - q[1]).forEach(([tx, ty]) => { g += treePine(tx, ty, .85 + r() * .3); });
+  return g;
+}
+function lake(x, y) {
+  return `<path d="${blob(x, y, 104, 40, 41, .12)}" fill="#c9b27a"/><path d="${blob(x, y, 92, 33, 42, .12)}" fill="#3790b3"/><path d="${blob(x - 6, y - 2, 70, 22, 43, .12)}" fill="#47a6c6"/><path d="M ${x - 40} ${y - 6} q 14 -5 28 0 M ${x + 10} ${y + 8} q 14 -5 28 0" stroke="rgba(255,255,255,.55)" stroke-width="2.5" fill="none" class="ripple"/>` +
+    [-86, -78, 80, 88].map((dx, i) => `<path d="M ${x + dx} ${y + 6 - (i % 2) * 4} l -3 -16 M ${x + dx + 4} ${y + 6 - (i % 2) * 4} l 1 -14" stroke="#4d7a35" stroke-width="2.5"/>`).join('');
+}
+function plaza(x, y) {
+  let g = shadowE(x + 6, y + 8, 116, 44) + `<ellipse cx="${x}" cy="${y}" rx="112" ry="50" fill="#cbbf9f" stroke="#a89a78" stroke-width="3"/><ellipse cx="${x}" cy="${y}" rx="80" ry="35" fill="none" stroke="#b3a684" stroke-width="2" stroke-dasharray="10 6"/>`;
+  g += `<ellipse cx="${x}" cy="${y + 4}" rx="40" ry="17" fill="#8f969b"/><rect x="${x - 40}" y="${y - 6}" width="80" height="10" fill="#a3aaae"/><ellipse cx="${x}" cy="${y - 6}" rx="40" ry="17" fill="#b5bbbf"/><ellipse cx="${x}" cy="${y - 6}" rx="33" ry="13" fill="#5fb6d6"/>`;
+  g += `<rect x="${x - 5}" y="${y - 34}" width="10" height="28" fill="#c9cfd2"/><ellipse cx="${x}" cy="${y - 34}" rx="13" ry="5" fill="#b5bbbf"/><g class="spout"><path d="M ${x} ${y - 36} q -12 -18 -24 14 M ${x} ${y - 36} q 12 -18 24 14" stroke="#bfe8f6" stroke-width="3" fill="none"/></g>`;
+  [[-96, -10], [96, -10], [-60, 34], [60, 34]].forEach(([dx, dy]) => { g += DECO.lamp(x + dx, y + dy); });
+  return g;
+}
+function road(a, b, w = 26) {
+  const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, nx = -(b[1] - a[1]) * .12, ny = (b[0] - a[0]) * .12;
+  const d = `M ${f1(a[0])} ${f1(a[1])} Q ${f1(mx + nx)} ${f1(my + ny)} ${f1(b[0])} ${f1(b[1])}`;
+  return { d, svg: `<path d="${d}" stroke="#a7834f" stroke-width="${w + 8}" fill="none" stroke-linecap="round" opacity=".75"/><path d="${d}" stroke="#d8ba82" stroke-width="${w}" fill="none" stroke-linecap="round"/><path d="${d}" stroke="#e8d1a0" stroke-width="3" fill="none" stroke-dasharray="2 18" stroke-linecap="round"/>`, pts: [0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1].map(t => [(1 - t) * (1 - t) * a[0] + 2 * (1 - t) * t * (mx + nx) + t * t * b[0], (1 - t) * (1 - t) * a[1] + 2 * (1 - t) * t * (my + ny) + t * t * b[1]]) };
+}
+function islandBase(n) {
+  const C = plotCenters(n), L = layoutFor(n), r = rng(1000 + n);
+  let g = `<defs><linearGradient id="sea" gradientUnits="userSpaceOnUse" x1="0" y1="-200" x2="0" y2="1300"><stop offset="0" stop-color="#0b5878"/><stop offset="1" stop-color="#06364d"/></linearGradient>
+    <radialGradient id="shallow" cx=".5" cy=".5" r=".5"><stop offset=".8" stop-color="#2fb1c4" stop-opacity=".85"/><stop offset="1" stop-color="#2fb1c4" stop-opacity="0"/></radialGradient>
+    <linearGradient id="sand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ecdcab"/><stop offset="1" stop-color="#d9c38a"/></linearGradient>
+    <radialGradient id="grass" cx=".5" cy=".42" r=".62"><stop offset="0" stop-color="#7dbb5c"/><stop offset=".7" stop-color="#5f9f48"/><stop offset="1" stop-color="#4b8a3d"/></radialGradient>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="14"/></filter></defs>
+  <rect x="-1200" y="-900" width="4320" height="2880" fill="url(#sea)"/>
+  <g class="waves">${Array.from({ length: 22 }, (_, i) => `<path d="M ${(i * 211) % 1900} ${40 + (i * 137) % 1020} q 16 -8 32 0 t 32 0" stroke="rgba(255,255,255,.16)" stroke-width="2.5" fill="none"/>`).join('')}</g>
+  <path d="${islandPath(1.11, 8)}" fill="#1d8fa8" opacity=".55" filter="url(#soft)"/>
+  <path d="${islandPath(1.06, 6)}" fill="#3cbcc9" opacity=".55"/>
+  <path d="${islandPath(1.035, 4)}" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="5" stroke-dasharray="26 14" class="foam"/>
+  <path d="${islandPath(1, 20)}" fill="#a88a55"/><path d="${islandPath(1, 10)}" fill="#c4a66c"/>
+  <path d="${islandPath(1)}" fill="url(#sand)"/>
+  <path d="${islandPath(.985)}" fill="none" stroke="#c8b07a" stroke-width="3" opacity=".6"/>
+  <path d="${islandPath(.915, -4, .006)}" fill="#467f37" opacity=".5"/>
+  <path d="${islandPath(.9, -8, .008)}" fill="url(#grass)"/>`;
+  // بقع عشبية متفاوتة
+  for (let i = 0; i < 46; i++) { const x = 150 + r() * 1620, y = 210 + r() * 780; if (!inIsland(x, y, .82)) continue; g += `<ellipse cx="${f1(x)}" cy="${f1(y)}" rx="${f1(30 + r() * 90)}" ry="${f1(12 + r() * 30)}" fill="${r() > .5 ? '#86c262' : '#4f8f40'}" opacity="${f1(.18 + r() * .2)}"/>`; }
+  L.hills.forEach(([x, y, b]) => { g += hill(x, y, b); });
+  g += lake(L.lake[0], L.lake[1]);
+  // طرق من الساحة إلى كل قرية
+  const roads = C.map(([x, y]) => { const dx = L.plaza[0] - x, dy = L.plaza[1] - y, d = Math.hypot(dx / 250, dy / 128) || 1; return road(L.plaza, [x + dx / d * .92, y + dy / d * .92]); });
+  // طريق إلى المرسى جنوبًا
+  const pa = L.pier, pc = coastPt(pa, .97), ps = [L.plaza[0] + Math.cos(pa) * 100, L.plaza[1] + Math.sin(pa) * 46], pier = road(ps, [pc[0] - Math.cos(pa) * 10, pc[1] - Math.sin(pa) * 6], 22);
+  g += roads.map(x => x.svg).join('') + pier.svg + plaza(L.plaza[0], L.plaza[1]);
+  // رصيف ومراكب
+  const pe = coastPt(pa, 1.05), nx = -Math.sin(pa) * 10, ny = Math.cos(pa) * 5; g += `<path d="M ${f1(pc[0] + nx)} ${f1(pc[1] + ny)} L ${f1(pe[0] + nx)} ${f1(pe[1] + ny)} L ${f1(pe[0] - nx)} ${f1(pe[1] - ny)} L ${f1(pc[0] - nx)} ${f1(pc[1] - ny)} Z" fill="#8b6239" stroke="#5b3a1e" stroke-width="2"/>` + (() => { const tx = -Math.sin(pa), ty = Math.cos(pa), ox = pe[0] - Math.cos(pa) * 40, oy = pe[1] - Math.sin(pa) * 30; return boat(ox + tx * 75, oy + ty * 52, '#2f6db5', '#f6efe0', 1) + boat(ox - tx * 75, oy - ty * 52, '#b03a2e', '#fff8e8', .8); })();
+  g += `<g class="sail-far">${boat(1720, 140, '#7a5530', '#f6efe0', .7)}</g><g class="sail-far2">${boat(230, 1010, '#4a6b3a', '#f6efe0', .6)}</g>`;
+  // أشجار موزعة بعيدًا عن القرى والطرق والساحة
+  const near = (x, y) => C.some(([cx, cy]) => Math.hypot((x - cx) / 300, (y - cy + 30) / 175) < 1) || Math.hypot((x - L.plaza[0]) / 160, (y - L.plaza[1]) / 85) < 1 || L.hills.some(([hx, hy, b]) => Math.hypot((x - hx) / (b ? 175 : 140), (y - hy) / (b ? 85 : 68)) < 1) || Math.hypot((x - L.lake[0]) / 125, (y - L.lake[1]) / 55) < 1 || roads.concat([pier]).some(rd => rd.pts.some(([px, py]) => Math.hypot(px - x, py - y) < 34));
+  const trees = [];
+  for (let i = 0; i < 900 && trees.length < 120; i++) { const x = 120 + r() * 1680, y = 190 + r() * 860; if (!inIsland(x, y, .86) || near(x, y)) continue; trees.push([x, y, r()]); }
+  // أشجار النخيل على الشاطئ
+  const palms = []; for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2 + .2 + r() * .15; if (Math.abs(a - pa) < .2) continue; const [x, y] = coastPt(a, .93 + r() * .02); palms.push([x, y]); }
+  const rocks = []; for (let i = 0; i < 10; i++) { const a = r() * Math.PI * 2; const [x, y] = coastPt(a, .97 + r() * .05); rocks.push([x, y]); }
+  const objs = [...trees.map(([x, y, q]) => [y, q < .55 ? treeRound(x, y, .85 + q * .5, Math.floor(q * 40)) : q < .8 ? treePine(x, y, .9 + q * .3) : bush(x, y, 1.2) + flowers(x, y + 8, r)]), ...palms.map(([x, y], i) => [y, palm(x, y, i)]), ...rocks.map(([x, y]) => [y, rock(x, y, 1 + r() * .6)])];
+  objs.sort((a, b) => a[0] - b[0]); g += objs.map(o => o[1]).join('');
+  g += `<g class="gulls">${[[300, 240], [340, 225], [1600, 200], [1560, 180]].map(([x, y]) => `<path d="M ${x - 10} ${y} q 5 -6 10 0 q 5 -6 10 0" stroke="#f2f2f2" stroke-width="2.5" fill="none"/>`).join('')}</g>`;
+  return g;
+}
+
+/* ===== شاشة الجمهور: الجزيرة واللوحات (الرسم في app-art.js) ===== */
 // ---------- رسم مشهد «قوة الملاحظة» ----------
 const SCOL = { red: '#e74c3c', blue: '#3498db', green: '#27ae60', yellow: '#f1c40f', purple: '#9b59b6', orange: '#e67e22' };
 const SDRAW = {
@@ -3968,6 +4161,9 @@ class Stage {
     this.drawIsland(P);
     this.drawLabels(P);
     this.el.dataset.mode = this.mode(P);
+    // التتويج: تقريب الكاميرا إلى قرية الفائز
+    const wid = P.g === 'crown' && P.ph === 'winner' && !P.tie && P.rk && P.rk[0] ? P.rk[0][0] : null, wrap = $('.isl-wrap', this.el);
+    if (wid) { const i = this.teams().findIndex(t => t.id === wid), c = plotCenters(this.teams().length)[i]; if (c) wrap.style.transform = `translate(${960 - c[0] * 1.25}px,${400 - c[1] * 1.25}px) scale(1.25)`; } else wrap.style.transform = '';
     this.drawPanel(P);
     if (this.calm(P)) this.flushQueue();
     if (P.fx && P.fx.n !== this.lastFx) { const firstFx = this.lastFx == null; this.lastFx = P.fx.n; if (!firstFx) this.onFx(P.fx); }
@@ -3987,24 +4183,25 @@ class Stage {
     const showRank = P.g === 'crown' && ['reveal', 'winner'].includes(P.ph); const n = T.length;
     const winner = P.g === 'crown' && P.ph === 'winner' && !P.tie ? (P.rk || [])[0] && P.rk[0][0] : null;
     const html = T.map((t, i) => {
-      const [cx, cy] = C[i], y = cy - 175, w = 300;
+      const [cx, cy] = C[i], y = cy - 215, w = 360;
       let rankBadge = '';
-      if (showRank && rk) { const r = rk[t.id], pos = (P.rk || []).findIndex(x => x[0] === t.id); const revealed = P.ph === 'winner' || pos >= n - (P.rev || 0); if (revealed) rankBadge = `<g class="rank-b"><circle cx="${cx + w / 2 - 6}" cy="${y - 6}" r="30" fill="${r === 1 ? '#f4c430' : '#fff'}" stroke="#333" stroke-width="3"/><text x="${cx + w / 2 - 6}" y="${y + 6}" text-anchor="middle" font-size="34" font-weight="800" fill="#222">${r}</text></g>`; }
-      const capT = P.g === 'opening' && P.ph === 'themes' ? (t.theme ? 'قرية ' + D.THEMES[t.theme].name : 'يختار الطابع…') : '';
+      if (showRank && rk) { const r = rk[t.id], pos = (P.rk || []).findIndex(x => x[0] === t.id); const revealed = P.ph === 'winner' || pos >= n - (P.rev || 0); if (revealed) rankBadge = `<g class="rank-b"><circle cx="${cx + w / 2 - 4}" cy="${y - 30}" r="30" fill="${r === 1 ? '#f4c430' : '#fff'}" stroke="#333" stroke-width="3"/><text x="${cx + w / 2 - 4}" y="${y - 18}" text-anchor="middle" font-size="34" font-weight="800" fill="#222">${r}</text></g>`; }
+      const capT = '';
       return `<g class="lbl ${t.id === lead ? 'lead' : ''} ${t.id === winner ? 'win' : ''}" data-t="${t.id}">
         ${t.id === winner ? `<text x="${cx}" y="${y - 50}" text-anchor="middle" font-size="90" class="crown-i">👑</text>` : ''}
-        <rect x="${cx - w / 2}" y="${y - 34}" width="${w}" height="68" rx="34" fill="${t.color}" stroke="rgba(255,255,255,.85)" stroke-width="3"/>
-        <text x="${cx + 34}" y="${y + 12}" text-anchor="middle" font-size="34" font-weight="800" fill="#fff" class="nm">${esc(t.name)}</text>
-        <circle cx="${cx - w / 2 + 36}" cy="${y}" r="27" fill="rgba(0,0,0,.28)"/>
-        <text x="${cx - w / 2 + 36}" y="${y + 12}" text-anchor="middle" font-size="${t.score >= 100 ? 26 : 32}" font-weight="900" fill="#fff" class="sc" direction="ltr">${t.score}</text>
-        <rect x="${cx - 62}" y="${y + 40}" width="124" height="40" rx="20" fill="rgba(4,20,26,.75)"/>
-        <text x="${cx}" y="${y + 68}" text-anchor="middle" font-size="24" font-weight="700" fill="#f4d35e">💰 ${t.gold}</text>
+        <line x1="${cx}" y1="${y + 34}" x2="${cx}" y2="${y + 70}" stroke="rgba(255,255,255,.6)" stroke-width="3"/>
+        <rect x="${cx - w / 2}" y="${y - 34}" width="${w}" height="68" rx="34" fill="${t.color}" stroke="rgba(255,255,255,.9)" stroke-width="3"/>
+        <text x="${cx + 64}" y="${y + 12}" text-anchor="middle" font-size="34" font-weight="800" fill="#fff" class="nm">${esc(t.name)}</text>
+        <rect x="${cx - 108}" y="${y - 20}" width="104" height="40" rx="20" fill="rgba(4,20,26,.55)"/>
+        <text x="${cx - 56}" y="${y + 9}" text-anchor="middle" font-size="24" font-weight="800" fill="#f4d35e" direction="ltr">💰 ${t.gold}</text>
+        <circle cx="${cx - w / 2 + 34}" cy="${y}" r="28" fill="rgba(0,0,0,.3)"/>
+        <text x="${cx - w / 2 + 34}" y="${y + 12}" text-anchor="middle" font-size="${t.score >= 100 ? 26 : 32}" font-weight="900" fill="#fff" class="sc" direction="ltr">${t.score}</text>
         ${capT ? `<text x="${cx}" y="${cy + 210}" text-anchor="middle" font-size="28" font-weight="700" fill="#fff" stroke="rgba(0,0,0,.5)" stroke-width="5" paint-order="stroke">${esc(capT)}</text>` : ''}
         ${rankBadge}</g>`;
     }).join('');
     const L = $('.isl-labels', this.svg); if (L._h !== html) { L._h = html; L.innerHTML = html; }
     // نقاط طائرة عند تغير النتيجة
-    T.forEach((t, i) => { const pv = this.prevScores[t.id]; if (pv != null && pv !== t.score) this.floatText(C[i][0], C[i][1] - 230, (t.score > pv ? '+' : '') + (t.score - pv), t.score > pv ? '#7CFC9A' : '#ff8a8a'); this.prevScores[t.id] = t.score; });
+    T.forEach((t, i) => { const pv = this.prevScores[t.id]; if (pv != null && pv !== t.score) this.floatText(C[i][0] - 140, C[i][1] - 270, (t.score > pv ? '+' : '') + (t.score - pv), t.score > pv ? '#7CFC9A' : '#ff8a8a'); this.prevScores[t.id] = t.score; });
   }
   floatText(x, y, txt, color) { const fx = $('.isl-fx', this.svg); const g = document.createElementNS('http://www.w3.org/2000/svg', 'text'); g.setAttribute('x', x); g.setAttribute('y', y); g.setAttribute('text-anchor', 'middle'); g.setAttribute('font-size', '54'); g.setAttribute('font-weight', '900'); g.setAttribute('fill', color); g.setAttribute('stroke', 'rgba(0,0,0,.5)'); g.setAttribute('stroke-width', '6'); g.setAttribute('paint-order', 'stroke'); g.setAttribute('class', 'float'); g.setAttribute('direction', 'ltr'); g.textContent = txt; fx.appendChild(g); setTimeout(() => g.remove(), 2000); }
   note(b) { const t = this.tm(b[1]); const n = document.createElement('div'); n.className = 'note-b'; n.style.setProperty('--tc', t.color); n.innerHTML = `🏗️ <b>${esc(t.name)}</b> ${b[3] > 1 ? 'طوّرت' : 'بنت'} ${esc(D.BUILD[b[2]].name)}`; const box = $('.notes', this.el); box.appendChild(n); while (box.children.length > 3) box.firstChild.remove(); setTimeout(() => n.remove(), 4500); if (this.sound) SFX.play('coinsoft'); }
@@ -4015,7 +4212,7 @@ class Stage {
       const [, tid, key, lv] = b; if (!this.shown[tid]) { step(); return; }
       this.shown[tid][key] = Math.max(this.shown[tid][key] || 0, lv); this.drawIsland(this.P);
       const g = this.svg.querySelector(`.plot[data-t="${tid}"] .bld[data-k="${key}"]`);
-      if (g) { g.classList.add('b-new'); const box = g.getBBox(); this.dust(box.x + box.width / 2, box.y + box.height); this.floatText(box.x + box.width / 2, box.y - 10, (lv > 1 ? '⬆ ' : '+ ') + D.BUILD[key].name, '#fff'); }
+      if (g) { g.classList.add('b-new'); const box = g.getBBox(), m = this.svg.getScreenCTM().inverse().multiply(g.getScreenCTM()), tp = (x, y) => { const p = this.svg.createSVGPoint(); p.x = x; p.y = y; return p.matrixTransform(m); }; const bt = tp(box.x + box.width / 2, box.y + box.height), tt = tp(box.x + box.width / 2, box.y); this.dust(bt.x, bt.y); this.floatText(tt.x, tt.y - 10, (lv > 1 ? '⬆ ' : '+ ') + D.BUILD[key].name, '#fff'); }
       if (this.sound) SFX.play('build');
       setTimeout(step, 1300);
     };
@@ -4068,7 +4265,7 @@ class Stage {
     if (P.ph === 'themes') return `<div class="card-c slim top"><div class="h1">🎨 اختاروا طابع قريتكم</div><div class="mut" style="font-size:28px">قائد كل فريق يختار من جواله: ${D.THEME_KEYS.map(k => D.THEMES[k].name).join('، ')}</div></div>`;
     return `<div class="card-c slim top"><div class="h1">🏝️ الجزيرة جاهزة… لنبدأ!</div></div>`;
   }
-  introCard(P) { return `<div class="card-c"><div class="ico">${esc(P.gi || '🏁')}</div><div class="h1 big">${esc(P.gn)}</div><div class="how">${(P.how || []).map((x, i) => `<div style="animation-delay:${.3 + i * .35}s"><b>${i + 1}</b>${esc(x)}</div>`).join('')}</div>${P.mult > 1 ? '<div class="x2b">النقاط مضاعفة ×2</div>' : ''}</div>`; }
+  introCard(P) { return `<div class="card-c"><div class="ico">${esc(P.gi || '🏁')}</div><div class="h1 big">${esc(P.gn)}</div><div class="how">${(P.how || []).map((x, i) => { const k = x.indexOf(': '), ic = ['🎯', '📱', '💰'][i] || '•'; return `<div style="animation-delay:${.3 + i * .35}s"><b>${ic}</b>${k > 0 ? `<span class="hk">${esc(x.slice(0, k))}</span>${esc(x.slice(k + 2))}` : esc(x)}</div>`; }).join('')}</div>${P.mult > 1 ? '<div class="x2b">النقاط مضاعفة ×2</div>' : ''}</div>`; }
   sceneCard(P) {
     const I = P.I; const sc = I.scene;
     const head = P.ph === 'show' ? '👁️ ركّزوا جيدًا…' : (I.obs === 'removed' || I.obs === 'added' || I.obs === 'color' ? '🔎 هذه هي الصورة الآن' : '');
@@ -4113,12 +4310,18 @@ class Stage {
   banner(P) {
     const L = $('.banner-layer', this.el), I = P.I;
     if (P.ph === 'answering' && I && I.bz) { const t = this.tm(I.bz[0]); const k = 'bz' + I.qid + I.bz[0] + I.bo; if (L.dataset.k !== k) { L.dataset.k = k; L.innerHTML = `<div class="bb" style="--tc:${t.color}"><div class="t">⚡ ${esc(t.name)}</div>${I.bz[1] ? `<div class="s">${esc(I.bz[1])}</div>` : ''}</div>`; clearTimeout(this.bto); this.bto = setTimeout(() => { L.innerHTML = ''; }, 1700); } }
-    else if (L.dataset.k) { L.dataset.k = ''; L.innerHTML = ''; }
+    else if (I && I.pair && I.pair.length === 2 && ['ready', 'open'].includes(P.ph) && P.g === 'arena') {
+      const k = 'vs' + I.qid; if (L.dataset.k !== k) { L.dataset.k = k; const [a, b] = I.pair.map(id => this.tm(id));
+        L.innerHTML = `<div class="vs"><div class="vs-a" style="--tc:${a.color}">${esc(a.name)}</div><div class="vs-x">⚔️</div><div class="vs-b" style="--tc:${b.color}">${esc(b.name)}</div></div>`;
+        if (this.sound) SFX.play('vs');
+        clearTimeout(this.bto); this.bto = setTimeout(() => { L.innerHTML = ''; }, 1500); }
+    }
+    else if (L.dataset.k && !String(L.dataset.k).startsWith('vs')) { L.dataset.k = ''; L.innerHTML = ''; }
   }
   crownCard(P) {
     const rk = (P.rk || []).map(r => ({ ...this.tm(r[0]), id: r[0], score: r[1], rank: r[2] }));
     if (P.ph === 'island') return `<div class="card-c slim top"><div class="h1">🏝️ هذه جزيرتكم بعد ساعة من البناء</div></div>`;
-    if (P.ph === 'highlights') { const H = P.hl || []; const lbl = { build: '🏗️ أعظم عمران', gold: '💰 أكثر ذهبًا كسبًا', star: '⭐ نجم الإجابات' }; return `<div class="card-c"><div class="h1">أبرز الإنجازات</div><div class="hl">${H.map((h, i) => { const t = this.tm(h.team); return `<div style="--tc:${t.color};animation-delay:${i * .6}s"><span>${lbl[h.k]}</span><b>${esc(h.name ? h.name + ' — ' + t.name : t.name)}</b><small>${h.k === 'build' ? h.v + ' مبانٍ' : h.k === 'gold' ? h.v + ' ذهب' : h.v + ' إجابات صحيحة'}</small></div>`; }).join('') || '<div class="mut">—</div>'}</div></div>`; }
+    if (P.ph === 'highlights') { const H = P.hl || []; const lbl = { build: '🏗️ أعظم عمران', gold: '💰 أكثر ذهبًا كسبًا', star: '⭐ نجم الإجابات' }; return `<div class="card-c"><div class="h1">أبرز الإنجازات</div><div class="hl">${H.map((h, i) => { const t = this.tm(h.team); return `<div style="--tc:${t.color};animation-delay:${i * .6}s"><span>${lbl[h.k]}</span><b>${esc(h.name ? h.name + ' — ' + t.name : t.name)}</b><small>${h.k === 'build' ? h.v + ' مبانٍ' : h.k === 'gold' ? h.v + ' ذهب' : h.v + ' إجابات صحيحة'}</small></div>`; }).join('') || '<div class="mut">—</div>'}</div><div class="hl-b">${this.teams().map(t => { const bs = D.BUILD_KEYS.map((k, i) => [k, t.lv[i]]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1] || D.BUILD[b[0]].cost[0] - D.BUILD[a[0]].cost[0]); return `<div style="--tc:${t.color}"><b>${esc(t.name)}</b><span class="bi">${bs.length ? bs.map(([k, l]) => `<i title="${D.BUILD[k].name}">${buildingSVG(t, k, l)}<em>${D.BUILD[k].name}${l > 1 ? ' ⬆' : ''}</em></i>`).join('') : '<small class="mut">لم تُبنَ مبانٍ بعد</small>'}</span></div>`; }).join('')}</div></div>`; }
     if (P.ph === 'reveal') return `<div class="card-c slim top"><div class="h1">🥁 الترتيب النهائي…</div></div>`;
     if (P.ph === 'winner') { if (P.tie) return `<div class="card-c slim top"><div class="h1">⚖️ تعادل في الصدارة! جولة كسر التعادل</div></div>`; const w = rk[0]; return `<div class="win-card" style="--tc:${w.color}"><div class="wl">${Brand.logoImg()}</div><div class="h1">🏆 فريق <span>${esc(w.name)}</span> بطل ميدان بناء</div><div class="mut" style="font-size:30px">${w.score} نقطة</div></div>`; }
     return '';
@@ -4244,7 +4447,7 @@ const Student = {
       return `<div class="pl-state big">🏝️ تابع الشاشة الكبيرة</div>${this.villageBox(t)}${capLine}`;
     }
     if (P.g === 'crown') { const rk = (P.rk || []).find(r => r[0] === me.team); const show = P.ph === 'winner'; return `${this.villageBox(t)}<div class="pl-state big ${show && rk && rk[2] === 1 ? 'win' : ''}">${show && rk ? (rk[2] === 1 ? '🏆 فريقك هو البطل!' : 'مركز فريقك: ' + rk[2]) : 'تابع الشاشة… 🥁'}</div>`; }
-    if (P.ph === 'intro') return `<div class="pl-state big">${esc(P.gi || '')} ${esc(P.gn)}</div><div class="pl-how">${(P.how || []).map(x => `<div>${esc(x)}</div>`).join('')}</div>`;
+    if (P.ph === 'intro') return `<div class="pl-state big">${esc(P.gi || '')} ${esc(P.gn)}</div><div class="pl-how">${(P.how || []).map(x => { const k = x.indexOf(': '); return `<div>${k > 0 ? `<b>${esc(x.slice(0, k))}:</b> ${esc(x.slice(k + 2))}` : esc(x)}</div>`; }).join('')}</div>`;
     if (P.ph === 'done') return `<div class="pl-state big">انتهت الجولة</div>${this.villageBox(t)}${capLine}`;
     if (!P.I) return `<div class="pl-state">تابع الشاشة…</div>`;
     const mine = this.local[I.qid];
@@ -4308,7 +4511,7 @@ const Student = {
   shopHTML(t) {
     const lv = this.levels(t);
     return `<div class="row"><b class="h" style="font-size:20px">🏗️ سوق البناء</b><span class="grow"></span><button class="btn sm" data-act="close">رجوع</button></div>${this.villageBox(t)}<div class="mut" style="text-align:center">💰 ذهب فريقك: <b style="color:var(--gold)">${t.gold}</b></div>
-      <div class="shop">${D.BUILD_KEYS.map(k => { const L = lv[k], B = D.BUILD[k], c = L >= 2 ? null : B.cost[L], can = c != null && c <= t.gold; return `<div class="item ${L >= 2 ? 'max' : ''}"><div class="ic">${villageSVG({ id: t.id, color: t.color, theme: t.theme }, { [k]: Math.max(1, Math.min(2, L + 1)) })}</div><div class="tx"><b>${B.name}</b><small>${L === 0 ? 'جديد' : L === 1 ? 'ترقية للمستوى 2' : 'مكتمل ✓'}</small></div>${c != null ? `<button class="btn ${can ? 'pri' : ''}" data-buy="${k}" ${can ? '' : 'disabled'}>${L ? 'ترقية' : 'بناء'} · ${c}💰</button>` : ''}</div>`; }).join('')}</div>`;
+      <div class="shop">${D.BUILD_KEYS.map(k => { const L = lv[k], B = D.BUILD[k], c = L >= 2 ? null : B.cost[L], can = c != null && c <= t.gold; return `<div class="item ${L >= 2 ? 'max' : ''}"><div class="ic">${buildingSVG({ id: t.id, color: t.color, theme: t.theme }, k, Math.max(1, Math.min(2, L + 1)))}</div><div class="tx"><b>${B.name}${L === 1 ? ' ⬆' : ''}</b><small>${L === 0 ? B.desc : L === 1 ? 'المستوى 2: ' + B.up : 'مكتمل ✓'}</small></div>${c != null ? `<button class="btn ${can ? 'pri' : ''}" data-buy="${k}" ${can ? '' : 'disabled'}>${L ? 'ترقية' : 'بناء'} · ${c}💰</button>` : ''}</div>`; }).join('')}</div>`;
   },
   bind() {
     const P = this.P, I = (P && P.I) || {}, me = this.me();
@@ -4497,7 +4700,7 @@ const Host = {
     let h = '';
     if (!seg) h = `<div class="h2">جاهز للبدء</div><div class="note">اعرض شاشة الانضمام، وانتظر دخول الطلاب (تبويب «الغرفة»)، ثم ابدأ.</div><div class="ctl">${big('▶ ابدأ المسابقة', 'start')}</div>`;
     else if (seg.g === 'opening') {
-      const steps = { welcome: ['الانضمام وعرض الجزيرة', 'شرح الفكرة ←'], explain: ['شرح الفكرة (دقيقتان)', 'اختيار طابع القرى ←'], themes: ['القادة يختارون طابع القرى من جوالاتهم', 'إنهاء الافتتاح ←'], done: ['الجزيرة جاهزة', 'الجولة الأولى: ' + this.nextName() + ' ←'] };
+      const steps = { welcome: ['الانضمام وعرض الجزيرة', 'شرح الفكرة ←'], explain: ['شرح الفكرة (دقيقتان)', 'إنهاء الافتتاح ←'], done: ['الجزيرة جاهزة', 'الجولة الأولى: ' + this.nextName() + ' ←'] };
       const [t, b] = steps[seg.phase];
       h = `<div class="h2">🎬 الافتتاح: ${t}</div>${seg.phase === 'themes' ? `<div class="row wrap">${T.map(x => { const th = E.vil(x.id).theme; return `<span class="pill" style="border-bottom:3px solid ${x.color}">${esc(x.name)}: ${th ? D.THEMES[th].name : '…'}</span>`; }).join('')}</div>` : ''}${seg.phase === 'welcome' ? '<div class="note">تأكد أن كل فريق له قائد (يظهر بالتاج في بطاقات الفرق).</div>' : ''}<div class="ctl">${big(b, seg.phase === 'done' ? 'nextseg' : 'next')}</div>` + timer;
     } else if (seg.g === 'crown') {
@@ -4552,10 +4755,10 @@ const Host = {
     $('#teams').innerHTML = s.teams.map(t => {
       const v = E.vil(t.id), r = rk.find(x => x.id === t.id), mem = E.teamMembers(t.id), cap = s.captain[t.id], on = mem.filter(m => m.online).length;
       return `<div class="tcard" style="--tc:${t.color}"><div class="row"><b class="h" style="font-size:18px">${esc(t.name)}</b><span class="pill">#${r ? r.rank : ''}</span><span class="grow"></span><span class="sc">${sc[t.id]}</span></div>
-        <div class="row" style="justify-content:space-between;font-size:13px"><span>💰 <b>${v.gold}</b> ذهب</span><span class="mut">👥 ${on}/${mem.length}</span><span class="mut">${v.theme ? 'قرية ' + D.THEMES[v.theme].name : 'بلا طابع'}</span></div>
+        <div class="row" style="justify-content:space-between;font-size:13px"><span>💰 <b>${v.gold}</b> ذهب</span><span class="mut">👥 ${on}/${mem.length}</span>${!s.seg || s.seg.g === 'opening' ? `<select class="in sm" data-theme-t="${t.id}" title="طابع القرية (شكل فقط)">${D.THEME_KEYS.map(k => `<option value="${k}" ${v.theme === k ? 'selected' : ''}>قرية ${D.THEMES[k].name}</option>`).join('')}</select>` : `<span class="mut">${v.theme ? 'قرية ' + D.THEMES[v.theme].name : ''}</span>`}</div>
         <div class="tvil">${villageSVG({ id: t.id, color: t.color, theme: v.theme }, v.b)}</div>
         <label class="row" style="font-size:12px">👑 القائد <select class="in sm" data-cap="${t.id}">${mem.length ? mem.map(m => `<option value="${m.sid}" ${m.sid === cap ? 'selected' : ''}>${esc(m.name)}${m.online ? '' : ' (غير متصل)'}</option>`).join('') : '<option>— لا أعضاء —</option>'}</select></label>
-        <div class="cards-row"><button class="chipbtn" data-act="adj" data-arg="${t.id}|10">+10 نقاط</button><button class="chipbtn" data-act="adj" data-arg="${t.id}|-10">−10</button><button class="chipbtn" data-act="gold" data-arg="${t.id}|10">+10 ذهب</button><button class="chipbtn" data-act="buildm" data-arg="${t.id}">🏗️ بناء</button></div></div>`;
+        <div class="cards-row"><button class="chipbtn win" data-act="live" data-arg="${t.id}" title="فاز في تحدٍّ حضوري: +20 نقطة و+20 ذهب">🏆 فوز حضوري</button><button class="chipbtn" data-act="adj" data-arg="${t.id}|10" title="نقاط فقط">+10 نقاط</button><button class="chipbtn" data-act="adj" data-arg="${t.id}|-10" title="خصم نقاط">−10 نقاط</button><button class="chipbtn" data-act="gold" data-arg="${t.id}|10">+10 ذهب</button><button class="chipbtn" data-act="buildm" data-arg="${t.id}">🏗️ بناء</button></div></div>`;
     }).join('');
   },
   // ---------- التبويبات ----------
@@ -4618,6 +4821,7 @@ const Host = {
     if (x.dataset.set) { let v = x.type === 'checkbox' ? x.checked : x.value; if (x.type === 'number') v = +v; E.setSetting(x.dataset.set, v); }
     if (x.dataset.move) E.moveStudent(x.dataset.move, x.value);
     if (x.dataset.cap) E.setCaptain(x.dataset.cap, x.value);
+    if (x.dataset.themeT) E.setTheme(x.dataset.themeT, x.value);
     if (x.hasAttribute('data-simon')) this.sim.on = x.checked;
     if (x.dataset.pmin) { E.s.plan[+x.dataset.pmin].min = Math.max(1, +x.value || 1); E.touch(); }
     if (x.dataset.pcnt) { E.s.plan[+x.dataset.pcnt].count = Math.max(1, Math.min(20, +x.value || 1)); E.touch(); }
@@ -4663,6 +4867,7 @@ const Host = {
       case 'add10': E.addTime(10); break;
       case 'undo': { const l = E.undo(); toast(l ? 'تم التراجع: ' + l : 'لا يوجد ما يُتراجع عنه'); break; }
       case 'adj': E.manualAdjust(x, +y); break;
+      case 'live': E.liveWin(x); break;
       case 'gold': E.manualGold(x, +y); break;
       case 'buildm': this.buildModal(arg); break;
       case 'tab': this.sideTab = arg; this.renderSide(); break;
@@ -4775,8 +4980,15 @@ const Display = {
     o.innerHTML = '<div class="card" style="text-align:center;max-width:520px"><div class="h" style="font-size:24px">🖥️ شاشة العرض</div><div class="note" style="margin-top:8px">اضغط في أي مكان لتفعيل الصوت وملء الشاشة</div></div>';
     o.onclick = () => { SFX.unlock(); try { document.documentElement.requestFullscreen().catch(() => { }); } catch (e) { } o.remove(); };
     document.body.appendChild(o);
-    const mb = document.createElement('button'); mb.className = 'btn sm'; mb.style.cssText = 'position:fixed;bottom:6px;right:8px;z-index:40;opacity:.35'; const upd = () => { mb.textContent = SFX.on ? '🔊' : '🔇'; };
-    mb.onclick = e => { e.stopPropagation(); SFX.unlock(); SFX.on = !SFX.on; if (!SFX.on) SFX.stopAmbient(); upd(); }; upd(); document.body.appendChild(mb);
+    // التحكم في الصوت: كتم + مستوى (يظهر عند تمرير الفأرة فقط، ولا يشوّش على الجمهور)
+    const sb = document.createElement('div'); sb.className = 'sndbox';
+    sb.innerHTML = `<button class="btn sm" id="sndm"></button><input type="range" id="sndv" min="0" max="100" step="5" title="مستوى الصوت">`;
+    document.body.appendChild(sb); const mb = $('#sndm', sb), vr = $('#sndv', sb);
+    const vol0 = +LS.get('bena.vol', 80); vr.value = vol0; SFX.vol = vol0 / 100;
+    const upd = () => { mb.textContent = SFX.on && SFX.vol > 0 ? '🔊' : '🔇'; };
+    mb.onclick = e => { e.stopPropagation(); SFX.unlock(); SFX.on = !SFX.on; if (!SFX.on) SFX.stopAmbient(); upd(); };
+    vr.oninput = e => { e.stopPropagation(); SFX.unlock(); SFX.setVol(+vr.value / 100); LS.set('bena.vol', +vr.value); upd(); };
+    sb.onclick = e => e.stopPropagation(); upd();
     const b = document.createElement('div'); b.id = 'dbadge'; b.style.cssText = 'position:fixed;bottom:6px;left:8px;z-index:40;font-size:11px;opacity:.45'; document.body.appendChild(b); this.badge();
   },
   badge() { const b = $('#dbadge'); if (b) { const l = this.net.label(); b.innerHTML = `<span class="dot ${l.cls}"></span> ${esc(l.t)}${this.code ? ' · ' + esc(this.code) : ''}`; } },

@@ -31,10 +31,10 @@
         plan: clone(this.D.DEFAULT_PLAN), planIdx: -1, clock: { startedAt: null, segStart: null },
         seg: null, seq: 0, used: {}, timer: null, fx: { n: 0, k: null }, undo: [], leader: null, ended: false
       };
-      teams.forEach(t => { s.vil[t.id] = this.newVillage(); });
+      teams.forEach((t, i) => { s.vil[t.id] = this.newVillage(this.D.THEME_KEYS[i % this.D.THEME_KEYS.length]); });
       return s;
     }
-    newVillage() { const b = {}; this.D.BUILD_KEYS.forEach(k => { b[k] = 0; }); return { gold: 0, earned: 0, b, theme: null }; }
+    newVillage(theme) { const b = {}; this.D.BUILD_KEYS.forEach(k => { b[k] = 0; }); return { gold: 0, earned: 0, b, theme: theme || null }; }
     makeCode() { let c = ''; for (let i = 0; i < 4; i++) c += Math.floor(this.rng() * 10); return c === '0000' ? '1357' : c; }
     touch(fxKind, fxData) { this.s.v++; if (fxKind) this.s.fx = { n: this.s.fx.n + 1, k: fxKind, d: fxData || null }; this.onChange(this.s); }
     pick(arr) { return arr[Math.floor(this.rng() * arr.length)]; }
@@ -107,7 +107,7 @@
     setTeams(list) {
       const s = this.s;
       s.teams = list.slice(0, 4).map((t, i) => ({ id: t.id || ('t' + (i + 1)), name: String(t.name || TEAM_NAMES[i] || 'فريق').slice(0, 20), color: t.color || TEAM_COLORS[i] }));
-      s.teams.forEach(t => { if (!s.vil[t.id]) s.vil[t.id] = this.newVillage(); });
+      s.teams.forEach((t, i) => { if (!s.vil[t.id]) s.vil[t.id] = this.newVillage(this.D.THEME_KEYS[i % this.D.THEME_KEYS.length]); });
       const ids = new Set(s.teams.map(t => t.id));
       Object.values(s.students).forEach(st => { if (!ids.has(st.team)) st.team = this.smallestTeam(); });
       Object.keys(s.captain).forEach(t => { if (!ids.has(t)) delete s.captain[t]; });
@@ -117,7 +117,7 @@
     setSetting(k, v) { this.s.settings[k] = v; this.touch(); }
 
     // ---------- النقاط والذهب ----------
-    vil(tid) { const s = this.s; if (!s.vil[tid]) s.vil[tid] = this.newVillage(); return s.vil[tid]; }
+    vil(tid) { const s = this.s; if (!s.vil[tid]) { const i = Math.max(0, s.teams.findIndex(t => t.id === tid)); s.vil[tid] = this.newVillage(this.D.THEME_KEYS[i % this.D.THEME_KEYS.length]); } return s.vil[tid]; }
     scores() { const sc = {}; this.s.teams.forEach(t => { sc[t.id] = 0; }); this.s.ledger.forEach(e => { if (sc[e.team] !== undefined) sc[e.team] += e.d || 0; }); return sc; }
     ranking() {
       const sc = this.scores();
@@ -148,6 +148,8 @@
     giveGold(tid, g, why, tx) { if (!this.team(tid) || !g) return; const v = this.vil(tid); v.gold = Math.max(0, v.gold + g); if (g > 0) v.earned += g; this.s.ledger.push({ tx, t: this.now(), team: tid, d: 0, g, why }); }
     afterScore() { const L = this.leaderId(), prev = this.s.leader; this.s.leader = L; if (L && L !== prev) this.touch('lead', { team: L }); else this.touch('score'); }
     manualAdjust(tid, d, why) { const tx = this.beginTx('تعديل يدوي'); this.award(tid, d, why || 'تعديل من المشرف', tx, { noGold: true }); this.afterScore(); }
+    // تحدٍّ حضوري يحكم فيه المشرف: نقاط وذهب معًا
+    liveWin(tid, pts = 20) { if (!this.team(tid)) return; const tx = this.beginTx('تحدٍّ حضوري'); this.award(tid, pts, 'فوز في تحدٍّ حضوري', tx); this.afterScore(); }
     manualGold(tid, g, why) { const tx = this.beginTx('تعديل الذهب'); this.giveGold(tid, g, why || 'تعديل الذهب من المشرف', tx); this.touch('gold'); }
 
     // ---------- البناء ----------
@@ -166,10 +168,10 @@
       this.touch('build', { team: tid, key, lv }); return { ok: true };
     }
     buildScore(tid) { const b = this.vil(tid).b; return this.D.BUILD_KEYS.reduce((a, k) => a + b[k], 0); }
-    // طابع القرية: يختاره القائد في الافتتاح، ويستطيع المشرف تغييره متى شاء
+    // طابع القرية: افتراضي لكل فريق، ويغيّره المشرف قبل المسابقة (شكل فقط)
     setTheme(tid, theme, sid) {
       const s = this.s; if (!this.team(tid) || !this.D.THEMES[theme]) return false;
-      if (sid != null) { if (s.captain[tid] !== sid) return false; if (!s.seg || s.seg.g !== 'opening') return false; }
+      if (sid != null) return false;
       this.vil(tid).theme = theme; this.touch('theme', { team: tid, theme }); return true;
     }
 
@@ -420,9 +422,8 @@
     // ---------- نهاية الجولة والافتتاح والتتويج ----------
     finishSeg() { const seg = this.s.seg; this.s.timer = null; seg.phase = 'done'; seg.idx = seg.items.length; this.touch('segdone'); }
     openingNext() {
-      const seg = this.s.seg, order = ['welcome', 'explain', 'themes', 'done'];
+      const seg = this.s.seg, order = ['welcome', 'explain', 'done'];
       const i = order.indexOf(seg.phase); seg.phase = order[Math.min(order.length - 1, i + 1)];
-      if (seg.phase === 'themes') this.startTimer(40, 'اختيار طابع القرية');
       if (seg.phase === 'done') { this.s.timer = null; this.fillThemes(); }
       this.touch('seg');
     }

@@ -44,8 +44,9 @@ const Brand = {
 
 // ---------- المؤثرات الصوتية: تسجيلات حقيقية مرخّصة، بلا موسيقى ولا أصوات بشرية ----------
 const SFX = {
-  ctx: null, on: true, buf: {}, ambientOn: true,
-  unlock() { try { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.connect(this.ctx.destination); this.load(); } if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => { }); } catch (e) { } },
+  ctx: null, on: true, buf: {}, ambientOn: true, vol: 1,
+  setVol(v) { this.vol = Math.max(0, Math.min(1, v)); if (this.master) this.master.gain.value = this.vol; },
+  unlock() { try { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = this.vol; this.master.connect(this.ctx.destination); this.load(); } if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => { }); } catch (e) { } },
   load() {
     if (typeof SFX_DATA !== 'object' || !SFX_DATA) return;
     Object.entries(SFX_DATA).forEach(([k, b64]) => { try { const bin = atob(b64); const a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); this.ctx.decodeAudioData(a.buffer).then(b => { this.buf[k] = b; }).catch(() => { }); } catch (e) { } });
@@ -78,7 +79,8 @@ const SFX = {
         case 'deny': this.rec('kill', .9); break;
         case 'theme': this.rec('step', .6); this.rec('land', .5, .15); break;
         case 'draw': for (let i = 0; i < 4; i++) this.rec('coin', .3, i * .15, .9 + i * .1); break;
-        case 'rank': this.rec('impact', .7); break;
+        case 'vs': this.rec('impact', .8); this.rec('hit', .9, .38); break;
+      case 'rank': this.rec('impact', .7); break;
         case 'crown': this.rec('big_kill', .7); [.4, .8, 1.2, 1.6].forEach(t => this.rec('impact', .6, t, 1.2)); for (let i = 0; i < 8; i++) this.rec('coin', .4, 1.8 + i * .1, .9 + i * .03); break;
       }
     } catch (e) { }

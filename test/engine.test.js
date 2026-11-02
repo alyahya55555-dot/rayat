@@ -37,10 +37,11 @@ test('الشراء للقائد وحده، والمستوى الأقصى 2، و�
 });
 test('التراجع عن الشراء يعيد الذهب والمبنى', () => { const e = mk(); addStudents(e, 4); e.award('t1', 50, 'x', 1); e.buy('t1', 'house', 's0'); e.undo(); assert.strictEqual(e.vil('t1').gold, 50); assert.strictEqual(e.vil('t1').b.house, 0); assert.strictEqual(e.s.buildLog.length, 0); });
 test('التعديل اليدوي للنقاط لا يمنح ذهبًا', () => { const e = mk(); e.manualAdjust('t2', 30); assert.strictEqual(e.scores().t2, 30); assert.strictEqual(e.vil('t2').gold, 0); });
-test('طابع القرية: يختاره القائد في الافتتاح فقط، والباقي يُكمل تلقائيًا', () => {
-  const e = mk(); addStudents(e, 8); e.goSegment(0); assert.ok(e.setTheme('t1', 'science', 's0')); assert.ok(!e.setTheme('t2', 'agri', 's5'));
-  e.goSegment(1); assert.ok(!e.setTheme('t1', 'agri', 's0'), 'لا تغيير بعد الافتتاح'); assert.ok(e.s.teams.every(t => e.vil(t.id).theme));
+test('طابع القرية: افتراضي لكل فريق، يغيّره المشرف فقط', () => {
+  const e = mk(); addStudents(e, 8); assert.deepStrictEqual(e.s.teams.map(t => e.vil(t.id).theme), ['agri', 'trade', 'science', 'fort']);
+  assert.ok(!e.setTheme('t1', 'science', 's0'), 'الطالب لا يغيّر الطابع'); assert.ok(e.setTheme('t1', 'science')); assert.strictEqual(e.vil('t1').theme, 'science');
 });
+test('فوز حضوري: نقاط وذهب معًا', () => { const e = mk(); e.liveWin('t3'); assert.strictEqual(e.scores().t3, 20); assert.strictEqual(e.vil('t3').gold, 20); });
 test('الانطلاقة: الإجابة الفردية، والنقاط بنسبة الصحيحين من الأعضاء المتصلين', () => {
   const e = mk(); addStudents(e, 12); goGame(e, 'kickoff'); e.openItem(); const it = e.item();
   const m = e.teamMembers('t1'); e.answer(m[0].sid, it.qid, it.a); e.answer(m[1].sid, it.qid, it.a); e.answer(m[2].sid, it.qid, (it.a + 1) % 4);

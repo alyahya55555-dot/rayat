@@ -22,13 +22,9 @@ let shotN = 0; const shot = (p, n) => p.screenshot({ path: D + String(++shotN).p
   await shot(disp, 'display-join'); await shot(S[0], 'phone-lobby'); await shot(host, 'host-lobby');
   // الافتتاح
   await host.click('[data-act="start"]'); await sleep(500); await host.click('#deck .btn.pri.big'); await sleep(600); await shot(disp, 'display-explain');
-  await host.click('#deck .btn.pri.big'); await sleep(900);
-  check(await S[0].$('[data-theme]') !== null, 'القائد يرى اختيار الطابع'); check(await S[4].$('[data-theme]') === null, 'غير القائد لا يرى اختيار الطابع');
-  await shot(S[0], 'phone-themes');
-  await S[0].click('[data-theme="agri"]'); await S[1].click('[data-theme="trade"]'); await S[2].click('[data-theme="science"]'); await S[3].click('[data-theme="fort"]'); await sleep(1200);
   const th = await host.evaluate(() => Host.e.s.teams.map(t => Host.e.vil(t.id).theme));
-  check(JSON.stringify(th) === '["agri","trade","science","fort"]', 'الطوابع اختيرت من الجوالات: ' + th);
-  await shot(disp, 'display-themes');
+  check(JSON.stringify(th) === '["agri","trade","science","fort"]', 'الطوابع الافتراضية: الوفاء زراعية، النماء تجارية، الإخاء علمية، العطاء حصينة');
+  check(await S[0].$('[data-theme]') === null, 'لا خيارات طابع على الجوال (يغيّره المشرف فقط)');
   await host.click('#deck .btn.pri.big'); await sleep(400); await host.click('#deck .btn.pri.big'); await sleep(700);
   check(await host.evaluate(() => Host.e.s.seg.g) === 'kickoff', 'بدأت الانطلاقة'); await shot(disp, 'display-intro');
   // سؤال للجميع
@@ -63,7 +59,7 @@ let shotN = 0; const shot = (p, n) => p.screenshot({ path: D + String(++shotN).p
   await shot(disp, 'display-observe-show'); check(await disp.evaluate(() => !!document.querySelector('.scene')), 'المشهد معروض');
   await host.evaluate(() => Host.e.afterShow()); await sleep(800); await shot(disp, 'display-observe-question'); await shot(S[1], 'phone-observe');
   // ساحة المواجهة
-  await host.evaluate(() => { const E = Host.e; E.goSegment(E.s.plan.findIndex(p => p.g === 'arena')); E.nextItem(); E.openItem(); }); await sleep(900);
+  await host.evaluate(() => { const E = Host.e; E.goSegment(E.s.plan.findIndex(p => p.g === 'arena')); E.nextItem(); }); await sleep(500); await shot(disp, 'display-vs'); await host.evaluate(() => Host.e.openItem()); await sleep(1700);
   const pair = await host.evaluate(() => Host.e.item().eligible);
   const btns = []; for (let i = 0; i < 8; i++) if (await S[i].$('[data-buzz]')) btns.push(i);
   check(btns.length === 4, 'زر الاستباق للفريقين المتواجهين فقط (' + btns.length + ')');

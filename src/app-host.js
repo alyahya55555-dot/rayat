@@ -167,7 +167,7 @@ const Host = {
     let h = '';
     if (!seg) h = `<div class="h2">جاهز للبدء</div><div class="note">اعرض شاشة الانضمام، وانتظر دخول الطلاب (تبويب «الغرفة»)، ثم ابدأ.</div><div class="ctl">${big('▶ ابدأ المسابقة', 'start')}</div>`;
     else if (seg.g === 'opening') {
-      const steps = { welcome: ['الانضمام وعرض الجزيرة', 'شرح الفكرة ←'], explain: ['شرح الفكرة (دقيقتان)', 'اختيار طابع القرى ←'], themes: ['القادة يختارون طابع القرى من جوالاتهم', 'إنهاء الافتتاح ←'], done: ['الجزيرة جاهزة', 'الجولة الأولى: ' + this.nextName() + ' ←'] };
+      const steps = { welcome: ['الانضمام وعرض الجزيرة', 'شرح الفكرة ←'], explain: ['شرح الفكرة (دقيقتان)', 'إنهاء الافتتاح ←'], done: ['الجزيرة جاهزة', 'الجولة الأولى: ' + this.nextName() + ' ←'] };
       const [t, b] = steps[seg.phase];
       h = `<div class="h2">🎬 الافتتاح: ${t}</div>${seg.phase === 'themes' ? `<div class="row wrap">${T.map(x => { const th = E.vil(x.id).theme; return `<span class="pill" style="border-bottom:3px solid ${x.color}">${esc(x.name)}: ${th ? D.THEMES[th].name : '…'}</span>`; }).join('')}</div>` : ''}${seg.phase === 'welcome' ? '<div class="note">تأكد أن كل فريق له قائد (يظهر بالتاج في بطاقات الفرق).</div>' : ''}<div class="ctl">${big(b, seg.phase === 'done' ? 'nextseg' : 'next')}</div>` + timer;
     } else if (seg.g === 'crown') {
@@ -222,10 +222,10 @@ const Host = {
     $('#teams').innerHTML = s.teams.map(t => {
       const v = E.vil(t.id), r = rk.find(x => x.id === t.id), mem = E.teamMembers(t.id), cap = s.captain[t.id], on = mem.filter(m => m.online).length;
       return `<div class="tcard" style="--tc:${t.color}"><div class="row"><b class="h" style="font-size:18px">${esc(t.name)}</b><span class="pill">#${r ? r.rank : ''}</span><span class="grow"></span><span class="sc">${sc[t.id]}</span></div>
-        <div class="row" style="justify-content:space-between;font-size:13px"><span>💰 <b>${v.gold}</b> ذهب</span><span class="mut">👥 ${on}/${mem.length}</span><span class="mut">${v.theme ? 'قرية ' + D.THEMES[v.theme].name : 'بلا طابع'}</span></div>
+        <div class="row" style="justify-content:space-between;font-size:13px"><span>💰 <b>${v.gold}</b> ذهب</span><span class="mut">👥 ${on}/${mem.length}</span>${!s.seg || s.seg.g === 'opening' ? `<select class="in sm" data-theme-t="${t.id}" title="طابع القرية (شكل فقط)">${D.THEME_KEYS.map(k => `<option value="${k}" ${v.theme === k ? 'selected' : ''}>قرية ${D.THEMES[k].name}</option>`).join('')}</select>` : `<span class="mut">${v.theme ? 'قرية ' + D.THEMES[v.theme].name : ''}</span>`}</div>
         <div class="tvil">${villageSVG({ id: t.id, color: t.color, theme: v.theme }, v.b)}</div>
         <label class="row" style="font-size:12px">👑 القائد <select class="in sm" data-cap="${t.id}">${mem.length ? mem.map(m => `<option value="${m.sid}" ${m.sid === cap ? 'selected' : ''}>${esc(m.name)}${m.online ? '' : ' (غير متصل)'}</option>`).join('') : '<option>— لا أعضاء —</option>'}</select></label>
-        <div class="cards-row"><button class="chipbtn" data-act="adj" data-arg="${t.id}|10">+10 نقاط</button><button class="chipbtn" data-act="adj" data-arg="${t.id}|-10">−10</button><button class="chipbtn" data-act="gold" data-arg="${t.id}|10">+10 ذهب</button><button class="chipbtn" data-act="buildm" data-arg="${t.id}">🏗️ بناء</button></div></div>`;
+        <div class="cards-row"><button class="chipbtn win" data-act="live" data-arg="${t.id}" title="فاز في تحدٍّ حضوري: +20 نقطة و+20 ذهب">🏆 فوز حضوري</button><button class="chipbtn" data-act="adj" data-arg="${t.id}|10" title="نقاط فقط">+10 نقاط</button><button class="chipbtn" data-act="adj" data-arg="${t.id}|-10" title="خصم نقاط">−10 نقاط</button><button class="chipbtn" data-act="gold" data-arg="${t.id}|10">+10 ذهب</button><button class="chipbtn" data-act="buildm" data-arg="${t.id}">🏗️ بناء</button></div></div>`;
     }).join('');
   },
   // ---------- التبويبات ----------
@@ -288,6 +288,7 @@ const Host = {
     if (x.dataset.set) { let v = x.type === 'checkbox' ? x.checked : x.value; if (x.type === 'number') v = +v; E.setSetting(x.dataset.set, v); }
     if (x.dataset.move) E.moveStudent(x.dataset.move, x.value);
     if (x.dataset.cap) E.setCaptain(x.dataset.cap, x.value);
+    if (x.dataset.themeT) E.setTheme(x.dataset.themeT, x.value);
     if (x.hasAttribute('data-simon')) this.sim.on = x.checked;
     if (x.dataset.pmin) { E.s.plan[+x.dataset.pmin].min = Math.max(1, +x.value || 1); E.touch(); }
     if (x.dataset.pcnt) { E.s.plan[+x.dataset.pcnt].count = Math.max(1, Math.min(20, +x.value || 1)); E.touch(); }
@@ -333,6 +334,7 @@ const Host = {
       case 'add10': E.addTime(10); break;
       case 'undo': { const l = E.undo(); toast(l ? 'تم التراجع: ' + l : 'لا يوجد ما يُتراجع عنه'); break; }
       case 'adj': E.manualAdjust(x, +y); break;
+      case 'live': E.liveWin(x); break;
       case 'gold': E.manualGold(x, +y); break;
       case 'buildm': this.buildModal(arg); break;
       case 'tab': this.sideTab = arg; this.renderSide(); break;

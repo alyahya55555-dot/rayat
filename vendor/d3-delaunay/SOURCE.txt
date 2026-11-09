@@ -1,0 +1,2 @@
+d3-delaunay 6.0.6 (dist/d3-delaunay.min.js من حزمة npm) — https://github.com/d3/d3-delaunay
+الرخصة ISC (انظر LICENSE). الملف المصغّر يضم delaunator (ISC، Mapbox) و robust-predicates (Unlicense).

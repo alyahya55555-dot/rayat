@@ -27,7 +27,8 @@ function border(e, att, def, type) {
   }
   throw new Error('no border');
 }
-function attackTo(e, att, rid, extra = {}) { return e.setOrders(att, [Object.assign({ k: 'attack', r: rid }, extra)], cap(e, att)); }
+const settle = e => { while (e.s.step === 'resolve') e.next(); };
+function attackTo(e, att, rid, extra = {}) { const r = e.setOrders(att, [Object.assign({ k: 'attack', r: rid }, extra)], cap(e, att)); settle(e); return r; }
 function buzzAs(e, tid) { const sid = mem(e, tid)[0]; const r = e.buzz(sid); assert.ok(r.ok, 'buzz ' + r.why); }
 function playing(k = 'friction', n = 4) { const e = mk(n); join(e, 4); goPhase(e, k); return e; }
 
@@ -74,7 +75,7 @@ test('الاحتلال: محايد ملاصق بـ4 طعام، والمتناز�
   ask(e, { t1: 4, t2: 3, t3: 0, t4: 0 });
   e.setOrders('t2', [{ k: 'occupy', r: r.id }], cap(e, 't2'));
   e.setOrders('t1', [{ k: 'occupy', r: r.id }, { k: 'supply', res: 'stone' }], cap(e, 't1'));
-  assert.strictEqual(s.owner[r.id], 't1');
+  assert.strictEqual(s.owner[r.id], 't1'); assert.strictEqual(s.step, 'resolve', 'وقت لمشهد الفتح'); e.adv(4); e.tick(); assert.strictEqual(s.step, 'harvest');
   assert.strictEqual(e.team('t1').res.food, 6 - 4 + e.s.turn.harvest.t1.food); assert.strictEqual(e.team('t1').res.stone, 6 + 3 + e.s.turn.harvest.t1.stone);
   const t2r = s.turn.res.find(x => x.tid === 't2'); assert.ok(t2r.fb && t2r.k === 'supply' && t2r.why === 'taken');
 });
@@ -106,7 +107,7 @@ test('لا هجوم في التوسع، وهجوم واحد لكل فريق في
 
 test('التحصين بـ4 حجر، ولا تحصين للعاصمة ولا لأرض الغير', () => {
   const e = playing('expand'); const t = e.team('t1'), mine = e.regionsOf('t1').find(i => e.s.regions[i].type === 'mine');
-  ask(e, { t1: 4 }); e.setOrders('t1', [{ k: 'fortify', r: mine }, { k: 'fortify', r: t.cap }], cap(e, 't1'));
+  ask(e, { t1: 4 }); e.setOrders('t1', [{ k: 'fortify', r: mine }, { k: 'fortify', r: t.cap }], cap(e, 't1')); settle(e);
   assert.ok(e.s.fort[mine]); assert.strictEqual(e.s.turn.res.filter(y => y.tid === 't1')[1].why, 'no-fort');
 });
 
@@ -245,7 +246,7 @@ test('المرحلة تنتهي مع آخر دورة بدأت في وقتها، 
 test('الدورة التجريبية لا تترك أثرًا', () => {
   const e = mk(4); join(e, 4); e.start(); const before = JSON.stringify([e.s.owner, e.s.teams]);
   assert.ok(e.trialCycle().ok); const a = e.s.q.a; mem(e, 't1').forEach(sid => e.answer(sid, a)); e.next();
-  const nb = neutralNear(e, 't1').id; e.setOrders('t1', [{ k: 'occupy', r: nb }, { k: 'supply', res: 'gold' }], cap(e, 't1'));
+  const nb = neutralNear(e, 't1').id; e.setOrders('t1', [{ k: 'occupy', r: nb }, { k: 'supply', res: 'gold' }], cap(e, 't1')); settle(e);
   assert.strictEqual(e.s.step, 'harvest'); e.next();
   assert.strictEqual(e.s.step, 'setup'); assert.strictEqual(JSON.stringify([e.s.owner, e.s.teams]), before); assert.strictEqual(e.s.cycle, 0);
 });

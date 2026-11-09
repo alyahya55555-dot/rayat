@@ -1,7 +1,7 @@
 // أدوات مشتركة للاختبار والمحاكاة: الخريطة الحقيقية، وساعة وهمية، وبنك أسئلة صناعي
 const path = require('path');
-globalThis.d3 = require(path.join(__dirname, '../../proto/node_modules/d3-delaunay'));
-require('../../proto/rayat-map.js');
+globalThis.d3 = require(path.join(__dirname, '../../vendor/d3-delaunay/d3-delaunay.min.js'));
+require('../map.js');
 const { Rayat } = require('../engine.js');
 
 const seeded = seed => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };

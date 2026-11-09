@@ -92,46 +92,60 @@
   };
   const flag = (x, y, col, emb, big) => { const s = big ? 1.45 : 1; return `<g transform="translate(${f1(x)},${f1(y)}) scale(${s})"><rect x="-1.6" y="-62" width="3.2" height="62" fill="#4a3b2a"/><circle cx="0" cy="-63" r="3.2" fill="#e8c35a"/><path d="M1.6,-60 C16,-64 26,-54 44,-58 L44,-32 C26,-28 16,-38 1.6,-34Z" fill="${col}" stroke="rgba(0,0,0,.35)" stroke-width="1.2"/><text x="22" y="-40" font-size="15" text-anchor="middle">${emb}</text></g>`; };
 
-  // رسم الخريطة كاملة. state: { owner:{id:teamIdx}, forts:Set, teams:[{name,color,emb}], ally:[[a,b]], focus:id, dim:bool }
-  function svg(M, st, o = {}) {
-    const T = st.teams, own = id => st.owner[id] == null ? -1 : st.owner[id];
-    const landD = [M.main, ...M.isles].map(l => smooth(l.poly));
-    let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="'Thmanyah','Noto Naskh Arabic','DejaVu Sans',sans-serif">`;
+  // ---------- الرسم ----------
+  // state: { owner: {id|index: teamIdx} أو مصفوفة (‑1/null = محايد)، forts: Set، teams: [{name,color,emb}]، ally: [[a,b]] }
+  // الطبقات الثابتة ترسم مرة واحدة، والمتغيرة (الألوان والحدود والحصون والرايات والأسماء والتحالفات) تُحدَّث في مكانها
+  const ownOf = st => id => { const v = st.owner[id]; return v == null || v < 0 ? -1 : v; };
+  const regionD = r => `M${r.poly.map(p => p.map(f1).join(',')).join('L')}Z`;
+  function fillOf(M, st, r) { const ty = TYPES[r.type], o = ownOf(st)(r.id), base = r.coast ? mix(ty.base, '#d9c793', .12) : ty.base; return o < 0 ? mix(base, '#d6d3c2', .3) : mix(base, st.teams[o].color, .72); }
+  // الحدود: رفيعة متقطعة داخل الدولة، سميكة بين الدول
+  function borders(M, st) {
+    const own = ownOf(st);
+    if (!M._seg) { const seg = {}; M.regions.forEach(r => { const p = r.poly; for (let i = 0; i < p.length - 1; i++) { const a = p[i], b = p[i + 1], k = [a, b].map(q => q.map(v => Math.round(v * 10)).join(':')).sort().join('|'); (seg[k] = seg[k] || { a, b, c: [] }).c.push(r.id); } }); M._seg = Object.values(seg).filter(e => e.c.length === 2 && M.regions[e.c[0]].land === M.regions[e.c[1]].land); }
+    let thin = '', thick = ''; M._seg.forEach(e => { const d = `M${f1(e.a[0])},${f1(e.a[1])}L${f1(e.b[0])},${f1(e.b[1])}`; if (own(e.c[0]) === own(e.c[1])) thin += d; else thick += d; });
+    return `<path d="${thin}" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-dasharray="6 6" fill="none"/><path d="${thick}" stroke="#1d1a14" stroke-opacity=".85" stroke-width="6.5" stroke-linecap="round" fill="none"/><path d="${thick}" stroke="#f3ead2" stroke-opacity=".55" stroke-width="1.4" fill="none"/>`;
+  }
+  const flagAt = r => [r.at[0] - (r.type === 'castle' ? 0 : 18), r.at[1] - (r.type === 'castle' ? 92 : r.type === 'capital' ? 38 : 4)];
+  function flagOf(M, st, r) { const o = ownOf(st)(r.id); if (o < 0) return ''; const [x, y] = flagAt(r); return `<g class="flag" data-id="${r.id}" filter="url(#sh)">${flag(x, y, st.teams[o].color, st.teams[o].emb, r.type === 'capital' || r.type === 'castle')}</g>`; }
+  function fortOf(M, st, r) { if (!(st.forts && st.forts.has(r.id)) || r.type === 'capital') return ''; const [x, y] = r.at, o = ownOf(st)(r.id), col = o < 0 ? '#d8d2c0' : st.teams[o].color; return `<g class="fort" data-id="${r.id}" filter="url(#sh)"><path d="M${f1(x + 34)},${f1(y - 18)} h26 v20 q0,16 -13,22 q-13,-6 -13,-22z" fill="#cfc6b0" stroke="#4d4333" stroke-width="2"/><path d="M${f1(x + 41)},${f1(y - 10)} h12 v8 q0,7 -6,10 q-6,-3 -6,-10z" fill="${col}"/></g>`; }
+  function labelOf(M, st, r) {
+    const [x, y] = r.at, o = ownOf(st)(r.id), ny = y + (r.type === 'castle' ? 82 : 44), nm = r.type === 'capital' ? '👑 ' + (o >= 0 ? st.teams[o].name : 'عاصمة') : r.name + (r.type === 'castle' ? ' ×5' : '');
+    return `<text x="${f1(x)}" y="${f1(ny)}" text-anchor="middle" font-size="${r.type === 'castle' ? 28 : r.land ? 17 : r.type === 'capital' ? 21 : 19}" font-weight="800" fill="#fff" stroke="rgba(20,24,20,.82)" stroke-width="5" paint-order="stroke" stroke-linejoin="round">${nm}</text>`;
+  }
+  // قوس الحلف بين عاصمتين، ويعيد مركزه لرسم الرمز وقطعه عند النقض
+  function allyArc(M, a, b) { const A = M.regions[M.caps[a]].at, B = M.regions[M.caps[b]].at, mx = (A[0] + B[0]) / 2, cy = Math.max(A[1], B[1]) + 150; return { d: `M${f1(A[0])},${f1(A[1] - 20)} Q${f1(mx)},${f1(cy)} ${f1(B[0])},${f1(B[1] - 20)}`, mid: [mx, (cy + (A[1] + B[1]) / 2 - 20) / 2] }; }
+  function allies(M, st) { return (st.ally || []).map(([a, b]) => { const { d, mid } = allyArc(M, a, b); return `<g class="ally" data-k="${a}-${b}"><path d="${d}" fill="none" stroke="#f4c430" stroke-width="5" stroke-dasharray="14 10" opacity=".9"/><circle cx="${f1(mid[0])}" cy="${f1(mid[1])}" r="22" fill="#1b2a33" stroke="#f4c430" stroke-width="3"/><text x="${f1(mid[0])}" y="${f1(mid[1] + 8)}" font-size="22" text-anchor="middle">🤝</text></g>`; }).join(''); }
+
+  function scene(M, st) {
+    const landD = [M.main, ...M.isles].map(l => smooth(l.poly)), own = ownOf(st);
+    let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="rmap">`;
     s += `<defs><radialGradient id="sea" cx="50%" cy="55%" r="75%"><stop offset="0" stop-color="#1f7f97"/><stop offset=".6" stop-color="#145e78"/><stop offset="1" stop-color="#0b3a52"/></radialGradient><clipPath id="land">${landD.map(d => `<path d="${d}"/>`).join('')}</clipPath><filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14"/></filter><filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="3" stdDeviation="2.5" flood-opacity=".45"/></filter><pattern id="waves" width="90" height="40" patternUnits="userSpaceOnUse"><path d="M6,22 q10,-8 20,0 t20,0" stroke="rgba(255,255,255,.10)" stroke-width="2" fill="none"/><path d="M52,8 q8,-6 16,0" stroke="rgba(255,255,255,.07)" stroke-width="2" fill="none"/></pattern></defs>`;
-    s += `<rect width="${W}" height="${H}" fill="url(#sea)"/><rect width="${W}" height="${H}" fill="url(#waves)"/>`;
-    // ضحل البحر وظل الجزيرة
+    s += `<rect width="${W}" height="${H}" fill="url(#sea)"/><rect class="waves" width="${W}" height="${H}" fill="url(#waves)"/>`;
     landD.forEach(d => { s += `<path d="${d}" fill="none" stroke="#7fd3d8" stroke-opacity=".35" stroke-width="70" filter="url(#soft)"/><path d="${d}" fill="none" stroke="#9fe3e0" stroke-opacity=".55" stroke-width="26"/>`; });
-    // خطوط الملاحة
     M.routes.forEach(r => { const a = M.regions[r.from].at, b = M.regions[r.to].at, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2 - 60; s += `<path d="M${f1(a[0])},${f1(a[1])} Q${f1(mx)},${f1(my)} ${f1(b[0])},${f1(b[1])}" fill="none" stroke="rgba(255,255,255,.75)" stroke-width="3" stroke-dasharray="10 9"/><text x="${f1(mx)}" y="${f1(my + 16)}" font-size="22" text-anchor="middle">⛵</text>`; });
-    // الأقاليم
-    s += `<g clip-path="url(#land)">`;
-    M.regions.forEach(r => { const ty = TYPES[r.type], o2 = own(r.id), base = r.coast ? mix(ty.base, '#d9c793', .12) : ty.base, fill = o2 < 0 ? mix(base, '#d6d3c2', .3) : mix(base, T[o2].color, .72); s += `<path d="M${r.poly.map(p => p.map(f1).join(',')).join('L')}Z" fill="${fill}"/>`; });
-    // الحدود: رفيعة داخل الدولة، سميكة بين الدول
-    const seg = {}; M.regions.forEach(r => { const p = r.poly; for (let i = 0; i < p.length - 1; i++) { const a = p[i], b = p[i + 1], k = [a, b].map(q => q.map(v => Math.round(v * 10)).join(':')).sort().join('|'); (seg[k] = seg[k] || { a, b, c: [] }).c.push(r.id); } });
-    let thin = '', thick = '', glow = '';
-    Object.values(seg).forEach(e => { if (e.c.length < 2) return; const [i, j] = e.c, oi = own(i), oj = own(j), d = `M${f1(e.a[0])},${f1(e.a[1])}L${f1(e.b[0])},${f1(e.b[1])}`; if (M.regions[i].land !== M.regions[j].land) return; if (oi === oj) thin += d; else { thick += d; } });
-    s += `<path d="${thin}" stroke="rgba(255,255,255,.55)" stroke-width="2" stroke-dasharray="6 6" fill="none"/>`;
-    s += `<path d="${thick}" stroke="#1d1a14" stroke-opacity=".85" stroke-width="6.5" stroke-linecap="round" fill="none"/><path d="${thick}" stroke="#f3ead2" stroke-opacity=".55" stroke-width="1.4" fill="none"/>`;
-    s += `</g>`;
-    // الساحل الرملي فوق كل شيء
+    s += `<g clip-path="url(#land)"><g id="m-regions">${M.regions.map(r => `<path id="rg-${r.id}" data-id="${r.id}" d="${regionD(r)}" fill="${fillOf(M, st, r)}"/>`).join('')}</g><g id="m-fx-land"></g><g id="m-borders">${borders(M, st)}</g></g>`;
     landD.forEach(d => { s += `<path d="${d}" fill="none" stroke="#e9d9a6" stroke-width="22" clip-path="url(#land)"/><path d="${d}" fill="none" stroke="#c9b27a" stroke-width="2.5"/>`; });
-    // الرسومات والرايات والأسماء
-    let spr = '', fl = '', lb = '';
-    M.regions.forEach(r => {
-      const [x, y] = r.at, o2 = own(r.id), col = o2 < 0 ? '#d8d2c0' : T[o2].color;
-      spr += `<g filter="url(#sh)">${sprite[r.type](x, y + (r.type === 'castle' ? 0 : 6), col)}</g>`;
-      if (st.forts && st.forts.has(r.id) && r.type !== 'capital') spr += `<g filter="url(#sh)"><path d="M${f1(x + 34)},${f1(y - 18)} h26 v20 q0,16 -13,22 q-13,-6 -13,-22z" fill="#cfc6b0" stroke="#4d4333" stroke-width="2"/><path d="M${f1(x + 41)},${f1(y - 10)} h12 v8 q0,7 -6,10 q-6,-3 -6,-10z" fill="${col}"/></g>`;
-      if (o2 >= 0) fl += `<g filter="url(#sh)">${flag(x - (r.type === 'castle' ? 0 : 18), y - (r.type === 'castle' ? 92 : r.type === 'capital' ? 38 : 4), col, T[o2].emb, r.type === 'capital' || r.type === 'castle')}</g>`;
-      const ny = y + (r.type === 'castle' ? 82 : 44), nm = r.type === 'capital' ? '👑 عاصمة ' + (o2 >= 0 ? T[o2].name : '') : r.name + (r.type === 'castle' ? ' ×5' : '');
-      lb += `<text x="${f1(x)}" y="${f1(ny)}" text-anchor="middle" font-size="${r.type === 'castle' ? 28 : r.land ? 17 : r.type === 'capital' ? 21 : 19}" font-weight="800" fill="#fff" stroke="rgba(20,24,20,.82)" stroke-width="5" paint-order="stroke" stroke-linejoin="round">${nm}</text>`;
-    });
-    s += spr;
-    // التحالفات (فوق الرسومات وتحت الرايات)
-    (st.ally || []).forEach(([a, b]) => { const A = M.regions[M.caps[a]].at, B = M.regions[M.caps[b]].at; s += `<path d="M${f1(A[0])},${f1(A[1] - 20)} Q${f1((A[0] + B[0]) / 2)},${f1(Math.max(A[1], B[1]) + 150)} ${f1(B[0])},${f1(B[1] - 20)}" fill="none" stroke="#f4c430" stroke-width="5" stroke-dasharray="14 10" opacity=".9"/><circle cx="${f1((A[0] + B[0]) / 2)}" cy="${f1((Math.max(A[1], B[1]) + 150 + (A[1] + B[1]) / 2 - 20) / 2)}" r="22" fill="#1b2a33" stroke="#f4c430" stroke-width="3"/><text x="${f1((A[0] + B[0]) / 2)}" y="${f1((Math.max(A[1], B[1]) + 150 + (A[1] + B[1]) / 2 - 20) / 2 + 8)}" font-size="22" text-anchor="middle">🤝</text>`; });
-    s += fl + lb;
-    if (st.focus != null) { const r = M.regions[st.focus], d = `M${r.poly.map(p => p.map(f1).join(',')).join('L')}Z`; s += `<mask id="spot"><rect width="${W}" height="${H}" fill="#fff"/><path d="${d}" fill="#000" clip-path="url(#land)"/></mask><rect width="${W}" height="${H}" fill="rgba(5,12,18,.66)" mask="url(#spot)"/>${st.attack ? (() => { const a = M.regions[st.attack.from], dd = `M${a.poly.map(p => p.map(f1).join(',')).join('L')}Z`; return ''; })() : ''}<path d="${d}" fill="none" stroke="#ffd34d" stroke-width="7" clip-path="url(#land)"/>`; }
-    if (st.attack) { const a = M.regions[st.attack.from].at, b0 = M.regions[st.attack.to].at, b = [b0[0] + (a[0] - b0[0]) * .3, b0[1] + 40 + (a[1] - b0[1]) * .3], c = T[st.attack.team].color, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2 - 70; s += `<defs><marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0L10,5L0,10z" fill="${c}"/></marker></defs><path d="M${f1(a[0])},${f1(a[1] - 20)} Q${f1(mx)},${f1(my)} ${f1(b[0])},${f1(b[1] - 10)}" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" opacity=".9"/><path d="M${f1(a[0])},${f1(a[1] - 20)} Q${f1(mx)},${f1(my)} ${f1(b[0])},${f1(b[1] - 10)}" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" marker-end="url(#ah)"/>`; }
+    s += `<g id="m-sprites">${M.regions.map(r => { const o = own(r.id); return `<g filter="url(#sh)">${sprite[r.type](r.at[0], r.at[1] + (r.type === 'castle' ? 0 : 6), o < 0 ? '#d8d2c0' : st.teams[o].color)}</g>`; }).join('')}</g>`;
+    s += `<g id="m-forts">${M.regions.map(r => fortOf(M, st, r)).join('')}</g><g id="m-ally">${allies(M, st)}</g><g id="m-flags">${M.regions.map(r => flagOf(M, st, r)).join('')}</g><g id="m-labels">${M.regions.map(r => labelOf(M, st, r)).join('')}</g><g id="m-fx"></g>`;
     return s + `</svg>`;
   }
-  G.RayatMap = { build, fair, svg, TYPES, mix };
+  // تحديث الطبقات المتغيرة في عنصر svg مرسوم بـ scene. only: أقاليم بعينها تُستثنى (تُرسم بالحركة)
+  function paint(el, M, st) {
+    const q = id => el.querySelector('#' + id);
+    M.regions.forEach(r => { const p = q('rg-' + r.id); if (p) p.setAttribute('fill', fillOf(M, st, r)); });
+    q('m-borders').innerHTML = borders(M, st);
+    q('m-forts').innerHTML = M.regions.map(r => fortOf(M, st, r)).join('');
+    q('m-flags').innerHTML = M.regions.map(r => flagOf(M, st, r)).join('');
+    q('m-labels').innerHTML = M.regions.map(r => labelOf(M, st, r)).join('');
+    q('m-ally').innerHTML = allies(M, st);
+  }
+  // صورة ثابتة كاملة (للنماذج): مع إبراز إقليم وسهم هجوم اختياريين
+  function svg(M, st) {
+    let s = scene(M, st).replace(/<\/svg>$/, '');
+    if (st.focus != null) { const r = M.regions[st.focus], d = regionD(r); s += `<mask id="spot"><rect width="${W}" height="${H}" fill="#fff"/><path d="${d}" fill="#000" clip-path="url(#land)"/></mask><rect width="${W}" height="${H}" fill="rgba(5,12,18,.66)" mask="url(#spot)"/><path d="${d}" fill="none" stroke="#ffd34d" stroke-width="7" clip-path="url(#land)"/>`; }
+    if (st.attack) s += attackArrow(M, st.attack.from, st.attack.to, st.teams[st.attack.team].color);
+    return s + `</svg>`;
+  }
+  function attackArrow(M, from, to, c) { const a = M.regions[from].at, b0 = M.regions[to].at, b = [b0[0] + (a[0] - b0[0]) * .3, b0[1] + 40 + (a[1] - b0[1]) * .3], mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2 - 70, d = `M${f1(a[0])},${f1(a[1] - 20)} Q${f1(mx)},${f1(my)} ${f1(b[0])},${f1(b[1] - 10)}`; return `<g class="atk"><defs><marker id="ah${from}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0L10,5L0,10z" fill="${c}"/></marker></defs><path d="${d}" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" opacity=".9"/><path d="${d}" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" marker-end="url(#ah${from})"/></g>`; }
+  G.RayatMap = { build, fair, scene, paint, svg, attackArrow, allyArc, regionD, flag, flagAt, TYPES, mix, W, H };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,0 +1,87 @@
+<!doctype html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>رايات · تشغيل تجريبي لشاشة العرض</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Readex+Pro:wght@400;600;700;800&display=swap">
+<link rel="stylesheet" href="display.css">
+<script src="../vendor/d3-delaunay/d3-delaunay.min.js"></script>
+<script src="map.js"></script><script src="engine.js"></script><script src="bots.js"></script>
+<script src="fonts.js"></script><script src="sound.js"></script><script src="display.js"></script>
+<style>.ctl{position:fixed;bottom:8px;left:8px;z-index:99;font:14px sans-serif;color:#fff;background:#000a;padding:6px 10px;border-radius:8px;opacity:.15}.ctl:hover{opacity:1}.ctl input{width:60px}</style>
+</head><body><div id="app"></div>
+<div class="ctl">السرعة <input id="spd" type="number" min="0.25" step="0.25"> · <label>خط ثمانية <input type="file" id="font" multiple accept=".zip,.otf,.ttf,.woff,.woff2" style="width:auto"></label> · <span id="st"></span></div>
+<script>
+/* تشغيل تجريبي: المحرك والقادة الآليون في الصفحة نفسها، وساعة وهمية تُسرَّع بـ ?speed=4
+   ?skip=war يقفز (بلا عرض) حتى تبدأ المرحلة المذكورة · ?trial=1 يعرض الدورة التجريبية · ?seed=3 */
+const Q = new URLSearchParams(location.search);
+let speed = +Q.get('speed') || 1, vclock = 1.7e12, lastReal = performance.now();
+const now = () => vclock;
+const seeded = seed => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+const rng = seeded(+Q.get('seed') || 11);
+// أسئلة للتجربة فقط (بنك الأسئلة الحقيقي خطوة لاحقة)
+const BANK = [
+  [1, 'ما عاصمة المملكة العربية السعودية؟', ['الرياض', 'جدة', 'مكة المكرمة', 'الدمام'], 0], [1, 'كم عدد أيام الأسبوع؟', ['خمسة', 'ستة', 'سبعة', 'ثمانية'], 2],
+  [1, 'ما أكبر كواكب المجموعة الشمسية؟', ['المريخ', 'المشتري', 'زحل', 'الأرض'], 1], [1, 'كم عدد أركان الإسلام؟', ['ثلاثة', 'أربعة', 'خمسة', 'ستة'], 2],
+  [1, 'ما أطول سورة في القرآن الكريم؟', ['آل عمران', 'البقرة', 'النساء', 'المائدة'], 1], [1, 'ما الغاز الذي نحتاجه للتنفس؟', ['الأكسجين', 'النيتروجين', 'الهيليوم', 'ثاني أكسيد الكربون'], 0],
+  [1, 'كم عدد قارات العالم؟', ['خمس', 'ست', 'سبع', 'ثمان'], 2], [1, 'ما أكبر محيط في العالم؟', ['الأطلسي', 'الهندي', 'الهادي', 'المتجمد الشمالي'], 2],
+  [2, 'ما عاصمة اليابان؟', ['بكين', 'سيول', 'طوكيو', 'بانكوك'], 2], [2, 'كم عدد أضلاع الشكل السداسي؟', ['خمسة', 'ستة', 'سبعة', 'ثمانية'], 1],
+  [2, 'في أي قارة يجري نهر الأمازون؟', ['أفريقيا', 'آسيا', 'أمريكا الجنوبية', 'أوروبا'], 2], [2, 'ما أصغر عدد أولي؟', ['0', '1', '2', '3'], 2],
+  [2, 'ما المعدن السائل في درجة حرارة الغرفة؟', ['الحديد', 'الزئبق', 'النحاس', 'الألمنيوم'], 1], [2, 'كم عدد سور القرآن الكريم؟', ['110', '112', '114', '116'], 2],
+  [2, 'كم عدد عظام جسم الإنسان البالغ؟', ['106', '206', '306', '406'], 1], [2, 'ما عاصمة كندا؟', ['تورنتو', 'أوتاوا', 'مونتريال', 'فانكوفر'], 1],
+  [3, 'ما العنصر الذي رمزه الكيميائي Fe؟', ['الفلور', 'الحديد', 'الفضة', 'الرصاص'], 1], [3, 'كم تبلغ سرعة الضوء في الفراغ تقريبًا؟', ['3 آلاف كم/ث', '30 ألف كم/ث', '300 ألف كم/ث', '3 ملايين كم/ث'], 2],
+  [3, 'في أي سنة هجرية كانت غزوة بدر؟', ['الأولى', 'الثانية', 'الثالثة', 'الخامسة'], 1], [3, 'ما أعلى قمة جبلية في العالم؟', ['كليمنجارو', 'إفرست', 'كي 2', 'مون بلان'], 1],
+  [3, 'ما العضو الذي ينقّي الدم من الفضلات؟', ['القلب', 'الرئتان', 'الكليتان', 'المعدة'], 2], [3, 'ما أقرب كوكب إلى الشمس؟', ['الزهرة', 'عطارد', 'المريخ', 'الأرض'], 1],
+  [3, 'كم يساوي الجذر التربيعي للعدد 144؟', ['11', '12', '13', '14'], 1], [3, 'كم ضلعًا للشكل الثماني؟', ['ستة', 'سبعة', 'ثمانية', 'تسعة'], 2]
+].map(([d, q, c, a], i) => ({ id: 'demo' + i, d, q, c, a }));
+
+const map = RayatMap.fair(4, +Q.get('seed') || 11);
+const e = new RayatEngine.Rayat({ map, bank: BANK, rng, now, code: '4721' });
+const PROF = { t1: { p: .75, brain: 'smart' }, t2: { p: .6, brain: 'smart' }, t3: { p: .6, brain: 'naive' }, t4: { p: .55, brain: 'smart' } };
+[['الصقور', 'falcon', '#2471A3'], ['السهم', 'arrow', '#1E8449'], ['الرواد', 'horse', '#CA6F1E'], ['الهمّة', 'palm', '#7D3C98']].forEach(([name, emb, color], i) => { const t = e.s.teams[i]; t.name = name; t.emb = emb; t.color = color; });
+const NAMES = ['سعد', 'فهد', 'خالد', 'عبدالله', 'ناصر', 'يوسف', 'بدر', 'تركي', 'ماجد', 'سلمان', 'راكان', 'نواف', 'مشعل', 'زياد', 'عمر', 'حمد', 'سامي', 'وليد', 'هشام', 'أنس'];
+NAMES.forEach((n, i) => e.upsertStudent({ sid: 'b' + i, name: n, want: 't' + (i % 4 + 1) }));
+
+// ---------- القادة والطلاب الآليون ----------
+let plan = [], sig = null, trialDone = !Q.get('trial'), know = {};
+const at = (sec, fn) => plan.push({ t: vclock + sec * 1000, fn });
+const S = () => e.s;
+function replan() {
+  const s = S(), d = s.duel, k = [s.phase, s.cycle, s.step, d && d.sub, d && d.round, d && d.allowed && d.allowed.length].join(':');
+  if (k === sig) return; sig = k; plan = [];
+  const P = RayatEngine.PHASES[s.phase] || {};
+  if (s.step === 'lobby') at(3, () => e.start());
+  else if (s.step === 'setup') at(4, () => { if (!trialDone) { trialDone = true; e.trialCycle(); } else e.nextPhase(); });
+  else if (s.step === 'ready') at(3, () => e.nextCycle());
+  else if (s.step === 'phaseEnd') at(2.5, () => e.nextPhase());
+  else if (s.step === 'tiebreak' && !d) at(4, () => e.startTiebreak());
+  else if (s.step === 'question') {
+    RayatBots.diplomacy(e, PROF, rng);
+    Object.values(s.students).forEach(st => at(3 + rng() * 13, () => e.answer(st.sid, rng() < RayatBots.qOk(PROF[st.team].p, s.q.d) ? s.q.a : (s.q.a + 1 + Math.floor(rng() * 3)) % 4)));
+  } else if (s.step === 'orders') {
+    const pe = Object.fromEntries(Object.entries(PROF).map(([t, p]) => [t, p.p]));
+    s.turn.order.filter(t => s.turn.n[t] > 0).forEach(t => at(4 + rng() * 8, () => { if (S().step === 'orders') e.setOrders(t, RayatBots.decide(e, t, s.turn.n[t], PROF[t].brain, pe, rng), s.captain[t]); }));
+  } else if (d && d.sub === 'predict') {
+    Object.values(s.students).filter(st => !d.sides.includes(st.team)).forEach(st => at(1 + rng() * 3, () => e.predict(st.sid, d.def ? (rng() < .55 ? d.att : d.def) : (rng() < .4 ? d.att : 'hold'))));
+  } else if (d && d.sub === 'buzz') {
+    const c = d.allowed.map(x => { const kn = rng() < RayatBots.qOk(PROF[x].p, d.q.d), g = !kn && rng() < .3; return { x, kn, t: kn ? 3 + rng() * 6 : g ? 6 + rng() * 8 : 99 }; }).sort((a, b) => a.t - b.t)[0];
+    if (c.t < 15) at(c.t, () => { know[c.x] = c.kn; e.buzz(e.members(c.x)[0].sid); });
+  } else if (d && d.sub === 'answer') {
+    const ok = d.kind === 'garrison' ? rng() < RayatBots.qOk(PROF[d.buzz].p, 3) : d.second ? rng() < RayatBots.qOk(PROF[d.buzz].p, d.q.d) + .1 : (know[d.buzz] || rng() < .25);
+    at(d.kind === 'garrison' ? 6 : 3.5, () => e.judge(ok));
+  }
+}
+function drive() { e.tick(); replan(); const due = plan.filter(p => p.t <= vclock); plan = plan.filter(p => p.t > vclock); due.forEach(p => p.fn()); }
+
+// القفز السريع بلا عرض حتى مرحلة معينة
+const skip = Q.get('skip');
+if (skip) { const idx = RayatEngine.PHASES.findIndex(p => p.k === skip); trialDone = true; for (let i = 0; i < 400000 && !(S().phase >= idx && ['ready', 'question'].includes(S().step)) && S().step !== 'crown'; i++) { vclock += 250; drive(); } }
+
+const D = new RayatDisplay(document.getElementById('app'), { now, sound: n => RayatSound.play(n) });
+RayatSound.init({ base: '../assets/sfx/' }); RayatFonts.load();
+addEventListener('pointerdown', () => RayatSound.unlock());
+e.onChange = () => D.update(e.pub()); D.update(e.pub());
+setInterval(() => { const t = performance.now(); vclock += (t - lastReal) * speed; lastReal = t; drive(); document.getElementById('st').textContent = `${S().step} · الدورة ${S().cycle}`; }, 50);
+const spd = document.getElementById('spd'); spd.value = speed; spd.onchange = () => { speed = +spd.value || 1; };
+document.getElementById('font').onchange = async ev => { const r = await RayatFonts.add(ev.target.files); alert(r.ok ? `حُمّل خط ثمانية: ${r.families.join('، ')}` : r.why); };
+window.E = e; window.D = D; window.go = sec => { vclock += sec * 1000; };
+</script></body></html>

@@ -22,7 +22,8 @@
     castleWorth: 5, loot: 0.5, revenge: 3, predictCap: 3,
     fortHold: 1,                                // انتصارات يحتاجها المدافع في أرض محصّنة أو عاصمة
     lastStart: 45,                              // لا تبدأ دورة إن بقي من المرحلة أقل من هذا (ثوانٍ)
-    t: { q: 20, orders: 15, predict: 5, buzz: 15, answer: 10, second: 10, round: 3, end: 4, harvest: 4, offer: 30, away: 20 }
+    t: { q: 20, orders: 15, predict: 5, buzz: 15, answer: 10, second: 10, round: 3, end: 5, harvest: 4, offer: 30, away: 20 },
+    scene: { occupy: 4, fortify: 2, betray: 4 }  // ثوانٍ تعطيها المسابقة لمشاهد الشاشة قبل المواجهات
   };
 
   // المراحل: attack/ally/castle مفاتيح ما يُسمح به، harvest مضاعف الحصاد، atk مضاعف تكلفة الهجوم، d صعوبات الأسئلة
@@ -173,7 +174,7 @@
     phaseLeft() { const s = this.s, p = PHASES[s.phase]; if (!p || s.phaseAt == null) return 0; return s.settings.min[p.k] * 60000 - (this.now() - s.phaseAt); }
     setPhaseMin(k, min) { if (this.s.settings.min[k] == null) return false; this.s.settings.min[k] = Math.max(1, Math.min(60, +min || 1)); this.touch(); return true; }
     nextPhase() {
-      const s = this.s; if (s.phase >= PHASES.length - 1 || ['question', 'orders', 'duel'].includes(s.step)) return no('busy');
+      const s = this.s; if (s.phase >= PHASES.length - 1 || ['question', 'orders', 'resolve', 'duel'].includes(s.step)) return no('busy');
       this.snap('المرحلة التالية'); s.phase++; s.phaseAt = this.now(); s.step = 'ready'; s.deadline = null;
       const p = PHASES[s.phase];
       if (p.k === 'final') { s.offers = []; s.teams.forEach(t => { if (t.ally && t.id < t.ally) { s.hist.push([s.cycle, 'end', t.id, t.ally]); } t.ally = null; t.allyEnd = false; }); this.news('سقطت التحالفات كلها: المعركة الأخيرة'); }
@@ -277,13 +278,17 @@
             if (o.betray) this.betray(tid, def);
             s.duels.push(this.mkDuel(tid, o.r, !!o.betray, cost));
           }
-          s.turn.res.push({ tid, k: o.k, r: o.r, res: o.res, fb, why: fb ? why : null, auto: auto || !!o0.auto });
+          s.turn.res.push({ tid, k: o.k, r: o.r, res: o.res, fb, why: fb ? why : null, auto: auto || !!o0.auto, betray: o.k === 'attack' && !!o.betray });
         }
       }
+      // مشاهد الفتح والتحصين والنقض تأخذ وقتها على الشاشة قبل المواجهات
+      const sc = this.R.scene, show = s.turn.res.reduce((a, x) => a + (x.fb ? 0 : (sc[x.k] || 0) + (x.betray ? sc.betray : 0)), 0);
       this.touch('orders', { res: s.turn.res });
-      if (s.duels.length) this.nextDuel(); else this.harvest();
+      if (show > 0) { s.step = 'resolve'; s.deadline = this.now() + show * 1000; this.touch(); }
+      else this.resolveDone();
       return ok();
     }
+    resolveDone() { const s = this.s; if (!['orders', 'resolve'].includes(s.step)) return no('closed'); s.deadline = null; if (s.duels.length) this.nextDuel(); else this.harvest(); return ok(); }
     betray(att, def) {
       const s = this.s, a = this.team(att), d = this.team(def);
       a.ally = null; a.allyEnd = false; d.ally = null; d.allyEnd = false; a.stats.betray++;
@@ -448,6 +453,7 @@
         case 'ready': return this.nextCycle();
         case 'question': return this.closeQuestion();
         case 'orders': return this.closeOrders();
+        case 'resolve': return this.resolveDone();
         case 'duel': if (d.sub === 'predict') return this.beginRound(); if (d.sub === 'round') return this.beginRound(); if (d.sub === 'end') return this.afterDuel(); return no('judge');
         case 'harvest': return this.endCycle();
         case 'phaseEnd': return this.nextPhase();
@@ -463,6 +469,7 @@
         const d = s.duel;
         if (s.step === 'question') this.closeQuestion();
         else if (s.step === 'orders') this.closeOrders();
+        else if (s.step === 'resolve') this.resolveDone();
         else if (s.step === 'harvest') this.endCycle();
         else if (d && d.sub === 'predict') this.beginRound();
         else if (d && d.sub === 'buzz') this.roundWin(d.kind === 'tie' ? null : d.def);
@@ -487,8 +494,13 @@
 
     // ما يُبث للشاشات والجوالات: بلا الإجابة الصحيحة قبل كشفها، وبلا سجل التراجع
     pub() {
-      const s = this.s, c = Object.assign({}, s); delete c.undo; delete c.used; delete c.trial;
-      if (s.q) { c.q = Object.assign({}, s.q); if (s.step === 'question') delete c.q.a; delete c.q.ans; c.q.n = Object.keys(s.q.ans).length; }
+      const s = this.s, c = Object.assign({}, s); delete c.undo; delete c.used; delete c.trial; c.now = this.now(); c.isTrial = !!s.trial;
+      if (s.q) {
+        c.q = Object.assign({}, s.q); if (s.step === 'question') delete c.q.a; delete c.q.ans; delete c.q.roster; c.q.n = Object.keys(s.q.ans).length;
+        c.q.cnt = Object.fromEntries(s.teams.map(t => { const r = s.q.roster.filter(x => s.students[x] && s.students[x].team === t.id); return [t.id, [r.filter(x => s.q.ans[x]).length, r.length]]; }));
+      }
+      // أوامر القادة سرية حتى تُغلق
+      if (s.turn && s.step === 'orders') c.turn = Object.assign({}, s.turn, { orders: Object.fromEntries(Object.keys(s.turn.orders).map(k => [k, true])) });
       if (s.duel && s.duel.q) { c.duel = Object.assign({}, s.duel, { q: Object.assign({}, s.duel.q) }); if (!['round', 'end'].includes(s.duel.sub)) delete c.duel.q.a; }
       return c;
     }

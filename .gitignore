@@ -14,3 +14,5 @@ r3d/frames/
 r3d/out/
 r3d/audio.m4a
 r3d/frames.json
+app/node_modules/
+app/out/

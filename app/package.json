@@ -1,0 +1,1 @@
+{ "name": "rayat-app", "private": true, "dependencies": { "three": "0.170.0", "d3-delaunay": "^6.0.6", "esbuild": "^0.24.0" } }

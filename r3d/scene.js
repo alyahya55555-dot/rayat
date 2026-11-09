@@ -32,13 +32,6 @@ const from = M.regions[target.nb.find(j => owner[j] === 0 && M.regions[j].type !
 const del = d3.Delaunay.from(M.regions.map(r => r.seed));
 const regionAtW = (x, z) => del.find(x / S + CX, z / S + CY);
 const at = r => P(...r.at);
-// مسار الزحف: من داخل أرض المهاجم إلى الحدّ الفعلي مع الهدف، بعيدًا عن البيوت
-const MF = at(from), MT = at(target), mdL = Math.hypot(MT[0] - MF[0], MT[1] - MF[1]), mux = (MT[0] - MF[0]) / mdL, muz = (MT[1] - MF[1]) / mdL;
-let MB = .5; for (let k = .15; k < .98; k += .005) if (regionAtW(lerp(MF[0], MT[0], k), lerp(MF[1], MT[1], k)) === target.id) { MB = k; break; }
-const BP = [lerp(MF[0], MT[0], MB), lerp(MF[1], MT[1], MB)];
-const clashP = [BP[0] + mux * .1, BP[1] + muz * .1], startP = [MF[0] + mux * Math.min(.42, mdL * MB * .45), MF[1] + muz * Math.min(.42, mdL * MB * .45)];
-const segDist = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)); return Math.hypot(a[0] + t * dx - x, a[1] + t * dz - z); };
-const inMarch = (x, z) => segDist(x, z, startP, clashP) < .3 || Math.hypot(x - clashP[0], z - clashP[1]) < .5;
 
 // ---------- الأرض: مسافة إلى الساحل وارتفاع ----------
 const coastSegs = []; [M.main.poly, ...M.isles.map(i => i.poly)].forEach(L => L.forEach((p, i) => { const q = L[(i + 1) % L.length], [ax, az] = P(...p), [bx, bz] = P(...q); coastSegs.push([ax, az, bx, bz]); }));
@@ -164,6 +157,17 @@ function buildBorders() {
     }); });
   if (dots.length) { const im = new THREE.InstancedMesh(dotGeo, dotMat, dots.length), m4 = new THREE.Matrix4(); dots.forEach((d, i) => im.setMatrixAt(i, m4.makeTranslation(...d))); borderGrp.add(im); }
 }
+// مسار الزحف: من داخل أرض المهاجم إلى الحدّ الفعلي مع الهدف، بعيدًا عن البيوت
+const MF = at(from), MT = at(target), mdL = Math.hypot(MT[0] - MF[0], MT[1] - MF[1]), mux = (MT[0] - MF[0]) / mdL, muz = (MT[1] - MF[1]) / mdL;
+let MB = .5; for (let k = .15; k < .98; k += .005) if (regionAtW(lerp(MF[0], MT[0], k), lerp(MF[1], MT[1], k)) === target.id) { MB = k; break; }
+const BP = [lerp(MF[0], MT[0], MB), lerp(MF[1], MT[1], MB)];
+const clashP = [BP[0] + mux * .05, BP[1] + muz * .05];
+// نقطة التجمّع: بجانب القرية لا داخلها، على أرض يابسة من إقليم المهاجم
+const startP = [1, -1].map(sg => [MF[0] + mux * .22 - muz * sg * .5, MF[1] + muz * .22 + mux * sg * .5]).map(q => [q, (regionAtW(...q) === from.id ? 1 : 0) + Math.min(coastDist(...q), .6)]).sort((a, b) => b[1] - a[1])[0][0];
+const pathEnd = [clashP[0] - mux * .36, clashP[1] - muz * .36];
+const segDist = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)); return Math.hypot(a[0] + t * dx - x, a[1] + t * dz - z); };
+const sdx = pathEnd[0] - startP[0], sdz = pathEnd[1] - startP[1], sdl = Math.hypot(sdx, sdz), startBack = [startP[0] - sdx / sdl * .24, startP[1] - sdz / sdl * .24];
+const inMarch = (x, z) => (segDist(x, z, startBack, pathEnd) < .32 || segDist(x, z, pathEnd, clashP) < .32) || Math.hypot(x - clashP[0], z - clashP[1]) < .5;
 buildBorders();
 
 // ---------- النباتات (مجسّمات متكررة) ----------
@@ -191,7 +195,8 @@ instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#6db552'), treeSpots.roun
 
 // ---------- المباني ----------
 const C = { roof: '#c4553a', roof2: '#a9452f', wall: '#f4ecdc', stone: '#d6cdb7', stone2: '#bdb39b', wood: '#8a6240', gold: '#f4c430' };
-function house(x, z, s = 1, roof = C.roof, rotY = 0) {
+const OBST = [];
+function house(x, z, s = 1, roof = C.roof, rotY = 0) { if (inMarch(x, z)) return; OBST.push(['بيت', x, z, .1 * s]);
   const g = new THREE.Group(), y = groundY(x, z);
   add(new THREE.Mesh(new THREE.BoxGeometry(.15 * s, .1 * s, .12 * s), mat(C.wall)), [0, .05 * s, 0], { to: g });
   const rf = new THREE.Mesh(new THREE.ConeGeometry(.125 * s, .085 * s, 4), mat(roof)); rf.rotation.y = Math.PI / 4; rf.scale.set(1.15, 1, .95); add(rf, [0, .142 * s, 0], { to: g });
@@ -200,7 +205,7 @@ function house(x, z, s = 1, roof = C.roof, rotY = 0) {
   add(new THREE.Mesh(new THREE.BoxGeometry(.022 * s, .022 * s, .006), mat('#ffd98a', { emissive: '#ffb54a', emissiveIntensity: .25 })), [-.045 * s, .06 * s, .062 * s], { to: g });
   g.position.set(x, y, z); g.rotation.y = rotY; scene.add(g); return g;
 }
-function tower(x, y, z, r, h, roofCol, to = scene) {
+function tower(x, y, z, r, h, roofCol, to = scene) { if (to === scene) OBST.push(['برج', x, z, r]);
   const g = new THREE.Group();
   add(new THREE.Mesh(new THREE.CylinderGeometry(r, r * 1.1, h, 12), mat(C.stone, { flatShading: false })), [0, h / 2, 0], { to: g });
   for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; add(new THREE.Mesh(new THREE.BoxGeometry(r * .34, r * .32, r * .34), mat(C.stone)), [Math.cos(a) * r * .88, h + r * .13, Math.sin(a) * r * .88], { to: g }); }
@@ -218,7 +223,7 @@ function ring(x, z, y, rx, rz, n, h, t, roofCol, towerR) { const pts = []; for (
 function field(x, z, w, d, c, rot) { const g = new THREE.Group(); add(new THREE.Mesh(new THREE.BoxGeometry(w, .012, d), mat(c, { flatShading: false })), [0, .006, 0], { to: g, cast: false });
   for (let i = 1; i < 5; i++) add(new THREE.Mesh(new THREE.BoxGeometry(w * .94, .008, .006), mat(new THREE.Color(c).multiplyScalar(.82))), [0, .014, -d / 2 + i * d / 5], { to: g, cast: false });
   g.position.set(x, groundY(x, z) + .004, z); g.rotation.y = rot; scene.add(g); }
-function rock(x, z, s = 1) { const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.06 * s, 0), mat(rnd() > .5 ? '#a8a294' : '#c7c0ae')); m.scale.set(1.3, .75, 1.1); m.rotation.set(rnd(), rnd() * 6, rnd()); return add(m, [x, groundY(x, z) + .02 * s, z]); }
+function rock(x, z, s = 1) { if (inMarch(x, z)) return; OBST.push(['صخرة', x, z, .07 * s]); const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.06 * s, 0), mat(rnd() > .5 ? '#a8a294' : '#c7c0ae')); m.scale.set(1.3, .75, 1.1); m.rotation.set(rnd(), rnd() * 6, rnd()); return add(m, [x, groundY(x, z) + .02 * s, z]); }
 function boat(x, z, rot) { const g = new THREE.Group(); add(new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .09), mat('#7b5236')), [0, .02, 0], { to: g }); add(new THREE.Mesh(new THREE.CylinderGeometry(.005, .005, .24, 5), mat('#5a4632')), [0, .14, 0], { to: g });
   const sl = new THREE.Mesh(new THREE.PlaneGeometry(.12, .15), new THREE.MeshStandardMaterial({ color: '#fbf6ea', side: THREE.DoubleSide, roughness: .8 })); sl.position.set(.06, .15, 0); sl.castShadow = true; g.add(sl); g.position.set(x, .02, z); g.rotation.y = rot; scene.add(g); return g; }
 
@@ -277,7 +282,7 @@ function makeLabels() {
   M.regions.forEach(r => { const [x, z] = at(r);
     if (r.type === 'castle') labels.push(label('القلعـة الكبرى', x, groundY(x, z) + .05, z + .55, { size: 34, font: 'TDisplay', weight: 900, h: .034 }));
     else if (r.type === 'capital') labels.push(label('عاصمة ' + TEAMS[owner[r.id]].name, x, groundY(x, z) + .05, z + .36, { size: 30, font: 'TDisplay', weight: 700, h: .026 }));
-    else labels.push(label(r.name, x, groundY(x, z + .3) + .04, z + .3, { size: 26, weight: 500, h: .022 })); });
+    else labels.push(Object.assign(label(r.name, x, groundY(x, z + .3) + .04, z + .3, { size: 26, weight: 500, h: .022 }), { userData: { reg: r.id } })); });
 }
 
 // ---------- الجنود والفرسان (مجسّمات بلا وجوه) ----------
@@ -353,8 +358,8 @@ function updatePuffs(t) { puffs.forEach(p => { const k = (t - p.t0) / p.life; if
 // ---------- مشهد الغزو ----------
 const A = 0, D = 1, [fx, fz] = at(from), [tx, tz] = at(target);
 const dirX = tx - fx, dirZ = tz - fz, dL = Math.hypot(dirX, dirZ), ux = dirX / dL, uz = dirZ / dL;
-const bend = .18, mid = [(startP[0] + clashP[0]) / 2 - uz * bend, (startP[1] + clashP[1]) / 2 + ux * bend];
-const path = new THREE.CatmullRomCurve3([V(startP[0], 0, startP[1]), V(mid[0], 0, mid[1]), V(clashP[0] - ux * .12, 0, clashP[1] - uz * .12)]);
+const mid = [lerp(startP[0], pathEnd[0], .55) * .5 + (pathEnd[0] - ux * .3) * .5, lerp(startP[1], pathEnd[1], .55) * .5 + (pathEnd[1] - uz * .3) * .5];
+const path = new THREE.CatmullRomCurve3([V(startP[0], 0, startP[1]), V(mid[0], 0, mid[1]), V(pathEnd[0] - ux * .1, 0, pathEnd[1] - uz * .1), V(pathEnd[0], 0, pathEnd[1])]);
 const army = [], guards = [];
 const ROWS = [[0, .34, 'r', 0, true], [-.13, .24, 'r', 1], [.13, .24, 'r', 2]];
 for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) ROWS.push([(c - 1.5) * .085, -r * .09, 'f']);
@@ -381,10 +386,10 @@ function placeArmy(t) {
 const tgtV = V(tx, groundY(tx, tz), tz), fromV = V(fx, groundY(fx, fz), fz);
 const overview = { pos: V(-.25, 17.4, 13.2), look: V(-.25, 0, -.55) };
 function camAt(t) {
-  const focus = tgtV.clone().lerp(fromV, .5), close = { pos: focus.clone().add(V(.5, 3.4, 3.7)), look: focus.clone() };
-  const pk = Math.min(1, ease(seg(t, ...T.march))), pp = path.getPointAt(pk), follow = { pos: pp.clone().add(V(.45, 2.1, 2.4)), look: pp.clone().add(V(0, .05, 0)) };
-  const cp = V(clashP[0], groundY(...clashP), clashP[1]), fin = { pos: cp.clone().lerp(tgtV, .4).add(V(-.35, 1.9, 2.15)), look: cp.clone().lerp(tgtV, .4).add(V(0, .12, 0)) };
-  const out = { pos: tgtV.clone().add(V(.5, 4.6, 5.0)), look: tgtV.clone() };
+  const focus = tgtV.clone().lerp(fromV, .5), close = { pos: focus.clone().add(V(-uz * 2.6 + ux * .8, 3.4, ux * 2.6 + uz * .8)), look: focus.clone() };
+  const pk = Math.min(1, ease(seg(t, ...T.march))), pp = path.getPointAt(pk), follow = { pos: pp.clone().add(V(-uz * 2.0 + ux * 1.0, 2.0, ux * 2.0 + uz * 1.0)), look: pp.clone().add(V(ux * .1, .05, uz * .1)) };
+  const cp = V(clashP[0], groundY(...clashP), clashP[1]), fL = cp.clone().lerp(tgtV, .42), fin = { pos: fL.clone().add(V(-uz * 2.3 - ux * .2, 2.3, ux * 2.3 - uz * .2)), look: fL.clone().add(V(0, .1, 0)) };
+  const out = { pos: tgtV.clone().add(V(0, 9.5, 6.6)), look: tgtV.clone().add(V(0, 0, -.4)) };
   let a, b, k;
   if (t < T.start) { a = b = overview; k = 0; }
   else if (t < T.march[0] + .5) { a = overview; b = close; k = ease(seg(t, T.start, T.march[0] + .5)); }
@@ -409,7 +414,7 @@ function applyT(t) {
   newFlag.g.visible = t >= T.raise[0]; newFlag.lift = ease(seg(t, ...T.raise)); waveFlags(t);
   const sp = ease(seg(t, ...T.spread)); teamU.uCR.value = sp > 0 && sp < 1 ? target.id : -1; teamU.uCFrom.value.set(TEAMS[D].color); teamU.uCTo.value.set(TEAMS[A].color); teamU.uCC.value.set(clashP[0], clashP[1]); teamU.uCRad.value = sp * 2.4;
   const now = t >= T.spread[0] + .9; if (now !== conquered) { conquered = now; owner[target.id] = conquered ? A : D; setTint(target.id); buildBorders(); hud(); }
-  labels.forEach(l => l.material.opacity = t < T.start ? 1 - ease(seg(t, T.start - .5, T.start)) : ease(seg(t, T.end - .7, T.end)));
+  labels.forEach(l => l.material.opacity = l.userData.reg === target.id ? 0 : t < T.start ? 1 - ease(seg(t, T.start - .5, T.start)) : ease(seg(t, T.end - .7, T.end)));
   if (t >= T.start && t < T.clash[1]) { setBanner('هجوم', `<em>${TEAMS[A].name}</em> يزحفـون على ${target.name}`, TEAMS[A].color); banner.classList.add('on'); }
   else if (t >= T.raise[0]) { setBanner('فتح', `<em>${TEAMS[A].name}</em> يفتحـون ${target.name}`, TEAMS[A].color); banner.classList.add('on'); }
   else banner.classList.remove('on');
@@ -422,6 +427,10 @@ window.R = {
     makeLabels(); hud(); resize(innerWidth, innerHeight); return true; })(),
   renderAt(t) { applyT(t); renderer.render(scene, camera); }, resize, T, stats: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles }),
   armyPos: () => army.slice(0, 3).map(s => s.position.toArray()),
+  check() { const bad = [], obs = [...OBST, ...[...treeSpots.pine, ...treeSpots.round].map(t => ['شجرة', t[0], t[2], .08 * t[3]])];
+    for (let t = T.march[0]; t <= T.end; t += .05) { placeArmy(t); [...army, ...guards].forEach((u, i) => { if (!u.visible || u.scale.x < .5) return; const r = i < 3 ? .06 : .035;
+      obs.forEach(([k, x, z, R]) => { const d = Math.hypot(u.position.x - x, u.position.z - z) - R - r; if (d < 0) bad.push([+t.toFixed(2), i < army.length ? 'مهاجم' + i : 'مدافع', k, +d.toFixed(3)]); }); }); }
+    return { n: bad.length, first: bad.slice(0, 12) }; },
   info: () => ({ dB: mdL * MB, mdL, target: target.name, from: from.name, regions: M.regions.length, trees: treeSpots.pine.length + treeSpots.round.length })
 };
 if (!location.hash.includes('manual')) R.ready.then(() => { const t0 = performance.now(); const loop = () => { R.renderAt(((performance.now() - t0) / 1000) % (T.end + 3)); requestAnimationFrame(loop); }; loop(); });

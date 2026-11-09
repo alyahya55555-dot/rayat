@@ -6,3 +6,5 @@ vendor/*.tgz
 vendor/paho/package/.npm/
 test/demo-video*/
 test/vid/*.mp4
+proto/node_modules/
+proto/out-*.png

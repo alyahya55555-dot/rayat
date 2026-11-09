@@ -1,0 +1,63 @@
+<!doctype html><html dir="rtl"><head><meta charset="utf-8">
+<script src="node_modules/d3-delaunay/dist/d3-delaunay.min.js"></script><script src="rayat-map.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;width:1500px;height:1000px;background:radial-gradient(circle at 50% 30%,#123848,#071820);font-family:'Noto Naskh Arabic','DejaVu Sans',sans-serif;color:#fff;display:flex;justify-content:center;align-items:center;gap:56px}
+.wrap{display:flex;flex-direction:column;align-items:center;gap:14px}
+.cap{font-size:24px;font-weight:800;color:#f4c430}
+.ph{width:390px;height:820px;border-radius:46px;background:#0b1d26;border:10px solid #1f2a30;box-shadow:0 0 0 2px #3a4a52,0 30px 60px rgba(0,0,0,.5);overflow:hidden;position:relative;display:flex;flex-direction:column}
+.top{padding:16px 18px 12px;background:var(--c);display:flex;align-items:center;gap:10px}
+.top .em{font-size:34px;background:#fff3;border-radius:12px;width:52px;height:52px;display:grid;place-items:center}
+.top b{font-size:24px;display:block}.top small{font-size:14px;opacity:.9}
+.top .help{margin-inline-start:auto;width:36px;height:36px;border-radius:50%;background:#fff3;display:grid;place-items:center;font-weight:900;font-size:20px}
+.res{display:flex;gap:8px;padding:12px 14px 6px}
+.res div{flex:1;background:#14303c;border-radius:12px;padding:8px 6px;text-align:center;font-size:14px;color:#cfe}
+.res div b{display:block;font-size:22px;color:#fff}
+.orders{margin:6px 14px;display:flex;align-items:center;justify-content:space-between;background:#f4c43022;border:2px solid #f4c430;border-radius:12px;padding:8px 12px;font-size:17px;font-weight:700}
+.orders .t{background:#f4c430;color:#222;border-radius:20px;padding:2px 10px;font-weight:900}
+.mm{margin:6px 14px;height:250px;border-radius:14px;overflow:hidden;position:relative;border:2px solid #ffffff22}
+.mm svg{width:100%;height:100%}
+.card{margin:8px 14px;background:#14303c;border-radius:12px;padding:10px 12px;font-size:16px;line-height:1.6}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:4px 14px}
+.grid div{background:#14303c;border:2px solid #ffffff1a;border-radius:12px;padding:10px;text-align:center;font-size:17px;font-weight:800}
+.grid div small{display:block;font-weight:400;font-size:13px;color:#bcd}
+.grid .on{border-color:#f4c430;background:#f4c43026}
+.ok{margin:10px 14px;background:#22a391;border-radius:14px;padding:14px;text-align:center;font-size:21px;font-weight:900}
+.buzz{width:250px;height:250px;border-radius:50%;margin:26px auto 10px;background:radial-gradient(circle at 35% 30%,#ff6b7a,#d0162d 60%,#8e0b1c);display:grid;place-items:center;font-size:44px;font-weight:900;box-shadow:0 18px 0 #6d0815,0 30px 50px rgba(0,0,0,.5),0 0 0 10px #ffffff12}
+.mid{text-align:center;padding:14px 18px}
+.mid h3{margin:4px 0;font-size:26px}.mid p{margin:4px 0;color:#bcd;font-size:16px}
+.vs{display:flex;justify-content:center;align-items:center;gap:10px;margin:10px 0;font-size:20px;font-weight:900}
+.vs span{padding:6px 14px;border-radius:12px}
+.pred{margin:8px 14px;background:#14303c;border-radius:12px;padding:10px;font-size:15px;color:#cde;text-align:center}
+.ov{position:absolute;inset:0;background:rgba(2,8,12,.72)}
+.hole{position:absolute;border-radius:14px;box-shadow:0 0 0 3px #f4c430,0 0 0 9999px rgba(2,8,12,.72)}
+.tip{position:absolute;right:14px;left:14px;background:#fff;color:#14232b;border-radius:16px;padding:16px;font-size:17px;line-height:1.7;box-shadow:0 14px 30px rgba(0,0,0,.4)}
+.tip b{font-size:20px;display:block;margin-bottom:4px}
+.tip .nav{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.tip .nav span{color:#678}.tip .nav i{font-style:normal;background:#22a391;color:#fff;border-radius:10px;padding:6px 16px;font-weight:800}
+.tip::before{content:'';position:absolute;top:-10px;right:60px;border:10px solid transparent;border-top:0;border-bottom-color:#fff}
+</style></head><body>
+<div class="wrap"><div class="cap">١) الشرح التعريفي أول الدخول</div><div class="ph" id="p1"></div></div>
+<div class="wrap"><div class="cap">٢) جوال القائد: اختيار الأمر</div><div class="ph" id="p2"></div></div>
+<div class="wrap"><div class="cap">٣) جوال العضو: المواجهة</div><div class="ph" id="p3"></div></div>
+<script>
+const M = RayatMap.build(4, 7);
+const teams = [{ name: 'الصقور', color: '#2f6fdb', emb: '🦅' }, { name: 'السهم', color: '#1f9d55', emb: '🏹' }, { name: 'الرواد', color: '#e0782b', emb: '🐎' }, { name: 'الهمّة', color: '#8e44ad', emb: '🌴' }];
+const quota = [9, 8, 6, 5], owner = {}; M.caps.forEach((c, t) => owner[c] = t); const castle = M.regions.find(r => r.castle).id; owner[castle] = 1;
+let grew = true; const cnt = t => Object.values(owner).filter(v => v === t).length;
+for (let round = 0; round < 30 && grew; round++) { grew = false; for (let t = 0; t < 4; t++) { if (cnt(t) >= quota[t] + (t === 1 ? 1 : 0)) continue; const fr = M.regions.filter(r => owner[r.id] === t).flatMap(r => r.nb).filter(j => owner[j] == null && !M.regions[j].land); if (fr.length) { const j = fr.sort((a, b) => M.regions[a].nb.length - M.regions[b].nb.length)[0]; owner[j] = t; grew = true; } } }
+owner[M.regions.filter(r => r.land === 1)[0].id] = 0;
+const forts = new Set(); [0, 1, 2, 3].forEach(t => { const own = M.regions.filter(r => owner[r.id] === t && r.type !== 'capital' && !r.castle); const border = own.find(r => r.nb.some(j => owner[j] != null && owner[j] !== t)); if (border) forts.add(border.id); });
+const target = M.regions.find(r => owner[r.id] === 1 && forts.has(r.id) && r.nb.some(j => owner[j] === 0)) || M.regions.find(r => owner[r.id] === 1 && r.nb.some(j => owner[j] === 0) && r.type !== 'capital' && !r.castle); forts.add(target.id);
+const from = target.nb.find(j => owner[j] === 0);
+const head = (n) => `<div class="top" style="--c:#2f6fdb"><div class="em">🦅</div><div><b>الصقور</b><small>${n}</small></div><div class="help">؟</div></div>`;
+const res = `<div class="res"><div>🌾 طعام<b>7</b></div><div>💰 ذهب<b>11</b></div><div>🪨 حجر<b>4</b></div><div>🗺️ أرض<b>10</b></div></div>`;
+// خريطة صغيرة مقصوصة حول أرض الفريق مع اقتراحات الأعضاء
+const mini = (sel, sug) => { let s = RayatMap.svg(M, { owner, forts, teams, focus: sel, attack: sel != null ? { from, to: sel, team: 0 } : null }); const cx = target.at[0] - 150, cy = target.at[1] + 20; s = s.replace(/viewBox="[^"]+" width="1920" height="1080"/, `viewBox="${cx - 330} ${cy - 210} 660 420" preserveAspectRatio="xMidYMid slice"`); const badges = sug.map(([id, n]) => { const r = M.regions[id]; return `<g><circle cx="${r.at[0] + 34}" cy="${r.at[1] - 44}" r="22" fill="#f4c430" stroke="#222" stroke-width="3"/><text x="${r.at[0] + 34}" y="${r.at[1] - 36}" text-anchor="middle" font-size="24" font-weight="900" fill="#222">${n}</text></g>`; }).join(''); return s.replace('</svg>', badges + '</svg>'); };
+const other = target.nb.find(j => owner[j] == null) ?? M.regions.find(r => owner[r.id] == null && r.nb.some(j => owner[j] === 0))?.id;
+document.getElementById('p2').innerHTML = head('👑 أنت القائد · عبدالله') + res + `<div class="orders">لديكم أمران هذه الدورة <span class="t">⏱ 12</span></div><div class="mm">${mini(target.id, [[target.id, 4], ...(other != null ? [[other, 2]] : [])])}</div>
+<div class="card">⚔️ <b>هجوم على ${target.name}</b> (السهم)<br>محصّنة: تحتاجون <b>فوزين</b> · التكلفة 4 💰<br><span style="color:#f4c430">4 من فريقك اقترحوها</span></div>
+<div class="grid"><div>🚩 احتلال<small>4 🌾 · أرض محايدة</small></div><div>🛡️ تحصين<small>4 🪨 · أرضكم</small></div><div class="on">⚔️ هجوم<small>4 💰 · أرض عدو</small></div><div>📦 تموين<small>+3 من مورد</small></div></div><div class="ok">تأكيد الهجوم ←</div>`;
+document.getElementById('p3').innerHTML = head('عضو · خالد') + `<div class="mid"><p>مواجهة على</p><h3>⚔️ ${target.name}</h3><div class="vs"><span style="background:#2f6fdb">🦅 الصقور</span>×<span style="background:#1f9d55">🏹 السهم</span></div><p>اقرأ السؤال على الشاشة الكبيرة</p></div><div class="buzz">اضغط!</div><div class="mid"><p>أول ضغطة من الفريقين تعطي فريقها حق الإجابة. تشاوروا وأجيبوا بصوت عالٍ.</p></div><div class="pred">الصقور يحتاجون فوزين · النتيجة الآن <b>1 – 0</b></div>`;
+document.getElementById('p1').innerHTML = head('عضو · سعد') + res + `<div class="orders">انتظروا السؤال القادم <span class="t">⏱ —</span></div><div class="mm">${mini(null, [])}</div><div class="hole" style="top:94px;left:14px;right:14px;height:76px"></div><div class="tip" style="top:186px"><b>🌾💰🪨 موارد فريقكم</b>الطعام يحتل الأراضي المحايدة، والذهب يجهّز الهجوم، والحجر يحصّن أرضكم. تزيد كل دورة من الأقاليم التي تملكونها.<div class="nav"><span>2 من 6</span><i>التالي</i></div></div>`;
+</script></body></html>

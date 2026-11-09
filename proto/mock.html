@@ -1,0 +1,56 @@
+<!doctype html><html dir="rtl"><head><meta charset="utf-8">
+<script src="node_modules/d3-delaunay/dist/d3-delaunay.min.js"></script><script src="rayat-map.js"></script>
+<style>
+body{margin:0;background:#0b2230;font-family:'Noto Naskh Arabic','DejaVu Sans',sans-serif;color:#fff}
+#st{position:relative;width:1920px;height:1080px;overflow:hidden}
+#st>svg{position:absolute;inset:0}
+.hud{position:absolute;top:0;left:0;right:0;height:96px;display:flex;align-items:center;gap:22px;padding:0 28px;background:linear-gradient(#071a24ee,#071a2400)}
+.logo{display:flex;align-items:center;gap:10px;font-size:46px;font-weight:900;letter-spacing:1px}
+.logo .fl{width:40px;height:30px;background:linear-gradient(135deg,#f4c430,#e09b1a);clip-path:polygon(0 0,100% 10%,85% 50%,100% 90%,0 100%);margin-top:-8px}
+.bar{flex:1;display:flex;height:46px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 3px rgba(255,255,255,.18),0 6px 16px rgba(0,0,0,.35)}
+.bar div{display:flex;align-items:center;justify-content:center;gap:8px;font-weight:800;font-size:21px;text-shadow:0 1px 2px rgba(0,0,0,.5);white-space:nowrap}
+.phase{background:#0d2c3a;border:2px solid #f4c43088;border-radius:14px;padding:6px 16px;text-align:center}
+.phase b{display:block;font-size:24px;color:#f4c430}.phase span{font-size:15px;opacity:.85}
+.timer{width:70px;height:70px;border-radius:50%;display:grid;place-items:center;font-size:28px;font-weight:900;background:conic-gradient(#f4c430 0 68%,#ffffff22 0);position:relative}
+.timer::after{content:attr(data-t);position:absolute;inset:6px;border-radius:50%;background:#0d2c3a;display:grid;place-items:center}
+.legend{position:absolute;bottom:18px;right:28px;display:flex;gap:18px;background:#071a24cc;border-radius:12px;padding:8px 16px;font-size:18px}
+.toast{position:absolute;top:112px;left:28px;background:#071a24dd;border-right:6px solid var(--c);border-radius:12px;padding:12px 18px;font-size:22px;font-weight:700;box-shadow:0 8px 20px rgba(0,0,0,.4)}
+/* المواجهة */
+.duel{position:absolute;top:110px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:26px}
+.side{display:flex;align-items:center;gap:12px;padding:10px 22px;border-radius:16px;font-size:38px;font-weight:900;background:var(--c);box-shadow:0 10px 24px rgba(0,0,0,.45);border:3px solid #fff3}
+.side .em{font-size:44px}
+.vs{font-size:54px;filter:drop-shadow(0 4px 6px #000)}
+.pips{display:flex;gap:8px;margin-top:6px;justify-content:center}.pips i{width:22px;height:22px;border-radius:50%;border:3px solid #fff;display:block}.pips i.on{background:#fff}
+.sub{position:absolute;top:236px;left:50%;transform:translateX(-50%);font-size:24px;background:#071a24dd;padding:8px 20px;border-radius:12px;white-space:nowrap}
+.qp{position:absolute;left:36px;top:280px;width:640px;background:linear-gradient(#0e2f3ef5,#0a2430f5);border:2px solid #ffffff22;border-radius:22px;padding:24px 26px;box-shadow:0 20px 40px rgba(0,0,0,.5)}
+.qp .q{font-size:34px;font-weight:800;line-height:1.5;margin-bottom:16px}
+.qp .o{display:flex;align-items:center;gap:14px;font-size:27px;background:#ffffff10;border:2px solid #ffffff1c;border-radius:14px;padding:12px 16px;margin:10px 0}
+.qp .o b{width:42px;height:42px;border-radius:10px;background:#ffffff22;display:grid;place-items:center;font-size:24px}
+.buzz{margin-top:16px;display:flex;align-items:center;justify-content:center;gap:12px;font-size:34px;font-weight:900;background:var(--c);border-radius:16px;padding:12px;box-shadow:0 0 0 4px #fff4,0 0 40px var(--c)}
+.pred{position:absolute;left:36px;bottom:26px;width:640px;background:#071a24dd;border-radius:14px;padding:10px 16px;font-size:20px}
+.pred .pb{display:flex;height:16px;border-radius:8px;overflow:hidden;margin-top:6px}
+</style></head><body><div id="st"></div>
+<script>
+const mode = location.hash.slice(1) || 'map';
+const M = RayatMap.build(4, 7);
+const teams = [{ name: 'الصقور', color: '#2f6fdb', emb: '🦅' }, { name: 'السهم', color: '#1f9d55', emb: '🏹' }, { name: 'الرواد', color: '#e0782b', emb: '🐎' }, { name: 'الهمّة', color: '#8e44ad', emb: '🌴' }];
+// حالة منتصف المعركة: نمو من العواصم بحصص مختلفة
+const quota = [9, 8, 6, 5], owner = {}; M.caps.forEach((c, t) => owner[c] = t);
+const castle = M.regions.find(r => r.castle).id; owner[castle] = 1;
+let grew = true; const cnt = t => Object.values(owner).filter(v => v === t).length;
+for (let round = 0; round < 30 && grew; round++) { grew = false; for (let t = 0; t < 4; t++) { if (cnt(t) >= quota[t] + (t === 1 ? 1 : 0)) continue; const fr = M.regions.filter(r => owner[r.id] === t).flatMap(r => r.nb).filter(j => owner[j] == null && !M.regions[j].land); if (fr.length) { const j = fr.sort((a, b) => M.regions[a].nb.length - M.regions[b].nb.length)[0]; owner[j] = t; grew = true; } } }
+const isleA = M.regions.filter(r => r.land === 1); owner[isleA[0].id] = 0;
+const forts = new Set(); [0, 1, 2, 3].forEach(t => { const own = M.regions.filter(r => owner[r.id] === t && r.type !== 'capital' && !r.castle); const border = own.find(r => r.nb.some(j => owner[j] != null && owner[j] !== t)); if (border) forts.add(border.id); });
+const share = teams.map((t, i) => M.regions.reduce((a, r) => a + (owner[r.id] === i ? (r.castle ? 5 : 1) : 0), 0)); const tot = M.regions.length + 4;
+const st = document.getElementById('st');
+// الهدف المتنازع عليه: إقليم محصّن للسهم مجاور للصقور
+const target = M.regions.find(r => owner[r.id] === 1 && forts.has(r.id) && r.nb.some(j => owner[j] === 0)) || M.regions.find(r => owner[r.id] === 1 && r.nb.some(j => owner[j] === 0) && r.type !== 'capital' && !r.castle); forts.add(target.id);
+const from = target.nb.find(j => owner[j] === 0); st.innerHTML = RayatMap.svg(M, { owner, forts, teams, ally: [[2, 3]], focus: mode === 'duel' ? target.id : null, attack: mode === 'duel' ? { from, to: target.id, team: 0 } : null });
+const hud = `<div class="hud"><div class="logo"><div class="fl"></div>رايات</div><div class="bar">${teams.map((t, i) => `<div style="background:${t.color};flex:${share[i]}">${t.emb} ${t.name} ${Math.round(share[i] / tot * 100)}%</div>`).join('')}<div style="background:#5d6b70;flex:${tot - share.reduce((a, b) => a + b)}">محايد</div></div><div class="phase"><b>مرحلة الحرب</b><span>الدورة 14 · الحصاد مضاعف</span></div><div class="timer" data-t="14"></div></div>`;
+st.insertAdjacentHTML('beforeend', hud);
+if (mode === 'duel') { const sv = st.querySelector('svg'), [cx, cy] = target.at; sv.style.transformOrigin = cx + 'px ' + cy + 'px'; sv.style.transform = `translate(${1210 - cx}px,${600 - cy}px) scale(1.55)`; }
+if (mode === 'map') st.insertAdjacentHTML('beforeend', `<div class="legend"><span>🌾 مزارع: طعام للاحتلال</span><span>💰 منجم: ذهب للهجوم</span><span>🪨 محجر: حجر للتحصين</span><span>🏰 القلعة = 5 أقاليم</span></div><div class="toast" style="--c:#2f6fdb">🦅 الصقور احتلوا <b>${M.regions.find(r => owner[r.id] === 0 && r.type === 'farm')?.name || 'مروج السنابل'}</b></div>`);
+if (mode === 'duel') st.insertAdjacentHTML('beforeend', `<div class="duel"><div><div class="side" style="--c:#2f6fdb"><span class="em">🦅</span>الصقور</div><div class="pips"><i class="on"></i><i></i></div></div><div class="vs">⚔️</div><div><div class="side" style="--c:#1f9d55"><span class="em">🏹</span>السهم</div><div class="pips"><i></i></div></div></div><div class="sub">⚔️ هجوم على <b>${target.name}</b> · أرض محصّنة: الصقور يحتاجون فوزين، والسهم يكفيهم فوز واحد</div>
+<div class="qp"><div class="q">من أول من جمع القرآن الكريم في مصحف واحد؟</div><div class="o"><b>أ</b>أبو بكر الصديق</div><div class="o"><b>ب</b>عمر بن الخطاب</div><div class="o"><b>ج</b>عثمان بن عفان</div><div class="o"><b>د</b>علي بن أبي طالب</div><div class="buzz" style="--c:#2f6fdb">⚡ الصقور أولًا — أجيبوا!</div></div>
+<div class="pred">توقعات الفرق المتفرجة: <b>الصقور 62%</b> · السهم 38%<div class="pb"><div style="flex:62;background:#2f6fdb"></div><div style="flex:38;background:#1f9d55"></div></div></div>`);
+</script></body></html>

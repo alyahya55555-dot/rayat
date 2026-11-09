@@ -9,3 +9,8 @@ test/vid/*.mp4
 proto/node_modules/
 proto/out-*.png
 
+r3d/node_modules/
+r3d/frames/
+r3d/out/
+r3d/audio.m4a
+r3d/frames.json

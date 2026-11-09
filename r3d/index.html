@@ -1,0 +1,44 @@
+<!doctype html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>رايات — نموذج ثلاثي الأبعاد</title>
+<style>
+@font-face{font-family:'TDisplay';src:url(../fonts/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Bold.woff2) format('woff2');font-weight:700}
+@font-face{font-family:'TDisplay';src:url(../fonts/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Black.woff2) format('woff2');font-weight:900}
+@font-face{font-family:'TText';src:url(../fonts/thmanyahseriftext/woff2/thmanyahseriftext-Regular.woff2) format('woff2');font-weight:400}
+@font-face{font-family:'TText';src:url(../fonts/thmanyahseriftext/woff2/thmanyahseriftext-Bold.woff2) format('woff2');font-weight:700}
+@font-face{font-family:'TSans';src:url(../fonts/thmanyahsans/woff2/thmanyahsans-Regular.woff2) format('woff2');font-weight:400}
+@font-face{font-family:'TSans';src:url(../fonts/thmanyahsans/woff2/thmanyahsans-Medium.woff2) format('woff2');font-weight:500}
+@font-face{font-family:'TSans';src:url(../fonts/thmanyahsans/woff2/thmanyahsans-Bold.woff2) format('woff2');font-weight:700}
+@font-face{font-family:'TSans';src:url(../fonts/thmanyahsans/woff2/thmanyahsans-Black.woff2) format('woff2');font-weight:900}
+html,body{margin:0;height:100%;overflow:hidden;background:#0d2a36}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+.hud{position:fixed;inset:0;pointer-events:none;font-family:'TSans';color:#fff}
+.brand{position:absolute;top:26px;right:40px;font-family:'TDisplay';font-weight:900;font-size:58px;letter-spacing:0;text-shadow:0 2px 18px rgba(0,0,0,.35)}
+.brand small{display:block;font-family:'TSans';font-weight:500;font-size:16px;opacity:.85;margin-top:-6px;letter-spacing:.5px}
+.dom{position:absolute;top:40px;left:50%;transform:translateX(-50%);width:640px}
+.dom .bar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.18);box-shadow:0 4px 18px rgba(0,0,0,.25)}
+.dom .bar i{display:block;height:100%;transition:flex .8s cubic-bezier(.2,.8,.2,1)}
+.dom .names{display:flex;justify-content:space-between;margin-top:8px;font-size:16px;font-weight:700;text-shadow:0 1px 6px rgba(0,0,0,.5)}
+.dom .names span b{font-weight:900;margin-inline-start:6px;font-feature-settings:'tnum'}
+.phase{position:absolute;top:30px;left:40px;text-align:left;direction:rtl}
+.phase b{display:block;font-family:'TDisplay';font-weight:700;font-size:28px;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+.phase span{font-size:15px;opacity:.85}
+.banner{position:absolute;left:50%;bottom:64px;transform:translate(-50%,24px);opacity:0;transition:opacity .5s,transform .6s cubic-bezier(.2,.8,.2,1);text-align:center;padding:18px 40px 20px;border-radius:22px;background:rgba(10,28,38,.62);backdrop-filter:blur(10px);box-shadow:0 20px 50px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);white-space:nowrap}
+.banner.on{opacity:1;transform:translate(-50%,0)}
+.banner .k{font-size:16px;opacity:.85;letter-spacing:.3px}
+.banner .t{font-family:'TDisplay';font-weight:900;font-size:46px;line-height:1.35;font-feature-settings:'salt' 1}
+.banner .t em{font-style:normal;color:var(--c)}
+.chip{display:inline-block;width:12px;height:12px;border-radius:50%;margin-inline-end:6px;vertical-align:1px}
+</style>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+<script src="node_modules/d3-delaunay/dist/d3-delaunay.min.js"></script>
+<script src="../proto/rayat-map.js"></script>
+</head><body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="brand">رايـــات<small>حرب السيطرة على الجزيرة</small></div>
+  <div class="dom"><div class="bar" id="bar"></div><div class="names" id="names"></div></div>
+  <div class="phase"><b>مرحلة الحرب</b><span>الدورة 14</span></div>
+  <div class="banner" id="banner"><div class="k" id="bk"></div><div class="t" id="bt"></div></div>
+</div>
+<script type="module" src="./scene.js"></script>
+</body></html>

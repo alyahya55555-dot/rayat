@@ -25,10 +25,11 @@
   const centroid = poly => { let a = 0, x = 0, y = 0; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const f = poly[j][0] * poly[i][1] - poly[i][0] * poly[j][1]; a += f; x += (poly[j][0] + poly[i][0]) * f; y += (poly[j][1] + poly[i][1]) * f; } a *= 3; return [x / a, y / a]; };
 
   // بناء الخريطة: الأقاليم ومجاوراتها وأنواعها
+  const START = ['farm', 'mine'];
   function build(nTeams = 4, seed = 7) {
     const R = rng(seed), main = { c: [930, 600], poly: blob(930, 600, 700, 380, [.07, 1.2, .05, 2.1, .025, .4]) };
     const isles = [{ c: [1730, 250], poly: blob(1730, 250, 150, 92, [.08, .3, .06, 1, .03, 2]) }, { c: [215, 930], poly: blob(215, 930, 160, 88, [.07, 2, .06, .5, .03, 1]) }];
-    const total = Math.min(40, 6 * nTeams + 6), nIsle = 2 * isles.length, nMain = total - nIsle; // القلعة من ضمن الرئيسية
+    const total = Math.min(40, 6 * nTeams + 8), nIsle = 2 * isles.length, nMain = total - nIsle; // القلعة من ضمن الرئيسية
     const seeds = [{ p: main.c.slice(), land: 0, castle: true }];
     const inner = scalePoly(main.poly, main.c, .86), minD = Math.sqrt(700 * 380 * 3.1 / nMain) * .72;
     while (seeds.filter(s => s.land === 0).length < nMain) {
@@ -44,19 +45,38 @@
     const landPoly = l => l === 0 ? main.poly : isles[l - 1].poly;
     regions.forEach(r => { const c = centroid(r.poly); let p = [(c[0] + r.seed[0] * 2) / 3, (c[1] + r.seed[1] * 2) / 3]; if (!inPoly(p, scalePoly(landPoly(r.land), r.land ? isles[r.land - 1].c : main.c, .9))) p = r.seed.slice(); r.at = p; r.coast = !inPoly(c, scalePoly(landPoly(r.land), r.land ? isles[r.land - 1].c : main.c, .97)) || Math.hypot(...[0, 1].map(k => r.seed[k] - (r.land ? isles[r.land - 1].c : main.c)[k])) > 260; });
     // العواصم: موزعة بالتساوي حول المركز
-    const caps = []; for (let t = 0; t < nTeams; t++) { const a = -Math.PI * .75 + t * Math.PI * 2 / nTeams, tgt = [main.c[0] + Math.cos(a) * 520, main.c[1] + Math.sin(a) * 270]; let b = null, bd = 1e9; regions.forEach(r => { if (r.land || r.castle || caps.includes(r.id)) return; const d = Math.hypot(r.at[0] - tgt[0], r.at[1] - tgt[1]); if (d < bd) { bd = d; b = r.id; } }); caps.push(b); }
+    const caps = []; for (let t = 0; t < nTeams; t++) { const a = -Math.PI * .75 + t * Math.PI * 2 / nTeams, tgt = [main.c[0] + Math.cos(a) * 520, main.c[1] + Math.sin(a) * 270]; let b = null, bd = 1e9; regions.forEach(r => { if (r.land || r.castle || caps.includes(r.id) || r.nb.some(j => regions[j].castle)) return; const d = Math.hypot(r.at[0] - tgt[0], r.at[1] - tgt[1]); if (d < bd) { bd = d; b = r.id; } }); caps.push(b); }
     caps.forEach(id => { regions[id].type = 'capital'; });
+    // أرض البداية: إقليمان ملاصقان للعاصمة من جهة الخلف (الأبعد عن المركز)، بنفس النوعين لكل الفرق
+    const dC = r => Math.hypot(r.at[0] - main.c[0], (r.at[1] - main.c[1]) * 1.8), taken = new Set(caps);
+    const team = {}; caps.forEach((id, t) => { team[id] = t; });
+    const starts = caps.map(() => []), free = (r, t, strict) => !r.land && !r.castle && !taken.has(r.id) && !r.nb.some(k => team[k] != null && team[k] !== t && (strict || caps.includes(k)));
+    for (const strict of [true, false]) for (let k = 0; k < 2; k++) caps.forEach((id, t) => { if (starts[t].length > k) return; const r = regions[id].nb.map(j => regions[j]).filter(x => free(x, t, strict)).sort((a, b) => dC(b) - dC(a))[0]; if (r) { starts[t].push(r.id); taken.add(r.id); team[r.id] = t; } });
+    starts.forEach(two => two.forEach((j, k) => { regions[j].type = START[k]; }));
     regions.forEach(r => { if (r.castle) r.type = 'castle'; else if (r.land) r.type = 'rich'; });
     // موانئ: أقرب إقليم ساحلي لكل جزيرة صغيرة
     const routes = isles.map((is, k) => { let b = null, bd = 1e9; regions.forEach(r => { if (r.land || r.type) return; const d = Math.hypot(r.at[0] - is.c[0], r.at[1] - is.c[1]); if (d < bd) { bd = d; b = r; } }); b.type = 'port'; const to = regions.filter(r => r.land === k + 1).sort((x, y) => Math.hypot(x.at[0] - b.at[0], x.at[1] - b.at[1]) - Math.hypot(y.at[0] - b.at[0], y.at[1] - b.at[1]))[0]; b.nb.push(to.id); to.nb.push(b.id); return { from: b.id, to: to.id }; });
     // بقية الأنواع: توزيع متوازن (دورة ثابتة مخلوطة)
-    const cyc = ['farm', 'mine', 'quarry', 'village', 'farm', 'quarry', 'mine', 'village']; let ci = Math.floor(R() * 8);
-    regions.filter(r => !r.type).sort((a, b) => Math.atan2(a.at[1] - main.c[1], a.at[0] - main.c[0]) - Math.atan2(b.at[1] - main.c[1], b.at[0] - main.c[0])).forEach(r => { r.type = cyc[ci++ % cyc.length]; });
+    // الأعداد النهائية متساوية تقريبًا بين الأنواع الأربعة (بعد احتساب أرض البداية)، والمتجاوران غالبًا مختلفان
+    const rest = regions.filter(r => !r.type).sort((a, b) => Math.atan2(a.at[1] - main.c[1], a.at[0] - main.c[0]) - Math.atan2(b.at[1] - main.c[1], b.at[0] - main.c[0]));
+    const K4 = ['farm', 'mine', 'quarry', 'village'], cnt = Object.fromEntries(K4.map(k => [k, regions.filter(r => r.type === k).length])), goal = (rest.length + K4.reduce((a, k) => a + cnt[k], 0)) / 4;
+    const need = Object.fromEntries(K4.map(k => [k, Math.max(0, goal - cnt[k])])), seq = [];
+    for (let i = 0; i < rest.length; i++) { const k = K4.filter(x => !seq.slice(-2).includes(x)).sort((a, b) => need[b] - need[a] || K4.indexOf(a) - K4.indexOf(b))[0]; seq.push(k); need[k]--; }
+    const off = Math.floor(R() * rest.length); rest.forEach((r, i) => { r.type = seq[(i + off) % seq.length]; });
     const POOL = { farm: ['مروج السنابل', 'حقول الريحان', 'مرج الحمام', 'واحة النخيل', 'ضفاف الندى', 'نبع الرمان', 'وادي الغيث', 'أرض السدرة', 'ربوة الخزامى', 'سهل الخيرات'], mine: ['منجم الفضة', 'جبل السحاب', 'قمة الشهباء', 'جرف النسور', 'كهف الصدى', 'وادي العقيق', 'تلال العنبر', 'جبل الكحل'], quarry: ['صخرة البحّار', 'هضبة الفجر', 'سفح الغمام', 'شعاب القمر', 'رأس الريح', 'كثيب النجم', 'حرّة الصوّان'], village: ['عين الصفا', 'بئر الوفاء', 'تل الصقر', 'درب القوافل', 'غابة الأرز', 'سهل الفرسان', 'حمى الأبطال', 'وادي الريح'], port: ['مرفأ اللؤلؤ', 'خليج المرجان', 'مرسى الأمان', 'ميناء الشراع'], capital: ['العاصمة'] }, used = {};
     let ii = 0; regions.forEach(r => { if (r.castle) r.name = 'القلعة الكبرى'; else if (r.land) r.name = ISLE_NAMES[ii++]; else { const P = POOL[r.type] || NAMES, k = used[r.type] = (used[r.type] || 0) + 1; r.name = P[(k - 1) % P.length]; } });
-    return { W, H, main, isles, regions, caps, routes };
+    return { W, H, main, isles, regions, caps, starts, routes };
   }
 
+  // خريطة عادلة: كل فريق له إقليما بداية، ولا تتلاصق أراضي الفرق في البداية. تُجرَّب البذور تباعًا
+  function fair(nTeams = 4, seed = 7) {
+    for (let k = 0; k < 200; k++) {
+      const M = build(nTeams, seed + k), own = {}; M.caps.forEach((c, t) => { own[c] = t; }); M.starts.forEach((st, t) => st.forEach(j => { own[j] = t; }));
+      const ok = M.starts.every(st => st.length === 2) && Object.keys(own).every(i => M.regions[i].nb.every(j => own[j] == null || own[j] === own[i]));
+      if (ok) { M.seed = seed + k; return M; }
+    }
+    throw new Error('no fair map');
+  }
   const mix = (a, b, t) => { const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)); const A = p(a), B = p(b); return '#' + A.map((v, i) => Math.round(v + (B[i] - v) * t).toString(16).padStart(2, '0')).join(''); };
   const f1 = n => n.toFixed(1);
   // رسومات صغيرة لكل نوع أرض
@@ -113,5 +133,5 @@
     if (st.attack) { const a = M.regions[st.attack.from].at, b0 = M.regions[st.attack.to].at, b = [b0[0] + (a[0] - b0[0]) * .3, b0[1] + 40 + (a[1] - b0[1]) * .3], c = T[st.attack.team].color, mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2 - 70; s += `<defs><marker id="ah" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0L10,5L0,10z" fill="${c}"/></marker></defs><path d="M${f1(a[0])},${f1(a[1] - 20)} Q${f1(mx)},${f1(my)} ${f1(b[0])},${f1(b[1] - 10)}" fill="none" stroke="#fff" stroke-width="16" stroke-linecap="round" opacity=".9"/><path d="M${f1(a[0])},${f1(a[1] - 20)} Q${f1(mx)},${f1(my)} ${f1(b[0])},${f1(b[1] - 10)}" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" marker-end="url(#ah)"/>`; }
     return s + `</svg>`;
   }
-  G.RayatMap = { build, svg, TYPES, mix };
+  G.RayatMap = { build, fair, svg, TYPES, mix };
 })(typeof window !== 'undefined' ? window : globalThis);

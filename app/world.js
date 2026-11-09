@@ -68,7 +68,7 @@
 
     // ---------- المحرك ----------
     const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: !!opt.capture, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(opt.maxDpr || 2, G.devicePixelRatio || 1));
+    renderer.setPixelRatio(Math.min(opt.maxDpr || 1.5, G.devicePixelRatio || 1));
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08; renderer.outputColorSpace = THREE.SRGBColorSpace;
     const scene = new THREE.Scene();
@@ -76,7 +76,7 @@
     const camera = new THREE.PerspectiveCamera(30, 16 / 9, .1, 200);
     const hemi = new THREE.HemisphereLight('#dff0ff', '#6d5b3c', .85); scene.add(hemi);
     const sun = new THREE.DirectionalLight('#ffe9c9', 2.9); sun.position.set(-6, 11, 5); sun.castShadow = true;
-    const SM_SIZE = opt.shadow || 4096; sun.shadow.mapSize.set(SM_SIZE, SM_SIZE); Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 8, bottom: -8, near: 1, far: 40 }); sun.shadow.bias = -.0005; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
+    const SM_SIZE = opt.shadow || 2048; sun.shadow.mapSize.set(SM_SIZE, SM_SIZE); Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 8, bottom: -8, near: 1, far: 40 }); sun.shadow.bias = -.0005; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
     scene.add(sun, sun.target);
     const fill = new THREE.DirectionalLight('#a9d4ff', .55); fill.position.set(7, 5, -6); scene.add(fill);
     try { const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new G.RoomEnvironment(), .04).texture; scene.environmentIntensity = .22; } catch (e) { }

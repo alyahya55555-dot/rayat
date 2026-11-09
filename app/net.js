@@ -52,7 +52,9 @@ class Net {
       const safe = n => Promise.race([C.use(n).catch(() => null), new Promise(r => setTimeout(() => r(null), 12000))]);
       const [room, user, db] = await Promise.all([safe('room'), safe('user'), safe('db')]);
       this.room = room; this.user = user; this.db = db;
-    } else if (typeof Mq !== 'undefined' && typeof Paho !== 'undefined') {
+    }
+    // إن لم تتوفر غرفة Claude (زائر غير مسجّل أو صفحة خارج Claude) نستعمل خوادم البث العامة
+    if (!this.room && typeof Mq !== 'undefined' && typeof Paho !== 'undefined') {
       this.mq = new Mq(this);
       this.on('mqup', () => { if (this.role !== 'host') this.mqPres(); });
       if (this.code) this.mq.start(this.code);

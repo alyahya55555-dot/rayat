@@ -41,6 +41,6 @@ const URL = `http://localhost:${PORT}/dist/rayat.html`;
   }
   await disp.waitForTimeout(2500); await shot(disp, '99-display-final'); await shot(ph1, '98-phone-final');
   const summary = await host.evaluate(() => ({ stage: Host.g.s.stage, cycle: Host.g.s.cycle, winner: Host.g.s.winner, players: Object.keys(Host.g.s.players).length, log: Host.g.s.log.slice(-6).map(x => x.text) }));
-  console.log(JSON.stringify(summary)); console.log('stages seen', Object.keys(seen).join(' ')); console.log('errors', errs.length, errs.slice(0, 10));
+  console.log(JSON.stringify(summary)); console.log('stages seen', Object.keys(seen).join(' ')); const real = errs.filter(e => !/WebSocket connection/.test(e)); console.log('errors', real.length, real.slice(0, 10));
   await b.close(); srv.close();
 })().catch(e => { console.error(e); process.exit(1); });

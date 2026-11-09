@@ -125,7 +125,8 @@
     } return { k: 'supply', team: t, res: 'gold', n: 0 }; }
     showCalm(list) { const s = this.s; const vis = list.filter(e => e.k !== 'supply');
       let d = DUR.scene.supply; if (vis.length === 1) d = DUR.scene[vis[0].k] || 6; else if (vis.length > 1) d = DUR.scene.batch;
-      s.ev = { id: ++s.evSeq, k: vis.length > 1 ? 'batch' : (vis[0] ? vis[0].k : 'supply'), list, one: vis.length === 1 ? vis[0] : null }; s.stage = 'scene'; s.afterScene = 'next'; this.setTimer(d); this.changed(); }
+      s.ev = vis.length === 1 ? { id: ++s.evSeq, ...vis[0], list, one: vis[0] } : vis.length === 0 && list.length === 1 ? { id: ++s.evSeq, ...list[0], list } : { id: ++s.evSeq, k: 'batch', list, one: null };
+      if (s.ev.k === 'batch' && !vis.length) d = 3; s.stage = 'scene'; s.afterScene = 'next'; this.setTimer(d); this.changed(); }
     sceneDone() { const s = this.s; s.vis = this.snapshot();
       if (s.queue.length) { const e = s.queue.shift(); s.ev = { id: ++s.evSeq, ...e }; s.stage = 'scene'; this.setTimer(DUR.scene[e.k] || 3); this.changed(); return; }
       s.ev = null; const a = s.afterScene; s.afterScene = null;

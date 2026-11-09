@@ -638,12 +638,12 @@
       if (g) g.scale.y = 1; if (!wide) { camTo(overview(), 1.4); labelsOpacity(1); await wait(1.2); } sceneDone(); W.busy = false; }
     W.build = e => buildScene(e.r, e.k, e.team, e.wide);
     // أحداث هادئة متزامنة (احتلال/بناء) تُعرض معًا على الخريطة كاملة لتبقى الجولة سريعة
-    W.batch = async (list) => { camTo(overview(), 1); await Promise.all(list.map(e => e.k === 'occupy' ? W.occupy({ ...e, wide: true }) : W.build({ ...e, wide: true }))); };
+    W.batch = async (list) => { camTo(overview(), 1); await Promise.all(list.map(e => e.k === 'occupy' ? W.occupy({ ...e, wide: true }) : e.k === 'capital' ? W.capital({ ...e, wide: true }) : W.build({ ...e, wide: true }))); };
     // تطوير العاصمة: بيوت جديدة تنمو واحدًا بعد الآخر
-    W.capital = async ({ team, level }) => { W.busy = true; const id = M.caps[team], I = R[id], focus = V(I.x, groundY(I.x, I.z), I.z), tw = W.time;
-      labelsOpacity(0); camTo(nearView(focus, 2.6, 2.2), 1.2); const made = setCapLevel(team, level, true); W.emit('sfx', { k: 'build', at: 1.2 });
+    W.capital = async ({ team, level, wide }) => { W.busy = true; const id = M.caps[team], I = R[id], focus = V(I.x, groundY(I.x, I.z), I.z), tw = W.time;
+      if (!wide) { labelsOpacity(0); camTo(nearView(focus, 2.6, 2.2), 1.2); } const made = setCapLevel(team, level, true); W.emit('sfx', { k: 'build', at: 1.2 });
       await run(t => { const lt = t - tw; made.forEach((h, i) => { const k = ease(seg(lt, 1.2 + i * .5, 2.2 + i * .5)); h.scale.setScalar(Math.max(.001, k)); }); return lt >= 2.6 + made.length * .5 || W.skipping; });
-      made.forEach(h => h.scale.setScalar(1)); camTo(overview(), 1.4); labelsOpacity(1); await wait(1.2); sceneDone(); W.busy = false; };
+      made.forEach(h => h.scale.setScalar(1)); if (!wide) { camTo(overview(), 1.4); labelsOpacity(1); await wait(1.2); } sceneDone(); W.busy = false; };
     // التحالف: خيط ذهبي يمتد بين العاصمتين؛ والنقض: الخيط ينقطع
     W.ally = async ({ a, b }) => { W.busy = true; const k = threadKey(a, b); if (!threads[k]) threads[k] = makeThread(a, b); const th = threads[k], tw = W.time; camTo(overview(), 1); W.emit('sfx', { k: 'ally', at: .3 });
       await run(t => { const q = ease(seg(t - tw, .3, 2.8)); th.mesh.geometry.setDrawRange(0, Math.floor(th.total * q / 3) * 3); return t - tw >= 3.4 || W.skipping; }); th.mesh.geometry.setDrawRange(0, th.total); sceneDone(); W.busy = false; };

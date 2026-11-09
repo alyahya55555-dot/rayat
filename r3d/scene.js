@@ -162,12 +162,23 @@ const MF = at(from), MT = at(target), mdL = Math.hypot(MT[0] - MF[0], MT[1] - MF
 let MB = .5; for (let k = .15; k < .98; k += .005) if (regionAtW(lerp(MF[0], MT[0], k), lerp(MF[1], MT[1], k)) === target.id) { MB = k; break; }
 const BP = [lerp(MF[0], MT[0], MB), lerp(MF[1], MT[1], MB)];
 const clashP = [BP[0] + mux * .05, BP[1] + muz * .05];
-// نقطة التجمّع: بجانب القرية لا داخلها، على أرض يابسة من إقليم المهاجم
-const startP = [1, -1].map(sg => [MF[0] + mux * .22 - muz * sg * .5, MF[1] + muz * .22 + mux * sg * .5]).map(q => [q, (regionAtW(...q) === from.id ? 1 : 0) + Math.min(coastDist(...q), .6)]).sort((a, b) => b[1] - a[1])[0][0];
-const pathEnd = [clashP[0] - mux * .36, clashP[1] - muz * .36];
+// الجيش يخرج من خلف قريته ويمشي على الطريق نفسه حتى الحد
+const startP = [MF[0] - mux * .22, MF[1] - muz * .22];
+const pathEnd = [clashP[0] - mux * .4, clashP[1] - muz * .4];
 const segDist = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)); return Math.hypot(a[0] + t * dx - x, a[1] + t * dz - z); };
-const sdx = pathEnd[0] - startP[0], sdz = pathEnd[1] - startP[1], sdl = Math.hypot(sdx, sdz), startBack = [startP[0] - sdx / sdl * .24, startP[1] - sdz / sdl * .24];
-const inMarch = (x, z) => (segDist(x, z, startBack, pathEnd) < .32 || segDist(x, z, pathEnd, clashP) < .32) || Math.hypot(x - clashP[0], z - clashP[1]) < .5;
+const startBack = [startP[0] - mux * .24, startP[1] - muz * .24];
+const MPATH = new THREE.CatmullRomCurve3([new THREE.Vector3(startP[0], 0, startP[1]), new THREE.Vector3(lerp(startP[0], pathEnd[0], .5), 0, lerp(startP[1], pathEnd[1], .5)), new THREE.Vector3(pathEnd[0], 0, pathEnd[1])]);
+const MT0 = MPATH.getTangentAt(0), MPTS = [[startP[0] - MT0.x * .26, startP[1] - MT0.z * .26], ...MPATH.getSpacedPoints(40).map(v => [v.x, v.z]), [pathEnd[0] + mux * .6, pathEnd[1] + muz * .6]];
+// شبكة طرق ترابية بين الأقاليم (شجرة امتداد صغرى على الجزيرة الكبرى + طريق الزحف)
+const ROADS = []; { const L = M.regions.filter(r => !r.land), E = []; L.forEach(r => r.nb.forEach(j => { if (j > r.id && !M.regions[j].land) E.push([Math.hypot(...at(r).map((v, k) => v - at(M.regions[j])[k])), r.id, j]); }));
+  E.sort((a, b) => a[0] - b[0]); const par = {}, f = i => par[i] == null || par[i] === i ? i : (par[i] = f(par[i])), keep = [[0, from.id, target.id]];
+  par[from.id] = target.id; E.forEach(e => { const a = f(e[1]), b = f(e[2]); if (a !== b) { par[a] = b; keep.push(e); } });
+  const endOff = r => r.type === 'capital' ? .3 : r.type === 'castle' ? .56 : r.type === 'village' ? .1 : .06;
+  keep.forEach(([, i, j], k) => { const A = M.regions[i], B = M.regions[j], [ax, az] = at(A), [bx, bz] = at(B), L2 = Math.hypot(bx - ax, bz - az), dx = (bx - ax) / L2, dz = (bz - az) / L2, march = k === 0;
+    const p0 = march ? [ax - dx * .5, az - dz * .5] : [ax + dx * endOff(A), az + dz * endOff(A)], p2 = [bx - dx * endOff(B), bz - dz * endOff(B)], bend = march ? 0 : (k % 2 ? 1 : -1) * L2 * .08, p1 = [(p0[0] + p2[0]) / 2 - dz * bend, (p0[1] + p2[1]) / 2 + dx * bend], pts = [];
+    for (let t = 0; t <= 1.0001; t += 1 / 22) { const u = 1 - t; pts.push([u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]]); }
+    if (pts.every(q => coastDist(...q) > .08)) ROADS.push(pts); }); }
+const inMarch = (x, z, R = .36) => { if (Math.hypot(x - clashP[0], z - clashP[1]) < .5) return true; for (let i = 1; i < MPTS.length; i++) if (segDist(x, z, MPTS[i - 1], MPTS[i]) < R) return true; return false; };
 buildBorders();
 
 // ---------- النباتات (مجسّمات متكررة) ----------
@@ -182,27 +193,32 @@ M.regions.forEach(r => { const [cx, cz] = at(r), n = { farm: 7, village: 9, port
 for (const k in treeSpots) treeSpots[k] = treeSpots[k].filter(t => !inMarch(t[0], t[2]));
 function instanced(geo, material, list, place) { const im = new THREE.InstancedMesh(geo, material, list.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(); list.forEach((t, i) => { const [p, s] = place(t); q.setFromEuler(e.set(0, t[4], 0)); m4.compose(p, q, s); im.setMatrixAt(i, m4); }); im.castShadow = true; im.receiveShadow = true; scene.add(im); return im; }
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
-instanced(new THREE.CylinderGeometry(.016, .024, .1, 6), mat('#7a5236'), [...treeSpots.pine, ...treeSpots.round], t => [V(t[0], t[1] + .05 * t[3], t[2]), V(t[3], t[3], t[3])]);
-instanced(new THREE.ConeGeometry(.1, .2, 7), mat('#2f7a3e'), treeSpots.pine, t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3], t[3])]);
-instanced(new THREE.ConeGeometry(.075, .16, 7), mat('#3f9248'), treeSpots.pine, t => [V(t[0], t[1] + .27 * t[3], t[2]), V(t[3], t[3], t[3])]);
-instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#5aa64a'), treeSpots.round.filter((_, i) => i % 2), t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3] * .95, t[3])]);
-instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#6db552'), treeSpots.round.filter((_, i) => !(i % 2)), t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3] * .95, t[3])]);
-
-// شجيرات وأزهار صغيرة تكسو الأرض
-{ const bush = [], flower = []; for (let i = 0; i < 2600; i++) { const x = lerp(-9, 9.5, rnd()), z = lerp(-4.6, 4.6, rnd()), cd = coastDist(x, z); if (cd < .3) continue; const h = heightAt(x, z, cd); if (h > .42) continue; const b = rnd() > .3, it = [x, h, z, .6 + rnd() * .7, rnd() * 6]; if (!inMarch(x, z)) (b ? bush : flower).push(it); }
-  instanced(new THREE.IcosahedronGeometry(.03, 0), mat('#4f9a3f'), bush, t => [V(t[0], t[1] + .012, t[2]), V(t[3], t[3] * .7, t[3])]);
-  const fl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.012, 0), mat('#ffffff'), flower.length), m4 = new THREE.Matrix4(), FC = ['#f6e27a', '#f4f1ea', '#e98aa0', '#c9a4ec'].map(c => new THREE.Color(c)); flower.forEach((t, i) => { fl.setMatrixAt(i, m4.makeTranslation(t[0], t[1] + .01, t[2])); fl.setColorAt(i, FC[i % 4]); }); scene.add(fl); }
-
 // ---------- المباني ----------
 const C = { roof: '#c4553a', roof2: '#a9452f', wall: '#f4ecdc', stone: '#d6cdb7', stone2: '#bdb39b', wood: '#8a6240', gold: '#f4c430' };
-const OBST = [];
+const WALLS = ['#f4ecdc', '#efe2c8', '#f6efe3', '#e9dcc3'], OBST = []; ROADS.forEach(L => L.forEach(q => OBST.push(['طريق', q[0], q[1], .035])));
+// موضع خالٍ: داخل الإقليم، بعيد عن الساحل وطريق الجيش وكل مجسّم قائم (لا تلاصق ولا تداخل)
+function spot(cx, cz, rMin, rMax, rad, rid, gap = .04) { for (let i = 0; i < 80; i++) { const a = rnd() * 6.283, d = lerp(rMin, rMax, rnd()), x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d * .82;
+    if (rid != null && regionAtW(x, z) !== rid) continue; if (coastDist(x, z) < .12 + rad || inMarch(x, z) || heightAt(x, z) > .5) continue;
+    if (OBST.some(o => Math.hypot(o[1] - x, o[2] - z) < o[3] + rad + gap)) continue; return [x, z]; } return null; }
+const faceTo = (x, z, cx, cz) => Math.atan2(cx - x, cz - z);
+function well(x, z) { OBST.push(['بئر', x, z, .05]); const g = new THREE.Group(), y = groundY(x, z);
+  add(new THREE.Mesh(new THREE.CylinderGeometry(.036, .04, .04, 14), mat(C.stone, { flatShading: false })), [0, .02, 0], { to: g });
+  add(new THREE.Mesh(new THREE.CylinderGeometry(.027, .027, .004, 14), mat('#2f6f86', { roughness: .2 })), [0, .039, 0], { to: g, cast: false });
+  [-1, 1].forEach(k => add(new THREE.Mesh(new THREE.BoxGeometry(.007, .07, .007), mat(C.wood)), [k * .03, .07, 0], { to: g }));
+  [-1, 1].forEach(k => { const pl = add(new THREE.Mesh(new THREE.BoxGeometry(.085, .005, .042), mat(C.roof2)), [0, .118, k * .016], { to: g }); pl.rotation.x = k * .62; }); add(new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, .064, 6), mat(C.wood)), [0, .095, 0], { to: g }).rotation.z = Math.PI / 2;
+  g.position.set(x, y, z); scene.add(g); return g; }
 function house(x, z, s = 1, roof = C.roof, rotY = 0) { if (inMarch(x, z)) return; OBST.push(['بيت', x, z, .1 * s]);
-  const g = new THREE.Group(), y = groundY(x, z);
-  add(new THREE.Mesh(new THREE.BoxGeometry(.15 * s, .1 * s, .12 * s), mat(C.wall)), [0, .05 * s, 0], { to: g });
-  const rf = new THREE.Mesh(new THREE.ConeGeometry(.125 * s, .085 * s, 4), mat(roof)); rf.rotation.y = Math.PI / 4; rf.scale.set(1.15, 1, .95); add(rf, [0, .142 * s, 0], { to: g });
-  add(new THREE.Mesh(new THREE.BoxGeometry(.02 * s, .05 * s, .02 * s), mat('#8d7d6a')), [.04 * s, .17 * s, -.02 * s], { to: g });
-  add(new THREE.Mesh(new THREE.BoxGeometry(.028 * s, .048 * s, .006), mat('#6b4a2f')), [0, .024 * s, .062 * s], { to: g });
-  add(new THREE.Mesh(new THREE.BoxGeometry(.022 * s, .022 * s, .006), mat('#ffd98a', { emissive: '#ffb54a', emissiveIntensity: .25 })), [-.045 * s, .06 * s, .062 * s], { to: g });
+  const g = new THREE.Group(), y = groundY(x, z), w = .15 * s, d = .12 * s, h = .085 * s, wc = WALLS[Math.floor(rnd() * WALLS.length)];
+  add(new THREE.Mesh(new THREE.BoxGeometry(w + .012, .016 * s, d + .012), mat(C.stone2)), [0, .008 * s, 0], { to: g });
+  add(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(wc)), [0, .016 * s + h / 2, 0], { to: g });
+  const top = .016 * s + h, rg = new THREE.BufferGeometry(), ow = w / 2 + .014 * s, od = d / 2 + .016 * s, rh = .07 * s;
+  rg.setAttribute('position', new THREE.Float32BufferAttribute([-ow, 0, -od, ow, 0, -od, ow, rh, 0, -ow, rh, 0, -ow, 0, od, ow, 0, od, ow, rh, 0, -ow, rh, 0, -ow * .92, 0, -od * .9, -ow * .92, rh * .96, 0, -ow * .92, 0, od * .9, ow * .92, 0, -od * .9, ow * .92, 0, od * .9, ow * .92, rh * .96, 0], 3));
+  rg.setIndex([0, 3, 2, 0, 2, 1, 4, 5, 6, 4, 6, 7, 8, 10, 9, 11, 13, 12]); rg.computeVertexNormals();
+  add(new THREE.Mesh(rg, mat(roof, { side: THREE.DoubleSide })), [0, top, 0], { to: g });
+  add(new THREE.Mesh(new THREE.BoxGeometry(w + .03 * s, .01 * s, .012 * s), mat(new THREE.Color(roof).multiplyScalar(.7))), [0, top + rh, 0], { to: g });
+  add(new THREE.Mesh(new THREE.BoxGeometry(.018 * s, .05 * s, .018 * s), mat('#8d7d6a')), [w * .28, top + rh * .75, -d * .18], { to: g });
+  add(new THREE.Mesh(new THREE.BoxGeometry(.03 * s, .05 * s, .006), mat('#6b4a2f')), [0, .016 * s + .025 * s, d / 2 + .002], { to: g });
+  [-1, 1].forEach(k => add(new THREE.Mesh(new THREE.BoxGeometry(.022 * s, .022 * s, .006), mat('#ffd98a', { emissive: '#ffb54a', emissiveIntensity: .25 })), [k * w * .3, .016 * s + h * .6, d / 2 + .002], { to: g }));
   g.position.set(x, y, z); g.rotation.y = rotY; scene.add(g); return g;
 }
 function tower(x, y, z, r, h, roofCol, to = scene) { if (to === scene) OBST.push(['برج', x, z, r]);
@@ -218,9 +234,9 @@ function wallSeg(x1, z1, x2, z2, y, h, t, to = scene) {
   const n = Math.floor(len / .06); for (let i = 0; i < n; i += 2) add(new THREE.Mesh(new THREE.BoxGeometry(.035, .03, t * 1.08), mat(C.stone2)), [-len / 2 + .03 + i * .06, h + .015, 0], { to: g });
   g.position.set((x1 + x2) / 2, y, (z1 + z2) / 2); g.rotation.y = -Math.atan2(z2 - z1, x2 - x1); to.add(g); return g;
 }
-function ring(x, z, y, rx, rz, n, h, t, roofCol, towerR) { const pts = []; for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + Math.PI / n; pts.push([x + Math.cos(a) * rx, z + Math.sin(a) * rz]); }
+function ring(x, z, y, rx, rz, n, h, t, roofCol, towerR) { const pts = []; for (let i = 0; i < 48; i++) { const a = i / 48 * 6.283; OBST.push(['سور', x + Math.cos(a) * rx, z + Math.sin(a) * rz, t]); } for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2 + Math.PI / n; pts.push([x + Math.cos(a) * rx, z + Math.sin(a) * rz]); }
   pts.forEach((p, i) => { const q = pts[(i + 1) % n]; wallSeg(p[0], p[1], q[0], q[1], y, h, t); tower(p[0], y, p[1], towerR, h * 1.75, roofCol); }); }
-function field(x, z, w, d, c, rot) { const g = new THREE.Group(); add(new THREE.Mesh(new THREE.BoxGeometry(w, .012, d), mat(c, { flatShading: false })), [0, .006, 0], { to: g, cast: false });
+function field(x, z, w, d, c, rot) { if (inMarch(x, z, .48)) return; OBST.push(['حقل', x, z, Math.max(w, d) * .55]); const g = new THREE.Group(); add(new THREE.Mesh(new THREE.BoxGeometry(w, .012, d), mat(c, { flatShading: false })), [0, .006, 0], { to: g, cast: false });
   for (let i = 1; i < 5; i++) add(new THREE.Mesh(new THREE.BoxGeometry(w * .94, .008, .006), mat(new THREE.Color(c).multiplyScalar(.82))), [0, .014, -d / 2 + i * d / 5], { to: g, cast: false });
   g.position.set(x, groundY(x, z) + .004, z); g.rotation.y = rot; scene.add(g); }
 function rock(x, z, s = 1) { if (inMarch(x, z)) return; OBST.push(['صخرة', x, z, .07 * s]); const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.06 * s, 0), mat(rnd() > .5 ? '#a8a294' : '#c7c0ae')); m.scale.set(1.3, .75, 1.1); m.rotation.set(rnd(), rnd() * 6, rnd()); return add(m, [x, groundY(x, z) + .02 * s, z]); }
@@ -250,8 +266,8 @@ const regFlag = {};
 M.regions.forEach(r => {
   const [x, z] = at(r), o = owner[r.id];
   switch (r.type) {
-    case 'farm': { const rot = rnd() * .7; const fc = ['#e3c45c', '#bcd36c', '#d9b04c', '#a9cc63']; for (let i = 0; i < 6; i++) field(x - .3 + (i % 3) * .2 + rnd() * .02, z - .08 + Math.floor(i / 3) * .17, .17, .14, fc[(i + Math.floor(rnd() * 2)) % 4], rot); house(x + .27, z - .18, .95, C.roof2, rot); break; }
-    case 'village': { const k = 5; for (let i = 0; i < k; i++) { const a = i / k * 6.28 + rnd() * .5, d = i ? .22 + rnd() * .08 : 0; house(x + Math.cos(a) * d, z + Math.sin(a) * d * .8, .95 + rnd() * .2, rnd() > .5 ? C.roof : C.roof2, rnd() * 3); } break; }
+    case 'farm': { const rot = rnd() * .3 - .15; const fc = ['#e3c45c', '#bcd36c', '#d9b04c', '#a9cc63']; let nf = 0; for (let i = 0; i < 6; i++) { const gx = x - .3 + (i % 3) * .19, gz = z - .02 + Math.floor(i / 3) * .16; if (!inMarch(gx, gz, .48)) { field(gx, gz, .16, .13, fc[(i + Math.floor(rnd() * 2)) % 4], rot); nf++; } } for (let i = 0; nf < 6 && i < 12; i++) { const q = spot(x, z, .3, .75, .1, r.id, .01); if (q && !inMarch(q[0], q[1], .48)) { field(q[0], q[1], .16, .13, fc[i % 4], rot); nf++; } } const q = spot(x + .1, z - .1, .25, .45, .1, r.id); if (q) house(q[0], q[1], .95, C.roof2, faceTo(q[0], q[1], x, z)); break; }
+    case 'village': { if (!inMarch(x, z)) well(x, z); for (let i = 0; i < 5; i++) { const sc = .95 + rnd() * .15, q = spot(x, z, .2, .38, .1 * sc, r.id); if (q) house(q[0], q[1], sc, rnd() > .5 ? C.roof : C.roof2, faceTo(q[0], q[1], x, z) + (rnd() - .5) * .4); } break; }
     case 'quarry': for (let i = 0; i < 8; i++) rock(x + (rnd() - .5) * .45, z + (rnd() - .5) * .35, .8 + rnd() * 1.1); add(new THREE.Mesh(new THREE.BoxGeometry(.08, .05, .06), mat('#d8d0bc')), [x + .2, groundY(x + .2, z + .15) + .025, z + .15]); break;
     case 'mine': { const gx = x + .1, gz = z + .25, gy = groundY(gx, gz); add(new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, .02, 12, 1, false, 0, Math.PI), mat('#2a1d12')), [gx, gy + .03, gz]).rotation.x = Math.PI / 2;
       for (let i = 0; i < 4; i++) add(new THREE.Mesh(new THREE.OctahedronGeometry(.016 + rnd() * .01, 0), mat(C.gold, { metalness: .75, roughness: .25, emissive: '#7a5a00', emissiveIntensity: .3 })), [gx + .05 + rnd() * .06, gy + .015, gz + .02 + rnd() * .05]); break; }
@@ -259,13 +275,33 @@ M.regions.forEach(r => {
     case 'port': { const y = groundY(x, z); const dir = Math.atan2(-z, -x) + Math.PI; house(x - .05, z - .05, .95, C.roof2, dir); const dx = Math.cos(dir), dz = Math.sin(dir);
       const dock = add(new THREE.Mesh(new THREE.BoxGeometry(.5, .025, .08), mat(C.wood)), [x + dx * .35, .05, z + dz * .35]); dock.rotation.y = -dir; boat(x + dx * .55 + dz * .12, z + dz * .55 - dx * .12, -dir + .3); boat(x + dx * .7 - dz * .1, z + dz * .7 + dx * .1, -dir - .4); break; }
     case 'capital': { const y = groundY(x, z), col = TEAMS[o].color; tower(x, y, z, .075, .42, col); ring(x, z, y, .24, .19, 6, .1, .035, col, .045);
-      for (let i = 0; i < 6; i++) { const a = rnd() * 6.28, d = .32 + rnd() * .14; house(x + Math.cos(a) * d, z + Math.sin(a) * d * .8, .8, C.roof, rnd() * 3); } break; }
+      for (let i = 0; i < 7; i++) { const q = spot(x, z, .36, .58, .085, r.id); if (q) house(q[0], q[1], .82, i % 2 ? C.roof : C.roof2, faceTo(q[0], q[1], x, z)); } break; }
     case 'castle': { const y = groundY(x, z); ring(x, z, y, .5, .4, 8, .2, .055, '#6f7d8b', .075); tower(x, y, z, .13, .62, '#5f6d7b'); tower(x - .17, y, z + .08, .07, .4, '#6f7d8b'); tower(x + .17, y, z + .08, .07, .4, '#6f7d8b'); break; }
   }
   if (o != null) { const big = r.type === 'capital' || r.type === 'castle';
-    const fx = big ? x : x - .1, fz = big ? z : z + .06; regFlag[r.id] = makeFlag(fx, fz, o, r.type === 'castle' ? 1.25 : big ? .9 : .52, big ? 1.45 : 1);
+    const fs = big ? [x, z] : (spot(x, z, 0, .3, .04, r.id, .03) || spot(x, z, .2, .6, .04, r.id, .01) || [x, z]); if (!big) OBST.push(['راية', fs[0], fs[1], .035]); const [fx, fz] = fs; regFlag[r.id] = makeFlag(fx, fz, o, r.type === 'castle' ? 1.25 : big ? .9 : .52, big ? 1.45 : 1);
     if (r.type === 'castle' || r.type === 'capital') regFlag[r.id].g.position.y += r.type === 'castle' ? .62 + .13 * 1.05 : .42 + .08; }
 });
+
+for (const k in treeSpots) treeSpots[k] = treeSpots[k].filter(t => !OBST.some(o => Math.hypot(o[1] - t[0], o[2] - t[2]) < o[3] + .075 * t[3]));
+instanced(new THREE.CylinderGeometry(.016, .024, .1, 6), mat('#7a5236'), [...treeSpots.pine, ...treeSpots.round], t => [V(t[0], t[1] + .05 * t[3], t[2]), V(t[3], t[3], t[3])]);
+instanced(new THREE.ConeGeometry(.1, .2, 7), mat('#2f7a3e'), treeSpots.pine, t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3], t[3])]);
+instanced(new THREE.ConeGeometry(.075, .16, 7), mat('#3f9248'), treeSpots.pine, t => [V(t[0], t[1] + .27 * t[3], t[2]), V(t[3], t[3], t[3])]);
+instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#5aa64a'), treeSpots.round.filter((_, i) => i % 2), t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3] * .95, t[3])]);
+instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#6db552'), treeSpots.round.filter((_, i) => !(i % 2)), t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3] * .95, t[3])]);
+
+// شجيرات وأزهار صغيرة تكسو الأرض
+{ const bush = [], flower = []; for (let i = 0; i < 2600; i++) { const x = lerp(-9, 9.5, rnd()), z = lerp(-4.6, 4.6, rnd()), cd = coastDist(x, z); if (cd < .3) continue; const h = heightAt(x, z, cd); if (h > .42) continue; const b = rnd() > .3, it = [x, h, z, .6 + rnd() * .7, rnd() * 6]; if (!inMarch(x, z) && !OBST.some(o => Math.hypot(o[1] - x, o[2] - z) < o[3] + .03)) (b ? bush : flower).push(it); }
+  instanced(new THREE.IcosahedronGeometry(.03, 0), mat('#4f9a3f'), bush, t => [V(t[0], t[1] + .012, t[2]), V(t[3], t[3] * .7, t[3])]);
+  const fl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.012, 0), mat('#ffffff'), flower.length), m4 = new THREE.Matrix4(), FC = ['#f6e27a', '#f4f1ea', '#e98aa0', '#c9a4ec'].map(c => new THREE.Color(c)); flower.forEach((t, i) => { fl.setMatrixAt(i, m4.makeTranslation(t[0], t[1] + .01, t[2])); fl.setColorAt(i, FC[i % 4]); }); scene.add(fl); }
+
+// ---------- الطرق: شريط ترابي ناعم الحواف يتبع التضاريس ----------
+{ const pos = [], col = [], idx = [], c = new THREE.Color('#cfae7a'), W = .033; let base = 0;
+  ROADS.forEach(L => { L.forEach((q, i) => { const a = L[Math.max(0, i - 1)], b = L[Math.min(L.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), nx = -dz / l, nz = dx / l, end = Math.min(i, L.length - 1 - i) / 2;
+      [-1.9, -1, 0, 1, 1.9].forEach((k, j) => { const x = q[0] + nx * W * k, z = q[1] + nz * W * k; pos.push(x, heightAt(x, z) + .006, z); col.push(c.r, c.g, c.b, (j === 0 || j === 4 ? 0 : .95) * Math.min(1, end)); }); });
+    for (let i = 0; i < L.length - 1; i++) for (let j = 0; j < 4; j++) { const a = base + i * 5 + j, b = a + 5; idx.push(a, b, a + 1, a + 1, b, b + 1); } base += L.length * 5; });
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4)); g.setIndex(idx); g.computeVertexNormals();
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, transparent: true, roughness: 1, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })); m.receiveShadow = true; scene.add(m); }
 
 // ---------- الأسماء (خط ثمانية، حجم ثابت على الشاشة) ----------
 function label(text, x, y, z, { size = 30, font = 'TSans', weight = 700, h = .03, sub } = {}) {
@@ -358,10 +394,9 @@ function updatePuffs(t) { puffs.forEach(p => { const k = (t - p.t0) / p.life; if
 // ---------- مشهد الغزو ----------
 const A = 0, D = 1, [fx, fz] = at(from), [tx, tz] = at(target);
 const dirX = tx - fx, dirZ = tz - fz, dL = Math.hypot(dirX, dirZ), ux = dirX / dL, uz = dirZ / dL;
-const mid = [lerp(startP[0], pathEnd[0], .55) * .5 + (pathEnd[0] - ux * .3) * .5, lerp(startP[1], pathEnd[1], .55) * .5 + (pathEnd[1] - uz * .3) * .5];
-const path = new THREE.CatmullRomCurve3([V(startP[0], 0, startP[1]), V(mid[0], 0, mid[1]), V(pathEnd[0] - ux * .1, 0, pathEnd[1] - uz * .1), V(pathEnd[0], 0, pathEnd[1])]);
+const path = MPATH;
 const army = [], guards = [];
-const ROWS = [[0, .34, 'r', 0, true], [-.13, .24, 'r', 1], [.13, .24, 'r', 2]];
+const ROWS = [[.02, .36, 'r', 0, true], [-.11, .25, 'r', 1], [.12, .14, 'r', 2]];
 for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) ROWS.push([(c - 1.5) * .085, -r * .09, 'f']);
 ROWS.forEach(([, , k, coat, ban]) => army.push(k === 'r' ? rider(A, coat, ban) : soldier(A)));
 const guardPos = []; for (let i = 0; i < 7; i++) { const off = (i - 3) * .085, row = i % 2 ? .07 : 0; guardPos.push([clashP[0] + ux * (.07 + row) - uz * off, clashP[1] + uz * (.07 + row) + ux * off]); guards.push(soldier(D)); }
@@ -427,11 +462,15 @@ window.R = {
     makeLabels(); hud(); resize(innerWidth, innerHeight); return true; })(),
   renderAt(t) { applyT(t); renderer.render(scene, camera); }, resize, T, stats: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles }),
   armyPos: () => army.slice(0, 3).map(s => s.position.toArray()),
-  check() { const bad = [], obs = [...OBST, ...[...treeSpots.pine, ...treeSpots.round].map(t => ['شجرة', t[0], t[2], .08 * t[3]])];
+  layout() { const L = OBST.filter(o => o[0] !== 'سور' && o[0] !== 'طريق'), bad = [];
+    for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) { const a = L[i], b = L[j]; if (a[0] === b[0] && (a[0] === 'حقل' || a[0] === 'صخرة')) continue; if (a[0] === 'برج' && b[0] === 'برج') continue; const d = Math.hypot(a[1] - b[1], a[2] - b[2]) - a[3] - b[3]; if (d < 0) bad.push([a[0], b[0], +d.toFixed(3)]); }
+    const walls = OBST.filter(o => o[0] === 'سور'); L.filter(o => o[0] === 'بيت' || o[0] === 'بئر').forEach(h => walls.forEach(w => { const d = Math.hypot(h[1] - w[1], h[2] - w[2]) - h[3] - w[3]; if (d < 0) bad.push([h[0], 'سور', +d.toFixed(3)]); }));
+    return { houses: L.filter(o => o[0] === 'بيت').length, n: bad.length, first: bad.slice(0, 10) }; },
+  check() { const bad = [], obs = [...OBST.filter(o => o[0] !== 'طريق'), ...[...treeSpots.pine, ...treeSpots.round].map(t => ['شجرة', t[0], t[2], .08 * t[3]])];
     for (let t = T.march[0]; t <= T.end; t += .05) { placeArmy(t); [...army, ...guards].forEach((u, i) => { if (!u.visible || u.scale.x < .5) return; const r = i < 3 ? .06 : .035;
       obs.forEach(([k, x, z, R]) => { const d = Math.hypot(u.position.x - x, u.position.z - z) - R - r; if (d < 0) bad.push([+t.toFixed(2), i < army.length ? 'مهاجم' + i : 'مدافع', k, +d.toFixed(3)]); }); }); }
     return { n: bad.length, first: bad.slice(0, 12) }; },
-  info: () => ({ dB: mdL * MB, mdL, target: target.name, from: from.name, regions: M.regions.length, trees: treeSpots.pine.length + treeSpots.round.length })
+  info: () => ({ roads: ROADS.length, roadPts: ROADS.reduce((a, l) => a + l.length, 0), dB: mdL * MB, mdL, target: target.name, from: from.name, regions: M.regions.length, trees: treeSpots.pine.length + treeSpots.round.length })
 };
 if (!location.hash.includes('manual')) R.ready.then(() => { const t0 = performance.now(); const loop = () => { R.renderAt(((performance.now() - t0) / 1000) % (T.end + 3)); requestAnimationFrame(loop); }; loop(); });
 addEventListener('resize', () => resize(innerWidth, innerHeight));

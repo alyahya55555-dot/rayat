@@ -223,7 +223,10 @@ class Stage {
     g.fillText((P.title || 'ميدان بناء') + ' — جزيرة القرى', 960, 80);
     g.fillStyle = 'rgba(4,20,26,.82)'; g.fillRect(0, 990, 1920, 90); g.font = `800 38px ${fam}`;
     rk.forEach((t, i) => { const x = 1920 - (i + .5) * (1920 / rk.length); g.fillStyle = t.color; g.fillText(`${['🥇', '🥈', '🥉', '4'][i] || i + 1} ${t.name} — ${t.score}`, x, 1048); });
-    const a = document.createElement('a'); a.download = 'جزيرة-القرى-' + new Date().toISOString().slice(0, 10) + '.png'; a.href = c.toDataURL('image/png'); a.click();
+    const name = 'جزيرة-القرى-' + new Date().toISOString().slice(0, 10) + '.png', blob = await new Promise(ok => c.toBlob(ok, 'image/png'));
+    const dl = window.claude && window.claude.use ? await window.claude.use('downloads').catch(() => null) : null;
+    if (dl) { try { await dl.save({ filename: name, data: blob }); } catch (e) { if (e && e.code !== 'declined') throw e; } return; }
+    const a = document.createElement('a'), u = URL.createObjectURL(blob); a.download = name; a.href = u; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000);
   }
   // ---------- اللوحة: السؤال أو البطاقة ----------
   drawPanel(P) {

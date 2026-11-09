@@ -128,8 +128,9 @@ function game(cfg, seed) {
     T = Math.max(T, end); M.phaseT.push(T);
   }
   R.setPhase(S, P.length - 1); inv('end');
-  const rk = R.ranking(S), top = rk.filter(x => x.score === rk[0].score); // تعادل الصدارة: مواجهة استباق أفضل من ثلاثة
-  let win = top[0].team; if (top.length > 1) { const st = top.map(x => sim.teams[x.team].q + rnd() * .3); win = top[st.indexOf(Math.max(...st))].team; M.tieBreak = true; }
+  const rk = R.ranking(S); // تعادل الصدارة: مواجهة استباق فاصلة أفضل من ثلاثة
+  if (S.tie) { M.tieBreak = true; let k = 0; while (!S.done && k++ < 50) { const ms = S.tie.teams.map(x => teamModel(sim.teams[x], 'final')), w = ms.map(m => m.know * m.lam * (.5 + rnd())); R.tiePoint(S, S.tie.teams[w.indexOf(Math.max(...w))]); T += TIME.point; } }
+  const win = S.winner;
   M.totalMin = (T + 60 * P[P.length - 1].min) / 60; M.winner = win; M.winnerSeat = sim.teams[win].seatOf; M.scores = rk; M.seats = sim.teams.map(t => t.seatOf);
   M.finalLeaderWon = M.leadAt.final && M.leadAt.final.sc.filter(x => x === M.leadAt.final.m).length === 1 ? M.leadAt.final.id === win : null;
   M.warLeaderWon = M.leadAt.war && M.leadAt.war.sc.filter(x => x === M.leadAt.war.m).length === 1 ? M.leadAt.war.id === win : null;

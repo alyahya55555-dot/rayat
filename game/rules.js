@@ -21,7 +21,7 @@
     LOOT: { 1: .3, 2: .3, 3: .15 },       // نسبة ما يُنهب من مخزون العاصمة حسب درجتها (الحاضرة نصف النهب المعتاد)
     LOOT_MAX: 8,                           // سقف ما يُحمل في النهبة الواحدة (مجموع الموارد)
     LOOT_SHIELD: 2,
-    CASTLE_POINTS: 5,
+    CASTLE_POINTS: 4,                      // اعتمده المستخدم 9 نوفمبر بعد المحاكاة (كان 5)
     CASTLE_GRACE: 2,                       // من يفتح القلعة يأمن فيها الجولة التالية (يرمّم ويستقر)
     CASTLE_ONCE: true,                     // مواجهة واحدة على القلعة في الجولة                        // العاصمة المنهوبة لا تُنهب ثانية قبل مرور جولتين
     CAV_GARRISON_LOOT: 2,                  // ما تأخذه حامية الفرسان من المهاجم إذا صمدت الأرض
@@ -223,7 +223,13 @@
   // ---------- المراحل ----------
   function setPhase(S, i) { S.phase = i; const P = CFG.PHASES[i]; log(S, { t: 'phase', key: P.key, unlock: P.unlock });
     if (P.dissolve) S.teams.forEach(T => { if (T.ally != null) breakAlliance(S, T.id, 'final'); T.offerFrom = null; T.revenge = null; });
-    if (P.key === 'crown') { S.done = true; log(S, { t: 'end', ranking: ranking(S) }); } }
+    if (P.key === 'crown') { const rk = ranking(S), tied = rk.filter(x => x.score === rk[0].score).map(x => x.team);
+      if (tied.length > 1) { S.tie = { teams: tied, pts: tied.map(() => 0) }; log(S, { t: 'tie', teams: tied }); } // مواجهة فاصلة: أفضل من ثلاثة
+      else { S.done = true; S.winner = rk[0].team; log(S, { t: 'end', ranking: rk, winner: S.winner }); } } }
+  // نقطة في المواجهة الفاصلة (حكم المشرف): أول فريق يصل إلى نقطتين يُتوَّج
+  function tiePoint(S, team) { const T = S.tie; if (!T) throw new Error('لا تعادل'); const i = T.teams.indexOf(team); if (i < 0) throw new Error('ليس من المتعادلين');
+    T.pts[i]++; log(S, { t: 'tiePoint', team, pts: T.pts.slice() });
+    if (T.pts[i] >= 2) { S.tie = null; S.done = true; S.winner = team; log(S, { t: 'end', ranking: ranking(S), winner: team, tieBreak: true }); return team; } return null; }
   function ranking(S) { return S.teams.map(T => ({ team: T.id, score: score(S, T.id) })).sort((a, b) => b.score - a.score || a.team - b.team); }
 
   // ---------- الثوابت: تُفحص بعد كل خطوة في الاختبارات والمحاكاة ----------
@@ -242,6 +248,6 @@
     return err;
   }
 
-  G.RayatRules = { CFG, RES, setup, legal, attackOptions, startCycle, act, skip, point, predict, bonusOrders, endCycle, offer, accept, gift, endQuiet, breakAlliance, setPhase, ranking, score, check, clone, hop, unlocked, phaseKey, towerCover, reachable };
+  G.RayatRules = { CFG, RES, setup, legal, attackOptions, startCycle, act, skip, point, predict, bonusOrders, endCycle, offer, accept, gift, endQuiet, breakAlliance, setPhase, tiePoint, ranking, score, check, clone, hop, unlocked, phaseKey, towerCover, reachable };
   if (typeof module !== 'undefined') module.exports = G.RayatRules;
 })(typeof window !== 'undefined' ? window : globalThis);

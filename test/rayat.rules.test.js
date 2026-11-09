@@ -122,4 +122,8 @@ function duelSetup() { const S = R.setup(mini(), TEAMS(2)); rich(S); S.regions.f
   R.endCycle(S); R.startCycle(S, [1, 1]); R.endCycle(S); R.startCycle(S, [1, 1]); ok(R.attackOptions(S, 1, 6).length > 0, 'بعد مهلة القلعة تُهاجم من جديد'); }
 // فريقان: لا تحالف
 { const S = R.setup(mini(), TEAMS(2)); goPhase(S, 'friction'); throws(() => R.offer(S, 0, 1), 'لا تحالف بين فريقين فقط'); }
+// التعادل في الصدارة: مواجهة فاصلة أفضل من ثلاثة
+{ const S = R.setup(mini(), TEAMS(2)); R.setPhase(S, R.CFG.PHASES.length - 1); ok(S.tie && !S.done && S.tie.teams.length === 2, 'التعادل يفتح مواجهة فاصلة'); ok(R.tiePoint(S, 1) === null && R.tiePoint(S, 0) === null, 'نقطة لكل فريق ولا حسم'); ok(R.tiePoint(S, 1) === 1 && S.done && S.winner === 1, 'أول من يصل نقطتين يُتوَّج'); }
+{ const S = R.setup(mini(), TEAMS(2)); S.regions[1].owner = 1; R.setPhase(S, R.CFG.PHASES.length - 1); ok(S.done && S.winner === 1 && !S.tie, 'بلا تعادل يُتوَّج الأكثر أرضًا مباشرة'); }
+ok(R.CFG.CASTLE_POINTS === 4, 'القلعة بأربع أراضٍ (اعتماد المستخدم)');
 console.log(`قواعد رايات: ${pass} نجح، ${fail} فشل`); process.exit(fail ? 1 : 0);

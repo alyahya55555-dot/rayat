@@ -31,7 +31,7 @@ for (let g = 1; g <= N; g++) {
         R.endCycle(S); chk('حصاد');
       }
     }
-    R.setPhase(S, R.CFG.PHASES.length - 1); chk('نهاية'); if (!S.done) bad.push(`مسابقة ${g}: لم تنتهِ`);
+    R.setPhase(S, R.CFG.PHASES.length - 1); chk('نهاية'); let k = 0; while (S.tie && k++ < 20) R.tiePoint(S, pick(S.tie.teams, r)); chk('فاصلة'); if (!S.done) bad.push(`مسابقة ${g}: لم تنتهِ`);
     games++;
   } catch (e) { if (bad.length < 10) bad.push(`مسابقة ${g} (${n} فرق): ${e.message}`); }
 }

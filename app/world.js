@@ -107,16 +107,21 @@
     // شبكة الارتفاع الدقيقة (للحركة)
     HW = NX + 1; HH = NZ + 1; HX0 = X0; HZ0 = Z0; HNX = (X1 - X0) / NX; HNZ = (Z1 - Z0) / NZ; Hgrid = new Float32Array(HW * HH); for (let i = 0; i < tp.count; i++) Hgrid[i] = tp.getY(i);
     tgeo.setAttribute('color', new THREE.BufferAttribute(cols, 3)); tgeo.setAttribute('aRegion', new THREE.BufferAttribute(regA, 1)); tgeo.computeVertexNormals();
-    const NRmax = 48, teamU = { uTC: { value: Array.from({ length: NRmax }, () => new THREE.Color(0, 0, 0)) }, uTA: { value: new Float32Array(NRmax) }, uCR: { value: -1 }, uCFrom: { value: new THREE.Color() }, uCTo: { value: new THREE.Color() }, uCC: { value: new THREE.Vector2() }, uCRad: { value: 0 }, uCFA: { value: 1 } };
+    const NRmax = 48, NSP = 6, teamU = { uTC: { value: Array.from({ length: NRmax }, () => new THREE.Color(0, 0, 0)) }, uTA: { value: new Float32Array(NRmax) }, uSR: { value: new Float32Array(NSP).fill(-1) }, uSFrom: { value: Array.from({ length: NSP }, () => new THREE.Color()) }, uSTo: { value: Array.from({ length: NSP }, () => new THREE.Color()) }, uSC: { value: Array.from({ length: NSP }, () => new THREE.Vector2()) }, uSRad: { value: new Float32Array(NSP) }, uSFA: { value: new Float32Array(NSP).fill(1) } };
+    // سريان اللون: حتى ستة أقاليم في الوقت نفسه (للأحداث المتزامنة)
+    const spreads = Array.from({ length: NSP }, (_, k) => ({ k, used: false }));
+    const spreadSlot = () => { const sl = spreads.find(x => !x.used) || spreads[0]; sl.used = true; return {
+      set(r, cx, cz, from, fromA, to, rad) { const k = sl.k; teamU.uSR.value[k] = rad > 0 && rad < 5 ? r : -1; teamU.uSC.value[k].set(cx, cz); teamU.uSFrom.value[k].set(from); teamU.uSFA.value[k] = fromA; teamU.uSTo.value[k].set(to); teamU.uSRad.value[k] = rad; },
+      free() { teamU.uSR.value[sl.k] = -1; sl.used = false; } }; };
     const terrainMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .92, metalness: 0 });
     terrainMat.onBeforeCompile = sh => { Object.assign(sh.uniforms, teamU, U);
       sh.vertexShader = 'attribute float aRegion; flat varying float vReg; varying vec3 vWP;\n' + sh.vertexShader.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n vReg = aRegion; vWP = (modelMatrix*vec4(transformed,1.)).xyz;');
-      sh.fragmentShader = `uniform vec3 uTC[${NRmax}]; uniform float uTA[${NRmax}]; uniform float uCR; uniform vec3 uCFrom; uniform vec3 uCTo; uniform vec2 uCC; uniform float uCRad; uniform float uCFA; uniform float uTime; flat varying float vReg; varying vec3 vWP;\n` +
+      sh.fragmentShader = `uniform vec3 uTC[${NRmax}]; uniform float uTA[${NRmax}]; uniform float uSR[${NSP}]; uniform vec3 uSFrom[${NSP}]; uniform vec3 uSTo[${NSP}]; uniform vec2 uSC[${NSP}]; uniform float uSRad[${NSP}]; uniform float uSFA[${NSP}]; uniform float uTime; flat varying float vReg; varying vec3 vWP;\n` +
         sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
           int ri = int(vReg + .5);
           if (vReg > -.5) {
             float a = uTA[ri]; vec3 tc = uTC[ri];
-            if (abs(vReg - uCR) < .5) { float dd = distance(vWP.xz, uCC); float k = 1. - smoothstep(uCRad - .3, uCRad, dd); tc = mix(uCFrom, uCTo, k); a = mix(uCFA, 1., k); float rim = 1. - smoothstep(0., .12, abs(dd - uCRad)); diffuseColor.rgb += rim * step(.01, uCRad) * step(uCRad, 5.) * .25; }
+            for (int q = 0; q < ${NSP}; q++) { if (abs(vReg - uSR[q]) < .5) { float dd = distance(vWP.xz, uSC[q]); float k = 1. - smoothstep(uSRad[q] - .3, uSRad[q], dd); tc = mix(uSFrom[q], uSTo[q], k); a = mix(uSFA[q], 1., k); float rim = 1. - smoothstep(0., .12, abs(dd - uSRad[q])); diffuseColor.rgb += rim * step(.01, uSRad[q]) * .25; } }
             float land = smoothstep(.015, .07, vWP.y) * (1. - .75 * smoothstep(.34, .62, vWP.y));
             float lum = dot(diffuseColor.rgb, vec3(.3,.59,.11));
             diffuseColor.rgb = mix(diffuseColor.rgb, tc * (.55 + lum * .75), a * .58 * land);
@@ -566,7 +571,7 @@
       // منجنيق: قذيفة على الأسوار قبل الالتحام
       const catU = units.find(u => u.userData.kind === 'cat'), shot = catU ? { t: T.clash[0] - .9, from: null, to: V(cross[0] + dir[0] * .25, groundY(cross[0] + dir[0] * .25, cross[1] + dir[1] * .25) + .05, cross[1] + dir[1] * .25) } : null;
       let stone = null; if (shot) { stone = new THREE.Mesh(sph(.012, 10, 8), mat('#8d8574')); stone.visible = false; scene.add(stone); W.emit('sfx', { k: 'catapult', at: shot.t }); }
-      let flagNew = null, looted = false, camMoved = false, oldFlag = I.flag;
+      let flagNew = null, looted = false, camMoved = false, oldFlag = I.flag; const SPa = spreadSlot();
       await run((t) => { const lt = t - tw;
         const k = ease(seg(lt, ...T.march)), retreat = !won && lt > T.res[0], rk = ease(seg(lt, T.res[0], T.res[1] + .4));
         const s = retreat ? lerp(s1, s1 - .55, rk) : lerp(s0, s1, k);
@@ -585,7 +590,7 @@
         if (taken) { if (oldFlag) oldFlag.lift = 1 - ease(seg(lt, T.res[0], T.res[0] + .8));
           if (lt > T.res[0] + .8 && !flagNew) { if (oldFlag) { dropFlag(oldFlag); I.flag = null; } setFort(r, false); setGar(r, null, null); flagNew = placeFlag(r, a, 0); W.emit('sfx', { k: 'raise', at: 0 }); }
           if (flagNew) flagNew.lift = ease(seg(lt, T.res[0] + .8, T.res[0] + 1.8));
-          const sp = ease(seg(lt, T.res[0] + 1.2, T.res[1] + .8)); teamU.uCR.value = sp > 0 && sp < 1 ? r : -1; teamU.uCFrom.value.set(d != null ? TEAMS[d].color : '#ffffff'); teamU.uCFA.value = d != null ? 1 : 0; teamU.uCTo.value.set(TEAMS[a].color); teamU.uCC.value.set(cross[0], cross[1]); teamU.uCRad.value = sp * 2.4;
+          const sp = ease(seg(lt, T.res[0] + 1.2, T.res[1] + .8)); SPa.set(r, cross[0], cross[1], d != null ? TEAMS[d].color : '#ffffff', d != null ? 1 : 0, TEAMS[a].color, sp < 1 ? sp * 2.4 : 0);
           if (sp >= 1 && W.owner[r] !== a) { W.owner[r] = a; R[r].owner = a; setTint(r); buildBorders(); makeLabel(tgt); } }
         if (result === 'loot' && lt > T.res[0] && !looted) { looted = true; W.emit('sfx', { k: 'loot', at: 0 }); for (let i = 0; i < 14; i++) puff(I.x + (rnd() - .5) * .25, groundY(I.x, I.z) + .15, I.z + (rnd() - .5) * .2, t + i * .05, { col: '#ffd24a', size: .07, life: .7, vy: .3, spread: .5, additive: true, op: 1 }); }
         if (lt > T.march[1] && !camMoved) { camMoved = true; camTo(sideView(focus.clone().lerp(V(I.x, focus.y, I.z), .3), dir, 2.4, 2.2), 1.4); }
@@ -594,14 +599,14 @@
       units.forEach(disposeUnit); defs.forEach(disposeUnit); if (stone) scene.remove(stone);
       if (taken && W.owner[r] !== a) { if (oldFlag && flags.includes(oldFlag)) dropFlag(oldFlag); I.flag = null; setFort(r, false); setGar(r, null, null); placeFlag(r, a, 1); W.owner[r] = a; I.owner = a; setTint(r); buildBorders(); makeLabel(tgt); }
       if (result === 'garrisonFell') setGar(r, null, null);
-      teamU.uCR.value = -1; if (flagNew) flagNew.lift = 1;
+      SPa.free(); if (flagNew) flagNew.lift = 1;
       camTo(overview(), 1.6); labelsOpacity(1); await wait(1.4); sceneDone(); W.busy = false;
     };
     const wait = sec => new Promise(res => { const t0 = W.time; actors.push({ fn: t => t - t0 >= sec || W.skipping, res }); });
 
     // مشهد الاحتلال: قافلة مستوطنين تصل وتغرس الراية والأرض تتلوّن
-    W.occupy = async ({ team, r, from }) => {
-      W.busy = true; const tgt = M.regions[r], I = R[r];
+    W.occupy = async ({ team, r, from, wide }) => {
+      W.busy = true; const SPo = spreadSlot(); const tgt = M.regions[r], I = R[r];
       const fromId = from != null ? from : (tgt.nb.find(j => W.owner[j] === team) ?? M.caps[team]);
       const cross = crossing(fromId, r), goal = [I.yard[0] + .06, I.yard[1] + .08], [fx, fz] = at(M.regions[fromId]);
       const dir0 = [cross[0] - fx, cross[1] - fz], dl = Math.hypot(...dir0) || 1, dir = [dir0[0] / dl, dir0[1] / dl];
@@ -610,19 +615,19 @@
       const crv = curve(p1), len = crv.getLength();
       const units = [soldier(team), cart(team), soldier(team)]; const colLen = .2;
       const tw = W.time, T = { walk: [.8, 3.6], plant: [3.6, 4.6], spread: [4.4, 6.2], end: 7.2 };
-      labelsOpacity(0, r); camTo(sideView(V(goal[0], groundY(...goal), goal[1]).lerp(V(cross[0], 0, cross[1]), .4), dir, 2.6, 2.6), 1.2); W.emit('sfx', { k: 'settle', at: T.walk[0] });
+      if (!wide) { labelsOpacity(0, r); camTo(sideView(V(goal[0], groundY(...goal), goal[1]).lerp(V(cross[0], 0, cross[1]), .4), dir, 2.6, 2.6), 1.2); } W.emit('sfx', { k: 'settle', at: T.walk[0] });
       const f = placeFlag(r, team, 0); f.pole = .001;
       await run(t => { const lt = t - tw, k = ease(seg(lt, ...T.walk)); placeColumn(units, crv, len, lerp(colLen + .01, len - .04, k), k > 0 && k < 1, lt);
         f.pole = ease(seg(lt, T.plant[0], T.plant[0] + .5)); f.lift = ease(seg(lt, T.plant[0] + .3, T.plant[1]));
-        const sp = ease(seg(lt, ...T.spread)); teamU.uCR.value = sp > 0 && sp < 1 ? r : -1; teamU.uCFrom.value.set('#ffffff'); teamU.uCFA.value = 0; teamU.uCTo.value.set(TEAMS[team].color); teamU.uCC.value.set(I.flagSpot[0], I.flagSpot[1]); teamU.uCRad.value = sp * 2.2;
+        const sp = ease(seg(lt, ...T.spread)); SPo.set(r, I.flagSpot[0], I.flagSpot[1], '#ffffff', 0, TEAMS[team].color, sp < 1 ? sp * 2.2 : 0);
         if (sp >= 1 && W.owner[r] !== team) { W.owner[r] = team; I.owner = team; setTint(r); buildBorders(); makeLabel(tgt); }
         return lt >= T.end || W.skipping; });
-      units.forEach(disposeUnit); f.pole = 1; f.lift = 1; teamU.uCR.value = -1; if (W.owner[r] !== team) { W.owner[r] = team; I.owner = team; setTint(r); buildBorders(); makeLabel(tgt); }
-      camTo(overview(), 1.4); labelsOpacity(1); await wait(1.2); sceneDone(); W.busy = false;
+      units.forEach(disposeUnit); f.pole = 1; f.lift = 1; SPo.free(); if (W.owner[r] !== team) { W.owner[r] = team; I.owner = team; setTint(r); buildBorders(); makeLabel(tgt); }
+      if (!wide) { camTo(overview(), 1.4); labelsOpacity(1); await wait(1.2); } else makeLabel(tgt); sceneDone(); W.busy = false;
     };
     // البناء: سور يرتفع حجرًا حجرًا، أو برج مراقبة، أو حامية تصل
-    async function buildScene(r, kind, team) { W.busy = true; const I = R[r], [x, z] = I.yard, focus = V(x, groundY(x, z), z), tw = W.time;
-      labelsOpacity(0); camTo(nearView(focus), 1.2);
+    async function buildScene(r, kind, team, wide) { W.busy = true; const I = R[r], [x, z] = I.yard, focus = V(x, groundY(x, z), z), tw = W.time;
+      if (!wide) { labelsOpacity(0); camTo(nearView(focus), 1.2); }
       let g = null, units = []; const T = { up: [1.2, 4.2], end: 5.4 };
       if (kind === 'walls') { setFort(r, true); g = I.fort; g.scale.y = .001; W.emit('sfx', { k: 'build', at: T.up[0] }); for (let i = 0; i < 10; i++) { const a = rnd() * 6.28; puff(x + Math.cos(a) * .15, groundY(x, z) + .03, z + Math.sin(a) * .13, tw + T.up[0] + rnd() * 2.6, { col: '#cfc6b0', size: .14, life: 1, op: .6 }); } }
       else if (kind === 'tower') { setTower(r, true); g = I.tower; g.scale.y = .001; W.emit('sfx', { k: 'build', at: T.up[0] }); }
@@ -630,8 +635,10 @@
         await run(t => { const lt = t - tw, k = ease(seg(lt, .8, 3.6)); list.forEach((u, i) => { const p = crv[i].getPointAt(k), tg = crv[i].getTangentAt(Math.min(.999, k)); u.position.set(p.x, groundY(p.x, p.z), p.z); u.rotation.y = Math.atan2(tg.x, tg.z); animUnit(u, lt, k < 1, i, false); }); return lt >= T.end || W.skipping; });
         I.gar.forEach(disposeUnit); I.gar = list; I.garKey = team + (kind === 'garCav' ? 'cav' : 'inf'); }
       if (g) await run(t => { const lt = t - tw; g.scale.y = Math.max(.001, ease(seg(lt, ...T.up))); return lt >= T.end || W.skipping; });
-      if (g) g.scale.y = 1; camTo(overview(), 1.4); labelsOpacity(1); await wait(1.2); sceneDone(); W.busy = false; }
-    W.build = e => buildScene(e.r, e.k, e.team);
+      if (g) g.scale.y = 1; if (!wide) { camTo(overview(), 1.4); labelsOpacity(1); await wait(1.2); } sceneDone(); W.busy = false; }
+    W.build = e => buildScene(e.r, e.k, e.team, e.wide);
+    // أحداث هادئة متزامنة (احتلال/بناء) تُعرض معًا على الخريطة كاملة لتبقى الجولة سريعة
+    W.batch = async (list) => { camTo(overview(), 1); await Promise.all(list.map(e => e.k === 'occupy' ? W.occupy({ ...e, wide: true }) : W.build({ ...e, wide: true }))); };
     // تطوير العاصمة: بيوت جديدة تنمو واحدًا بعد الآخر
     W.capital = async ({ team, level }) => { W.busy = true; const id = M.caps[team], I = R[id], focus = V(I.x, groundY(I.x, I.z), I.z), tw = W.time;
       labelsOpacity(0); camTo(nearView(focus, 2.6, 2.2), 1.2); const made = setCapLevel(team, level, true); W.emit('sfx', { k: 'build', at: 1.2 });

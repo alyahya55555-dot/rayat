@@ -32,6 +32,13 @@ const from = M.regions[target.nb.find(j => owner[j] === 0 && M.regions[j].type !
 const del = d3.Delaunay.from(M.regions.map(r => r.seed));
 const regionAtW = (x, z) => del.find(x / S + CX, z / S + CY);
 const at = r => P(...r.at);
+// مسار الزحف: من داخل أرض المهاجم إلى الحدّ الفعلي مع الهدف، بعيدًا عن البيوت
+const MF = at(from), MT = at(target), mdL = Math.hypot(MT[0] - MF[0], MT[1] - MF[1]), mux = (MT[0] - MF[0]) / mdL, muz = (MT[1] - MF[1]) / mdL;
+let MB = .5; for (let k = .15; k < .98; k += .005) if (regionAtW(lerp(MF[0], MT[0], k), lerp(MF[1], MT[1], k)) === target.id) { MB = k; break; }
+const BP = [lerp(MF[0], MT[0], MB), lerp(MF[1], MT[1], MB)];
+const clashP = [BP[0] + mux * .1, BP[1] + muz * .1], startP = [MF[0] + mux * Math.min(.42, mdL * MB * .45), MF[1] + muz * Math.min(.42, mdL * MB * .45)];
+const segDist = (x, z, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / (dx * dx + dz * dz)); return Math.hypot(a[0] + t * dx - x, a[1] + t * dz - z); };
+const inMarch = (x, z) => segDist(x, z, startP, clashP) < .3 || Math.hypot(x - clashP[0], z - clashP[1]) < .5;
 
 // ---------- الأرض: مسافة إلى الساحل وارتفاع ----------
 const coastSegs = []; [M.main.poly, ...M.isles.map(i => i.poly)].forEach(L => L.forEach((p, i) => { const q = L[(i + 1) % L.length], [ax, az] = P(...p), [bx, bz] = P(...q); coastSegs.push([ax, az, bx, bz]); }));
@@ -114,7 +121,7 @@ terrainMat.onBeforeCompile = sh => { Object.assign(sh.uniforms, teamU, U);
       if (vReg > -.5) {
         float a = uTA[ri]; vec3 tc = uTC[ri];
         if (abs(vReg - uCR) < .5) { float dd = distance(vWP.xz, uCC); float k = 1. - smoothstep(uCRad - .3, uCRad, dd); tc = mix(uCFrom, uCTo, k); a = 1.; float rim = 1. - smoothstep(0., .12, abs(dd - uCRad)); diffuseColor.rgb += rim * step(.01, uCRad) * step(uCRad, 5.) * .25; }
-        float land = smoothstep(.07, .16, vWP.y) * (1. - .75 * smoothstep(.34, .62, vWP.y));
+        float land = smoothstep(.015, .07, vWP.y) * (1. - .75 * smoothstep(.34, .62, vWP.y));
         float lum = dot(diffuseColor.rgb, vec3(.3,.59,.11));
         diffuseColor.rgb = mix(diffuseColor.rgb, tc * (.55 + lum * .75), a * .58 * land);
       }
@@ -168,6 +175,7 @@ M.regions.forEach(r => { const [cx, cz] = at(r), n = { farm: 7, village: 9, port
     const kind = h > .3 || r.type === 'mine' || r.type === 'quarry' ? 'pine' : (rnd() > .35 ? 'round' : 'pine'), cl = 1 + Math.floor(rnd() * 3);
     for (let c = 0; c < cl; c++) { const xx = x + (rnd() - .5) * .14, zz = z + (rnd() - .5) * .14; if (regionAtW(xx, zz) === r.id && coastDist(xx, zz) > .2) treeSpots[kind].push([xx, heightAt(xx, zz), zz, .58 + rnd() * .36, rnd() * 6]); }
     k++; } });
+for (const k in treeSpots) treeSpots[k] = treeSpots[k].filter(t => !inMarch(t[0], t[2]));
 function instanced(geo, material, list, place) { const im = new THREE.InstancedMesh(geo, material, list.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(); list.forEach((t, i) => { const [p, s] = place(t); q.setFromEuler(e.set(0, t[4], 0)); m4.compose(p, q, s); im.setMatrixAt(i, m4); }); im.castShadow = true; im.receiveShadow = true; scene.add(im); return im; }
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 instanced(new THREE.CylinderGeometry(.016, .024, .1, 6), mat('#7a5236'), [...treeSpots.pine, ...treeSpots.round], t => [V(t[0], t[1] + .05 * t[3], t[2]), V(t[3], t[3], t[3])]);
@@ -177,7 +185,7 @@ instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#5aa64a'), treeSpots.roun
 instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#6db552'), treeSpots.round.filter((_, i) => !(i % 2)), t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3] * .95, t[3])]);
 
 // شجيرات وأزهار صغيرة تكسو الأرض
-{ const bush = [], flower = []; for (let i = 0; i < 2600; i++) { const x = lerp(-9, 9.5, rnd()), z = lerp(-4.6, 4.6, rnd()), cd = coastDist(x, z); if (cd < .3) continue; const h = heightAt(x, z, cd); if (h > .42) continue; (rnd() > .3 ? bush : flower).push([x, h, z, .6 + rnd() * .7, rnd() * 6]); }
+{ const bush = [], flower = []; for (let i = 0; i < 2600; i++) { const x = lerp(-9, 9.5, rnd()), z = lerp(-4.6, 4.6, rnd()), cd = coastDist(x, z); if (cd < .3) continue; const h = heightAt(x, z, cd); if (h > .42) continue; const b = rnd() > .3, it = [x, h, z, .6 + rnd() * .7, rnd() * 6]; if (!inMarch(x, z)) (b ? bush : flower).push(it); }
   instanced(new THREE.IcosahedronGeometry(.03, 0), mat('#4f9a3f'), bush, t => [V(t[0], t[1] + .012, t[2]), V(t[3], t[3] * .7, t[3])]);
   const fl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.012, 0), mat('#ffffff'), flower.length), m4 = new THREE.Matrix4(), FC = ['#f6e27a', '#f4f1ea', '#e98aa0', '#c9a4ec'].map(c => new THREE.Color(c)); flower.forEach((t, i) => { fl.setMatrixAt(i, m4.makeTranslation(t[0], t[1] + .01, t[2])); fl.setColorAt(i, FC[i % 4]); }); scene.add(fl); }
 
@@ -345,7 +353,6 @@ function updatePuffs(t) { puffs.forEach(p => { const k = (t - p.t0) / p.life; if
 // ---------- مشهد الغزو ----------
 const A = 0, D = 1, [fx, fz] = at(from), [tx, tz] = at(target);
 const dirX = tx - fx, dirZ = tz - fz, dL = Math.hypot(dirX, dirZ), ux = dirX / dL, uz = dirZ / dL;
-const startP = [fx + ux * .25, fz + uz * .25], clashP = [lerp(fx, tx, .66), lerp(fz, tz, .66)];
 const bend = .18, mid = [(startP[0] + clashP[0]) / 2 - uz * bend, (startP[1] + clashP[1]) / 2 + ux * bend];
 const path = new THREE.CatmullRomCurve3([V(startP[0], 0, startP[1]), V(mid[0], 0, mid[1]), V(clashP[0] - ux * .12, 0, clashP[1] - uz * .12)]);
 const army = [], guards = [];
@@ -402,7 +409,7 @@ function applyT(t) {
   newFlag.g.visible = t >= T.raise[0]; newFlag.lift = ease(seg(t, ...T.raise)); waveFlags(t);
   const sp = ease(seg(t, ...T.spread)); teamU.uCR.value = sp > 0 && sp < 1 ? target.id : -1; teamU.uCFrom.value.set(TEAMS[D].color); teamU.uCTo.value.set(TEAMS[A].color); teamU.uCC.value.set(clashP[0], clashP[1]); teamU.uCRad.value = sp * 2.4;
   const now = t >= T.spread[0] + .9; if (now !== conquered) { conquered = now; owner[target.id] = conquered ? A : D; setTint(target.id); buildBorders(); hud(); }
-  labels.forEach(l => l.material.opacity = t > T.start && t < T.spread[1] ? .0 : 1);
+  labels.forEach(l => l.material.opacity = t < T.start ? 1 - ease(seg(t, T.start - .5, T.start)) : ease(seg(t, T.end - .7, T.end)));
   if (t >= T.start && t < T.clash[1]) { setBanner('هجوم', `<em>${TEAMS[A].name}</em> يزحفـون على ${target.name}`, TEAMS[A].color); banner.classList.add('on'); }
   else if (t >= T.raise[0]) { setBanner('فتح', `<em>${TEAMS[A].name}</em> يفتحـون ${target.name}`, TEAMS[A].color); banner.classList.add('on'); }
   else banner.classList.remove('on');
@@ -415,7 +422,7 @@ window.R = {
     makeLabels(); hud(); resize(innerWidth, innerHeight); return true; })(),
   renderAt(t) { applyT(t); renderer.render(scene, camera); }, resize, T, stats: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles }),
   armyPos: () => army.slice(0, 3).map(s => s.position.toArray()),
-  info: () => ({ target: target.name, from: from.name, regions: M.regions.length, trees: treeSpots.pine.length + treeSpots.round.length })
+  info: () => ({ dB: mdL * MB, mdL, target: target.name, from: from.name, regions: M.regions.length, trees: treeSpots.pine.length + treeSpots.round.length })
 };
 if (!location.hash.includes('manual')) R.ready.then(() => { const t0 = performance.now(); const loop = () => { R.renderAt(((performance.now() - t0) / 1000) % (T.end + 3)); requestAnimationFrame(loop); }; loop(); });
 addEventListener('resize', () => resize(innerWidth, innerHeight));

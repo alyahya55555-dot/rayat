@@ -1,5 +1,10 @@
 // رايات — المشهد ثلاثي الأبعاد (الإصدار 2: تضاريس متصلة، حدود دول، رايات بخط ثمانية، مشهد غزو)
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
 const S = 1 / 100, CX = 930, CY = 600;
 const P = (x, y) => [(x - CX) * S, (y - CY) * S];
@@ -43,8 +48,8 @@ M.regions.forEach(r => { const [x, z] = at(r);
   if (r.type === 'capital') feats.push({ x, z, h: .16, r: .55, k: 'p' }); });
 const flatRegion = id => ['farm', 'capital', 'castle', 'port', 'village'].includes(M.regions[id].type);
 function heightAt(x, z, cd = coastDist(x, z)) {
-  if (cd < 0) return -.04 - Math.min(1, -cd / 1.4) * .7;
-  let h = .05 + sstep(0, .35, cd) * .09;
+  if (cd < 0) return .006 + cd * .2 - sstep(.1, 1.5, -cd) * .62;
+  let h = .006 + sstep(0, .4, cd) * .13;
   const id = regionAtW(x, z), rough = flatRegion(id) ? .35 : 1;
   h += (fbm(x * .9 + 7, z * .9 + 3) - .45) * .16 * rough * sstep(0, .5, cd);
   for (const f of feats) { const d = Math.hypot(x - f.x, z - f.z) / f.r; if (d > 1.6) continue;
@@ -68,6 +73,10 @@ const sun = new THREE.DirectionalLight('#ffe9c9', 2.9); sun.position.set(-6, 11,
 sun.shadow.mapSize.set(4096, 4096); Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 8, bottom: -8, near: 1, far: 40 }); sun.shadow.bias = -.0005; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
 scene.add(sun, sun.target);
 const fill = new THREE.DirectionalLight('#a9d4ff', .55); fill.position.set(7, 5, -6); scene.add(fill);
+const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture; scene.environmentIntensity = .35;
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType }));
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new OutputPass());
 const U = { uTime: { value: 0 } };
 const mat = (c, o = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: .8, metalness: 0, flatShading: true, ...o });
 const add = (m, p, opt = {}) => { m.castShadow = opt.cast !== false; m.receiveShadow = true; if (p) m.position.set(...p); (opt.to || scene).add(m); return m; };
@@ -263,17 +272,68 @@ function makeLabels() {
     else labels.push(label(r.name, x, groundY(x, z + .3) + .04, z + .3, { size: 26, weight: 500, h: .022 })); });
 }
 
-// ---------- الجنود ----------
-function soldier(col) {
-  const g = new THREE.Group(), body = mat(col), metal = mat('#cfd4d9', { metalness: .6, roughness: .3, flatShading: false });
-  add(new THREE.Mesh(new THREE.CylinderGeometry(.02, .028, .07, 8), body), [0, .052, 0], { to: g });
-  add(new THREE.Mesh(new THREE.SphereGeometry(.018, 12, 10), mat('#e7c39e', { flatShading: false })), [0, .102, 0], { to: g });
-  add(new THREE.Mesh(new THREE.SphereGeometry(.02, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), metal), [0, .106, 0], { to: g });
-  const legL = add(new THREE.Mesh(new THREE.BoxGeometry(.011, .03, .011), mat('#4a3a2a')), [-.009, .015, 0], { to: g }), legR = add(new THREE.Mesh(new THREE.BoxGeometry(.011, .03, .011), mat('#4a3a2a')), [.009, .015, 0], { to: g });
-  const sh = add(new THREE.Mesh(new THREE.CylinderGeometry(.021, .021, .006, 14), body), [0, .057, .027], { to: g }); sh.rotation.x = Math.PI / 2;
-  add(new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, .007, 10), mat(C.gold, { metalness: .6, roughness: .3 })), [0, .057, .031], { to: g }).rotation.x = Math.PI / 2;
-  const sp = add(new THREE.Mesh(new THREE.CylinderGeometry(.0032, .0032, .19, 5), mat('#6b4f35')), [.029, .095, 0], { to: g }); add(new THREE.Mesh(new THREE.ConeGeometry(.0075, .024, 5), metal), [0, .105, 0], { to: sp });
-  g.userData = { legL, legR, sp }; g.scale.setScalar(1.45); scene.add(g); return g;
+// ---------- الجنود والفرسان (مجسّمات بلا وجوه) ----------
+const teamMats = {}; const tm = (o, k) => { const key = o + k; if (teamMats[key]) return teamMats[key]; const c = new THREE.Color(TEAMS[o].color);
+  const M2 = { cloth: mat(c, { flatShading: false, roughness: .7 }), dark: mat(c.clone().multiplyScalar(.62), { flatShading: false, roughness: .75, side: THREE.DoubleSide }), trim: mat('#f1e3b5', { flatShading: false, roughness: .6 }) }; return (teamMats[key] = M2[k]); };
+const SM = { metal: new THREE.MeshStandardMaterial({ color: '#d4d8dd', metalness: .85, roughness: .28 }), gold: new THREE.MeshStandardMaterial({ color: '#e9b949', metalness: .9, roughness: .25 }), leather: mat('#5b3f2a', { flatShading: false }), skin: mat('#d9b48f', { flatShading: false }), wood: mat('#6b4f35', { flatShading: false }), horse: [mat('#7a4e2d', { flatShading: false, roughness: .6 }), mat('#3d2a1d', { flatShading: false, roughness: .6 }), mat('#d8cfc2', { flatShading: false, roughness: .6 })], hair: mat('#1f1610', { flatShading: false }) };
+const cyl = (rt, rb, h, seg = 12) => new THREE.CylinderGeometry(rt, rb, h, seg), sph = (r, a = 16, b = 12) => new THREE.SphereGeometry(r, a, b);
+function mesh(g, m, p, rot, to) { const o = new THREE.Mesh(g, m); o.castShadow = true; o.receiveShadow = true; if (p) o.position.set(...p); if (rot) o.rotation.set(...rot); to.add(o); return o; }
+// جسم المحارب (للمشاة والفارس)
+function torso(o, to, seated = false) {
+  const g = new THREE.Group(); to.add(g);
+  mesh(cyl(.016, .025, .05, 14), tm(o, 'cloth'), [0, .055, 0], null, g);                     // السترة
+  mesh(new THREE.TorusGeometry(.0185, .0035, 6, 16), SM.leather, [0, .043, 0], [Math.PI / 2, 0, 0], g); // الحزام
+  mesh(new THREE.BoxGeometry(.006, .045, .004), tm(o, 'trim'), [0, .058, .019], null, g);    // شريط الصدر
+  mesh(sph(.012), SM.metal, [-.019, .077, 0], null, g).scale.set(1, .7, 1); mesh(sph(.012), SM.metal, [.019, .077, 0], null, g).scale.set(1, .7, 1); // الكتفان
+  mesh(sph(.0125), SM.skin, [0, .094, 0], null, g);                                          // الرأس
+  mesh(new THREE.SphereGeometry(.0145, 16, 8, 0, Math.PI * 2, 0, Math.PI * .55), SM.metal, [0, .096, 0], null, g); // الخوذة
+  mesh(new THREE.TorusGeometry(.0138, .0018, 6, 18), SM.metal, [0, .093, 0], [Math.PI / 2, 0, 0], g);
+  mesh(new THREE.BoxGeometry(.004, .016, .02), tm(o, 'cloth'), [0, .112, -.002], null, g);   // العُرف
+  const cape = mesh(new THREE.PlaneGeometry(.034, .05, 1, 3), tm(o, 'dark'), [0, .06, -.02], [.18, 0, 0], g); // الرداء
+  const armR = new THREE.Group(); armR.position.set(.021, .072, 0); g.add(armR); mesh(cyl(.0055, .005, .036, 8), tm(o, 'cloth'), [0, -.016, .004], [.4, 0, 0], armR);
+  const armL = new THREE.Group(); armL.position.set(-.021, .072, 0); g.add(armL); mesh(cyl(.0055, .005, .034, 8), tm(o, 'cloth'), [0, -.015, .006], [.6, 0, 0], armL);
+  // الدرس: ترس دائري بحافة ذهبية
+  const shield = new THREE.Group(); shield.position.set(-.026, .055, .016); shield.rotation.y = -.5; g.add(shield);
+  mesh(cyl(.019, .019, .004, 20), tm(o, 'cloth'), null, [Math.PI / 2, 0, 0], shield); mesh(new THREE.TorusGeometry(.019, .0022, 6, 22), SM.gold, null, null, shield); mesh(sph(.005, 10, 8), SM.gold, [0, 0, .003], null, shield);
+  // الرمح
+  const spear = new THREE.Group(); spear.position.set(.024, .06, .008); g.add(spear); mesh(cyl(.0022, .0022, .2, 6), SM.wood, [0, .045, 0], null, spear); mesh(new THREE.ConeGeometry(.0055, .022, 8), SM.metal, [0, .156, 0], null, spear);
+  return { g, armR, armL, spear, cape };
+}
+function soldier(o) {
+  const g = new THREE.Group(); scene.add(g);
+  const legL = new THREE.Group(), legR = new THREE.Group(); legL.position.set(-.008, .032, 0); legR.position.set(.008, .032, 0); g.add(legL, legR);
+  for (const L of [legL, legR]) { mesh(cyl(.0055, .005, .028, 8), SM.leather, [0, -.014, 0], null, L); mesh(new THREE.BoxGeometry(.011, .007, .016), SM.leather, [0, -.029, .003], null, L); }
+  const t = torso(o, g); g.userData = { legL, legR, ...t, kind: 'foot' }; g.scale.setScalar(1.55); return g;
+}
+function rider(o, coat = 0, banner = false) {
+  const g = new THREE.Group(); scene.add(g); const H = SM.horse[coat];
+  const horse = new THREE.Group(); g.add(horse);
+  mesh(new THREE.CapsuleGeometry(.026, .07, 6, 14), H, [0, .085, 0], [Math.PI / 2, 0, 0], horse);          // الجسم
+  const neck = new THREE.Group(); neck.position.set(0, .1, .045); horse.add(neck); mesh(cyl(.014, .019, .055, 12), H, [0, .022, .01], [.55, 0, 0], neck);
+  const head = new THREE.Group(); head.position.set(0, .048, .03); neck.add(head); mesh(new THREE.CapsuleGeometry(.011, .032, 4, 10), H, [0, 0, .012], [1.25, 0, 0], head);
+  mesh(new THREE.ConeGeometry(.004, .012, 6), H, [-.006, .015, -.004], null, head); mesh(new THREE.ConeGeometry(.004, .012, 6), H, [.006, .015, -.004], null, head);
+  mesh(new THREE.BoxGeometry(.006, .05, .016), SM.hair, [0, .03, .0], [.55, 0, 0], neck);                       // العرف
+  const tail = mesh(new THREE.ConeGeometry(.008, .06, 8), SM.hair, [0, .085, -.07], [-2.3, 0, 0], horse);
+  mesh(new THREE.BoxGeometry(.058, .006, .06), tm(o, 'cloth'), [0, .11, -.005], null, horse);                  // البطانية
+  mesh(new THREE.BoxGeometry(.06, .02, .062), tm(o, 'cloth'), [0, .1, -.005], null, horse).scale.set(1, 1, 1);
+  mesh(new THREE.BoxGeometry(.061, .004, .063), tm(o, 'trim'), [0, .09, -.005], null, horse);
+  const legs = []; for (const [x, z] of [[-.014, .035], [.014, .035], [-.014, -.038], [.014, -.038]]) { const L = new THREE.Group(); L.position.set(x, .072, z); horse.add(L); mesh(cyl(.0062, .005, .07, 8), H, [0, -.035, 0], null, L); mesh(cyl(.006, .0068, .008, 8), SM.hair, [0, -.072, 0], null, L); legs.push(L); }
+  const man = new THREE.Group(); man.position.set(0, .07, -.008); horse.add(man); const t = torso(o, man);
+  mesh(cyl(.006, .005, .03, 8), SM.leather, [-.02, .035, .005], [0, 0, .9], man); mesh(cyl(.006, .005, .03, 8), SM.leather, [.02, .035, .005], [0, 0, -.9], man);
+  t.spear.rotation.x = .9; t.spear.scale.set(1, 1.25, 1);
+  let flag = null; if (banner) { const pole = new THREE.Group(); pole.position.set(.024, .06, -.01); man.add(pole); mesh(cyl(.002, .002, .28, 6), SM.wood, [0, .1, 0], null, pole);
+    const W = .07, Hh = .045, geo = new THREE.PlaneGeometry(W, Hh, 8, 4); geo.translate(-W / 2, 0, 0); const cl = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: flagTexs[o] || null, color: flagTexs[o] ? '#fff' : TEAMS[o].color, side: THREE.DoubleSide, roughness: .75 })); cl.position.set(0, .215, 0); cl.rotation.y = Math.PI / 2; cl.castShadow = true; pole.add(cl); flag = { cl, base: geo.attributes.position.array.slice(), W, o }; t.spear.visible = false; }
+  g.userData = { horse, neck, head, tail, legs, ...t, flag, kind: 'horse' }; g.scale.setScalar(1.55); return g;
+}
+function animUnit(s, t, walking, i, fighting) {
+  const u = s.userData, ph = t * (u.kind === 'horse' ? 13 : 10) + i * 1.7;
+  if (u.kind === 'foot') { u.legL.rotation.x = walking ? Math.sin(ph) * .65 : 0; u.legR.rotation.x = walking ? -Math.sin(ph) * .65 : 0; u.armL.rotation.x = walking ? -Math.sin(ph) * .25 : 0;
+    s.position.y += walking ? Math.abs(Math.sin(ph)) * .007 : 0; }
+  else { const g = walking ? 1 : 0; u.legs[0].rotation.x = Math.sin(ph) * .8 * g; u.legs[1].rotation.x = Math.sin(ph + .5) * .8 * g; u.legs[2].rotation.x = -Math.sin(ph + .3) * .8 * g; u.legs[3].rotation.x = -Math.sin(ph + .8) * .8 * g;
+    u.horse.position.y = walking ? Math.abs(Math.sin(ph)) * .012 : 0; u.horse.rotation.x = walking ? Math.sin(ph) * .06 : 0; u.neck.rotation.x = walking ? Math.sin(ph + 1) * .12 : Math.sin(t * 2 + i) * .04; u.tail.rotation.x = -2.3 + Math.sin(t * 6 + i) * .15;
+    if (u.flag) { const a = u.flag.cl.geometry.attributes.position; for (let k = 0; k < a.count; k++) { const x = u.flag.base[k * 3], q = -x / u.flag.W; a.array[k * 3 + 2] = Math.sin(-x * 70 - t * 9 + i) * .006 * q; } a.needsUpdate = true; } }
+  u.spear.rotation.x = fighting ? -.6 + Math.sin(t * 16 + i * 2) * .7 : (u.kind === 'horse' ? .9 : 0);
+  u.cape.rotation.x = .18 + (walking ? Math.sin(ph * .5) * .12 + .15 : 0);
 }
 const dustTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.5, 'rgba(255,255,255,.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
 const puffs = [];
@@ -288,10 +348,12 @@ const dirX = tx - fx, dirZ = tz - fz, dL = Math.hypot(dirX, dirZ), ux = dirX / d
 const startP = [fx + ux * .25, fz + uz * .25], clashP = [lerp(fx, tx, .66), lerp(fz, tz, .66)];
 const bend = .18, mid = [(startP[0] + clashP[0]) / 2 - uz * bend, (startP[1] + clashP[1]) / 2 + ux * bend];
 const path = new THREE.CatmullRomCurve3([V(startP[0], 0, startP[1]), V(mid[0], 0, mid[1]), V(clashP[0] - ux * .12, 0, clashP[1] - uz * .12)]);
-const army = [], guards = [], ROWS = [[0, 0], [-.075, -.075], [.075, -.075], [0, -.14], [-.15, -.14], [.15, -.14], [-.075, -.21], [.075, -.21], [0, -.28], [-.15, -.28], [.15, -.28]];
-ROWS.forEach(() => army.push(soldier(TEAMS[A].color)));
-const guardPos = []; for (let i = 0; i < 6; i++) { const off = (i - 2.5) * .075, row = i % 2 ? .05 : 0; guardPos.push([clashP[0] + ux * (.06 + row) - uz * off, clashP[1] + uz * (.06 + row) + ux * off]); guards.push(soldier(TEAMS[D].color)); }
-const T = { start: .8, march: [1.6, 4.8], clash: [4.8, 6.3], lower: [6.3, 7.1], raise: [7.1, 8.1], spread: [7.8, 9.6], end: 11 };
+const army = [], guards = [];
+const ROWS = [[0, .34, 'r', 0, true], [-.13, .24, 'r', 1], [.13, .24, 'r', 2]];
+for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) ROWS.push([(c - 1.5) * .085, -r * .09, 'f']);
+ROWS.forEach(([, , k, coat, ban]) => army.push(k === 'r' ? rider(A, coat, ban) : soldier(A)));
+const guardPos = []; for (let i = 0; i < 7; i++) { const off = (i - 3) * .085, row = i % 2 ? .07 : 0; guardPos.push([clashP[0] + ux * (.07 + row) - uz * off, clashP[1] + uz * (.07 + row) + ux * off]); guards.push(soldier(D)); }
+const T = { start: .8, march: [1.6, 5.2], clash: [5.2, 6.7], lower: [6.7, 7.5], raise: [7.5, 8.5], spread: [8.2, 10], end: 11.4 };
 for (let i = 0; i < 30; i++) { const x = clashP[0] + (rnd() - .5) * .35, z = clashP[1] + (rnd() - .5) * .35; puff(x, groundY(x, z) + .03, z, T.clash[0] + rnd() * 1.3, { size: .26 + rnd() * .22, life: 1.2 + rnd() * .6, op: .75 }); }
 for (let i = 0; i < 22; i++) { const x = clashP[0] + (rnd() - .5) * .22, z = clashP[1] + (rnd() - .5) * .22; puff(x, groundY(x, z) + .1 + rnd() * .06, z, T.clash[0] + .2 + rnd() * 1.2, { col: '#ffd27a', size: .05, life: .3, vy: .22, spread: .45, additive: true, op: 1 }); }
 for (let i = 0; i < 34; i++) { const k = i / 34, p = path.getPointAt(k); puff(p.x + (rnd() - .5) * .16, groundY(p.x, p.z) + .02, p.z + (rnd() - .5) * .16, lerp(T.march[0], T.march[1], k), { size: .18, life: 1.1, vy: .05, op: .5 }); }
@@ -301,14 +363,13 @@ function placeArmy(t) {
   const k = ease(seg(t, ...T.march)), fight = seg(t, ...T.clash), push = ease(seg(t, T.clash[0] + .6, T.clash[1])) * .12;
   const lead = path.getPointAt(Math.min(1, k)), tan = path.getTangentAt(Math.min(.999, k)), ang = Math.atan2(tan.x, tan.z);
   army.forEach((s, i) => { const [ox, oz] = ROWS[i], c = Math.cos(ang), sn = Math.sin(ang); let x = lead.x + ox * c + oz * sn + ux * push, z = lead.z - ox * sn + oz * c + uz * push;
-    if (fight > 0 && fight < 1) { x += Math.sin(t * 23 + i) * .008; z += Math.cos(t * 19 + i) * .008; }
+    if (fight > 0 && fight < 1) { x += Math.sin(t * 23 + i) * .006; z += Math.cos(t * 19 + i) * .006; }
     s.visible = t >= T.march[0] - .2; s.position.set(x, groundY(x, z), z); s.rotation.y = ang;
-    const walking = k > 0 && k < 1, ph = t * 11 + i; s.userData.legL.rotation.x = walking ? Math.sin(ph) * .6 : 0; s.userData.legR.rotation.x = walking ? -Math.sin(ph) * .6 : 0; s.position.y += walking ? Math.abs(Math.sin(ph)) * .006 : 0;
-    s.userData.sp.rotation.x = fight > 0 && fight < 1 ? Math.sin(t * 18 + i * 2) * .7 : (k >= 1 ? -.15 : 0); });
+    animUnit(s, t, k > 0 && k < 1, i, fight > 0 && fight < 1); });
   guards.forEach((s, i) => { const [x0, z0] = guardPos[i], fall = seg(t, T.clash[0] + .6 + i * .1, T.clash[1] + .1), back = ease(fall) * .1, x = x0 + ux * back, z = z0 + uz * back;
     s.position.set(x, groundY(x, z), z); s.rotation.set(0, Math.atan2(-ux, -uz), 0); s.rotation.z = ease(fall) * 1.5 * (i % 2 ? 1 : -1); s.position.y -= ease(fall) * .015;
-    s.userData.sp.rotation.x = fight > 0 && fall < 1 ? Math.sin(t * 17 + i) * .7 : 0;
-    const op = 1 - seg(t, T.clash[1] + .1, T.clash[1] + .8); s.traverse(o => { if (o.isMesh) { o.material.transparent = op < 1; o.material.opacity = op; } }); s.visible = op > .01; });
+    animUnit(s, t, false, i + 20, fight > 0 && fall < 1);
+    const gone = ease(seg(t, T.clash[1] + .1, T.clash[1] + .8)); s.scale.setScalar(1.55 * (1 - gone)); s.visible = gone < .99; });
 }
 const tgtV = V(tx, groundY(tx, tz), tz), fromV = V(fx, groundY(fx, fz), fz);
 const overview = { pos: V(-.25, 17.4, 13.2), look: V(-.25, 0, -.55) };
@@ -346,12 +407,13 @@ function applyT(t) {
   else if (t >= T.raise[0]) { setBanner('فتح', `<em>${TEAMS[A].name}</em> يفتحـون ${target.name}`, TEAMS[A].color); banner.classList.add('on'); }
   else banner.classList.remove('on');
 }
-function resize(w, h) { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+function resize(w, h) { renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
 window.R = {
   ready: (async () => { await Promise.all(['900 40px TDisplay', '700 30px TDisplay', '700 26px TSans', '500 16px TSans'].map(f => document.fonts.load(f))); await document.fonts.ready;
     TEAMS.forEach((_, i) => { flagTexs[i] = flagTex(i); }); flags.forEach(f => { f.cloth.material.map = flagTexs[f.o]; f.cloth.material.needsUpdate = true; });
+    army.forEach(s => { const f = s.userData.flag; if (f) { f.cl.material.map = flagTexs[f.o]; f.cl.material.color.set('#fff'); f.cl.material.needsUpdate = true; } });
     makeLabels(); hud(); resize(innerWidth, innerHeight); return true; })(),
-  renderAt(t) { applyT(t); renderer.render(scene, camera); }, resize, T,
+  renderAt(t) { applyT(t); renderer.render(scene, camera); }, resize, T, stats: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles }),
   info: () => ({ target: target.name, from: from.name, regions: M.regions.length, trees: treeSpots.pine.length + treeSpots.round.length })
 };
 if (!location.hash.includes('manual')) R.ready.then(() => { const t0 = performance.now(); const loop = () => { R.renderAt(((performance.now() - t0) / 1000) % (T.end + 3)); requestAnimationFrame(loop); }; loop(); });

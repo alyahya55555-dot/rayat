@@ -22,3 +22,18 @@ OpenGameArt.org (قُصّت وضُغطت فقط):
   bow.mp3, swish.mp3 — "Battle Sound Effects" (Bow.wav, swish_2.wav) by artisticdude, CC0 — https://opengameart.org/content/battle-sound-effects
   gallop.mp3 — "Horse gallop on different surfaces" (ground) by congusbongus, CC-BY 4.0 — https://opengameart.org/node/167525
                مشتق من "Single Horse Galopp" by D4XX (CC0) — https://freesound.org/people/D4XX/sounds/564628/
+
+أصوات المعركة الواقعية (أُضيفت 2026-11-09) — ملفات w-*.mp3:
+المصدر: لعبة 0 A.D. من Wildfire Games، مجلد binaries/data/mods/public/audio في المستودع العام
+https://github.com/0ad/0ad — الترخيص: Creative Commons Attribution-ShareAlike 3.0 (CC BY-SA 3.0)
+https://creativecommons.org/licenses/by-sa/3.0/ — © Wildfire Games, http://www.wildfiregames.com/
+حُوّلت من ogg إلى mp3 فقط بلا تعديل آخر، وتبقى تحت الترخيص نفسه (CC BY-SA 3.0):
+  w-sword1/2/3   = attack/weapon/sword_attack_01/03/05.ogg   (ضربات سيوف)
+  w-clash1/2/3/4 = attack/weapon/swordhit_10/12/14/13.ogg    (صليل سيوف)
+  w-spear1/2     = attack/weapon/spear_attack_01/03.ogg      (طعن رماح)
+  w-shield1/2    = attack/impact/shield_metal_01/03.ogg      (ضرب على الدروع)
+  w-neigh1/2/3   = actor/fauna/animal/horse_select1/2/3.ogg  (صهيل)
+  w-snort1       = actor/fauna/animal/horse_idle1.ogg        (نفخة حصان)
+  w-hooves1/2    = actor/mounted/movement/mstep110/112.ogg   (وقع حوافر الخيل)
+  w-march1/2     = actor/human/movement/hstep_dirt_MN_11/13.ogg (مشي جماعي على التراب)
+  w-steps-grass  = actor/human/movement/Footsteps/Footstep_Grass_Walking.ogg

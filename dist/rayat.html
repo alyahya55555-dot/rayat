@@ -78,7 +78,7 @@ input,select,textarea{font-family:var(--fs)}
 .harv{bottom:34px;display:flex;gap:16px;padding:14px 22px}.harv div{text-align:center;font-size:15px}.harv b{display:block;font-family:var(--fd);font-size:20px}
 .sidelog{position:absolute;right:30px;bottom:30px;width:340px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
 .sidelog div{background:rgba(6,18,26,.55);border-radius:10px;padding:7px 12px;font-size:14px;opacity:.9}
-.statusbar{position:fixed;bottom:6px;left:50%;transform:translateX(-50%);font-size:11px;opacity:.4;pointer-events:none}
+.statusbar{position:fixed;bottom:6px;right:12px;font-size:11px;opacity:.35;pointer-events:none;max-width:30vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ===== الجوال ===== */
 .ph{max-width:520px;margin:0 auto;min-height:100%;padding:18px 16px 40px;display:flex;flex-direction:column;gap:14px}
@@ -7779,7 +7779,7 @@ var qrcode = function() {
 })(typeof window !== 'undefined' ? window : globalThis);
 </script>
 <script>/* رايات — أدوات عامة والاتصال (منقول من «ميدان بناء» ومكيّف): غرفة Claude، خوادم MQTT عامة برسائل موقّعة، وBroadcastChannel محليًا */
-const ARTIFACT_URL = "%%ARTIFACT_URL%%";
+const ARTIFACT_URL = "https://claude.ai/artifact/PYwKKNiF6tzixDuJuHgATf";
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

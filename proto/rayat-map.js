@@ -28,7 +28,7 @@
   function build(nTeams = 4, seed = 7) {
     const R = rng(seed), main = { c: [930, 600], poly: blob(930, 600, 700, 380, [.07, 1.2, .05, 2.1, .025, .4]) };
     const isles = [{ c: [1730, 250], poly: blob(1730, 250, 150, 92, [.08, .3, .06, 1, .03, 2]) }, { c: [215, 930], poly: blob(215, 930, 160, 88, [.07, 2, .06, .5, .03, 1]) }];
-    const total = Math.min(40, 6 * nTeams + 6), nIsle = 2 * isles.length, nMain = total - nIsle; // القلعة من ضمن الرئيسية
+    const total = Math.min(40, 6 * nTeams + 8), nIsle = 2 * isles.length, nMain = total - nIsle; // القلعة من ضمن الرئيسية
     const seeds = [{ p: main.c.slice(), land: 0, castle: true }];
     const inner = scalePoly(main.poly, main.c, .86), minD = Math.sqrt(700 * 380 * 3.1 / nMain) * .72;
     while (seeds.filter(s => s.land === 0).length < nMain) {
@@ -44,7 +44,14 @@
     const landPoly = l => l === 0 ? main.poly : isles[l - 1].poly;
     regions.forEach(r => { const c = centroid(r.poly); let p = [(c[0] + r.seed[0] * 2) / 3, (c[1] + r.seed[1] * 2) / 3]; if (!inPoly(p, scalePoly(landPoly(r.land), r.land ? isles[r.land - 1].c : main.c, .9))) p = r.seed.slice(); r.at = p; r.coast = !inPoly(c, scalePoly(landPoly(r.land), r.land ? isles[r.land - 1].c : main.c, .97)) || Math.hypot(...[0, 1].map(k => r.seed[k] - (r.land ? isles[r.land - 1].c : main.c)[k])) > 260; });
     // العواصم: موزعة بالتساوي حول المركز
-    const caps = []; for (let t = 0; t < nTeams; t++) { const a = -Math.PI * .75 + t * Math.PI * 2 / nTeams, tgt = [main.c[0] + Math.cos(a) * 520, main.c[1] + Math.sin(a) * 270]; let b = null, bd = 1e9; regions.forEach(r => { if (r.land || r.castle || caps.includes(r.id)) return; const d = Math.hypot(r.at[0] - tgt[0], r.at[1] - tgt[1]); if (d < bd) { bd = d; b = r.id; } }); caps.push(b); }
+    // نجرّب زوايا دوران عدة ونختار الأعدل: نفس البعد عن القلعة، ونفس نصيب الأرض القريبة، ونفس عدد الجيران
+    const hopFrom = src => { const d = regions.map(() => 99); src.forEach(x => d[x] = 0); let fr = src.slice(); while (fr.length) { const nx = []; fr.forEach(x => regions[x].nb.forEach(y => { if (d[y] > d[x] + 1) { d[y] = d[x] + 1; nx.push(y); } })); fr = nx; } return d; };
+    const castleId = regions.findIndex(r => r.castle), dC = hopFrom([castleId]), mainIds = regions.filter(r => !r.land).map(r => r.id);
+    const capsAt = (phi, rx, ry) => { const cs = []; for (let t = 0; t < nTeams; t++) { const a = phi + t * Math.PI * 2 / nTeams, tgt = [main.c[0] + Math.cos(a) * rx, main.c[1] + Math.sin(a) * ry]; let b = null, bd = 1e9; regions.forEach(r => { if (r.land || r.castle || cs.includes(r.id) || r.nb.some(j => cs.includes(j))) return; const d = Math.hypot(r.at[0] - tgt[0], r.at[1] - tgt[1]); if (d < bd) { bd = d; b = r.id; } }); if (b == null) return null; cs.push(b); } return cs; };
+    const unfair = cs => { const ds = cs.map(c => hopFrom([c])), share = cs.map(() => 0); mainIds.forEach(id => { const v = ds.map(d => d[id]), m = Math.min(...v), w = v.filter(x => x === m).length; v.forEach((x, i) => { if (x === m) share[i] += 1 / w; }); });
+      const vr = a => { const m = a.reduce((x, y) => x + y, 0) / a.length; return a.reduce((x, y) => x + (y - m) * (y - m), 0) / a.length; };
+      return vr(cs.map(c => dC[c])) * 8 + vr(share) + vr(cs.map(c => regions[c].nb.length)) * .5; };
+    let caps = null, best = 1e9; for (let k = 0; k < 36; k++) for (const [rx, ry] of [[520, 270], [470, 245], [570, 295], [520, 230], [470, 290], [600, 260]]) { const cs = capsAt(-Math.PI * .75 + k * Math.PI * 2 / nTeams / 24, rx, ry); if (!cs) continue; const u = unfair(cs); if (u < best - 1e-9) { best = u; caps = cs; } }
     caps.forEach(id => { regions[id].type = 'capital'; });
     regions.forEach(r => { if (r.castle) r.type = 'castle'; else if (r.land) r.type = 'rich'; });
     // موانئ: أقرب إقليم ساحلي لكل جزيرة صغيرة

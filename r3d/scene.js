@@ -308,17 +308,17 @@ function soldier(o) {
 function rider(o, coat = 0, banner = false) {
   const g = new THREE.Group(); scene.add(g); const H = SM.horse[coat];
   const horse = new THREE.Group(); g.add(horse);
-  mesh(new THREE.CapsuleGeometry(.026, .07, 6, 14), H, [0, .085, 0], [Math.PI / 2, 0, 0], horse);          // الجسم
-  const neck = new THREE.Group(); neck.position.set(0, .1, .045); horse.add(neck); mesh(cyl(.014, .019, .055, 12), H, [0, .022, .01], [.55, 0, 0], neck);
-  const head = new THREE.Group(); head.position.set(0, .05, .035); neck.add(head); mesh(new THREE.CapsuleGeometry(.0105, .03, 4, 10), H, [0, -.008, .016], [2.05, 0, 0], head);
-  mesh(new THREE.ConeGeometry(.004, .012, 6), H, [-.006, .015, -.004], null, head); mesh(new THREE.ConeGeometry(.004, .012, 6), H, [.006, .015, -.004], null, head);
-  mesh(new THREE.BoxGeometry(.006, .05, .016), SM.hair, [0, .03, .0], [.55, 0, 0], neck);                       // العرف
-  const tail = mesh(new THREE.ConeGeometry(.008, .06, 8), SM.hair, [0, .085, -.07], [-2.3, 0, 0], horse);
-  mesh(new THREE.BoxGeometry(.058, .006, .06), tm(o, 'cloth'), [0, .11, -.005], null, horse);                  // البطانية
-  mesh(new THREE.BoxGeometry(.06, .02, .062), tm(o, 'cloth'), [0, .1, -.005], null, horse).scale.set(1, 1, 1);
-  mesh(new THREE.BoxGeometry(.061, .004, .063), tm(o, 'trim'), [0, .09, -.005], null, horse);
-  const legs = []; for (const [x, z] of [[-.014, .035], [.014, .035], [-.014, -.038], [.014, -.038]]) { const L = new THREE.Group(); L.position.set(x, .072, z); horse.add(L); mesh(cyl(.0062, .005, .07, 8), H, [0, -.035, 0], null, L); mesh(cyl(.006, .0068, .008, 8), SM.hair, [0, -.072, 0], null, L); legs.push(L); }
-  const man = new THREE.Group(); man.position.set(0, .07, -.008); horse.add(man); const t = torso(o, man);
+  mesh(new THREE.CapsuleGeometry(.03, .06, 8, 16), H, [0, .092, -.004], [Math.PI / 2, 0, 0], horse);          // الجسم
+  mesh(sph(.031, 16, 12), H, [0, .097, .036], null, horse).scale.set(1, 1.05, .9);                                // الصدر
+  const neck = new THREE.Group(); neck.position.set(0, .108, .05); horse.add(neck); mesh(cyl(.014, .021, .06, 12), H, [0, .026, .012], [.5, 0, 0], neck);
+  const head = new THREE.Group(); head.position.set(0, .056, .032); neck.add(head); mesh(new THREE.CapsuleGeometry(.0115, .026, 4, 12), H, [0, -.006, .014], [2.0, 0, 0], head);
+  mesh(new THREE.ConeGeometry(.004, .012, 6), H, [-.006, .014, -.002], null, head); mesh(new THREE.ConeGeometry(.004, .012, 6), H, [.006, .014, -.002], null, head);
+  mesh(new THREE.BoxGeometry(.006, .055, .014), SM.hair, [0, .03, .002], [.5, 0, 0], neck);                      // العرف
+  const tail = mesh(new THREE.ConeGeometry(.009, .06, 8), SM.hair, [0, .095, -.064], [-2.4, 0, 0], horse);
+  mesh(new THREE.BoxGeometry(.05, .012, .05), tm(o, 'cloth'), [0, .124, -.004], null, horse);                    // السرج
+  mesh(new THREE.BoxGeometry(.064, .03, .006), tm(o, 'cloth'), [0, .105, -.03], null, horse); mesh(new THREE.BoxGeometry(.065, .004, .007), tm(o, 'trim'), [0, .089, -.03], null, horse); // الغطاء الخلفي
+  const legs = []; for (const [x, z] of [[-.015, .036], [.015, .036], [-.015, -.03], [.015, -.03]]) { const L = new THREE.Group(); L.position.set(x, .08, z); horse.add(L); mesh(cyl(.0085, .006, .066, 8), H, [0, -.033, 0], null, L); mesh(cyl(.0065, .0072, .008, 8), SM.hair, [0, -.07, 0], null, L); legs.push(L); }
+  const man = new THREE.Group(); man.position.set(0, .088, -.004); horse.add(man); const t = torso(o, man);
   mesh(cyl(.006, .005, .03, 8), SM.leather, [-.02, .035, .005], [0, 0, .9], man); mesh(cyl(.006, .005, .03, 8), SM.leather, [.02, .035, .005], [0, 0, -.9], man);
   t.spear.rotation.x = .9; t.spear.scale.set(1, 1.25, 1);
   let flag = null; if (banner) { const pole = new THREE.Group(); pole.position.set(.024, .06, -.01); man.add(pole); mesh(cyl(.002, .002, .28, 6), SM.wood, [0, .1, 0], null, pole);
@@ -329,8 +329,8 @@ function animUnit(s, t, walking, i, fighting) {
   const u = s.userData, ph = t * (u.kind === 'horse' ? 13 : 10) + i * 1.7;
   if (u.kind === 'foot') { u.legL.rotation.x = walking ? Math.sin(ph) * .65 : 0; u.legR.rotation.x = walking ? -Math.sin(ph) * .65 : 0; u.armL.rotation.x = walking ? -Math.sin(ph) * .25 : 0;
     s.position.y += walking ? Math.abs(Math.sin(ph)) * .007 : 0; }
-  else { const g = walking ? 1 : 0; u.legs[0].rotation.x = Math.sin(ph) * .8 * g; u.legs[1].rotation.x = Math.sin(ph + .5) * .8 * g; u.legs[2].rotation.x = -Math.sin(ph + .3) * .8 * g; u.legs[3].rotation.x = -Math.sin(ph + .8) * .8 * g;
-    u.horse.position.y = walking ? Math.abs(Math.sin(ph)) * .012 : 0; u.horse.rotation.x = walking ? Math.sin(ph) * .06 : 0; u.neck.rotation.x = walking ? Math.sin(ph + 1) * .12 : Math.sin(t * 2 + i) * .04; u.tail.rotation.x = -2.3 + Math.sin(t * 6 + i) * .15;
+  else { const g = walking ? 1 : 0; u.legs[0].rotation.x = Math.sin(ph) * .55 * g; u.legs[1].rotation.x = Math.sin(ph + .5) * .55 * g; u.legs[2].rotation.x = -Math.sin(ph + .3) * .5 * g; u.legs[3].rotation.x = -Math.sin(ph + .8) * .5 * g;
+    u.horse.position.y = walking ? Math.abs(Math.sin(ph)) * .012 : 0; u.horse.rotation.x = walking ? Math.sin(ph) * .06 : 0; u.neck.rotation.x = walking ? Math.sin(ph + 1) * .12 : Math.sin(t * 2 + i) * .04; u.tail.rotation.x = -2.4 + Math.sin(t * 6 + i) * .15;
     if (u.flag) { const a = u.flag.cl.geometry.attributes.position; for (let k = 0; k < a.count; k++) { const x = u.flag.base[k * 3], q = -x / u.flag.W; a.array[k * 3 + 2] = Math.sin(-x * 70 - t * 9 + i) * .006 * q; } a.needsUpdate = true; } }
   u.spear.rotation.x = fighting ? -.6 + Math.sin(t * 16 + i * 2) * .7 : (u.kind === 'horse' ? .9 : 0);
   u.cape.rotation.x = .18 + (walking ? Math.sin(ph * .5) * .12 + .15 : 0);

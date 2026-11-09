@@ -4,3 +4,5 @@ test/shots*/
 test/test/
 vendor/*.tgz
 vendor/paho/package/.npm/
+test/demo-video*/
+test/vid/*.mp4

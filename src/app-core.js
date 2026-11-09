@@ -79,6 +79,20 @@ const SFX = {
         case 'deny': this.rec('kill', .9); break;
         case 'theme': this.rec('step', .6); this.rec('land', .5, .15); break;
         case 'draw': for (let i = 0; i < 4; i++) this.rec('coin', .3, i * .15, .9 + i * .1); break;
+        // المعارك: أصوات حقيقية مرخّصة لكل هجوم ودفاع وإصابة
+        case 'launch-raid': for (let k = 0; k < 7; k++) this.rec('gallop', .9, k * .24, k % 2 ? 1.06 : .96); this.rec('step', .3, .1); break;
+        case 'launch-catapult': this.rec('creak', 1, 0, .8); this.rec('wood-hit', .7, .35, .8); this.rec('swish', 1, .45, .55); break;
+        case 'launch-fire': this.rec('bow', 1, 0); this.rec('bow', .8, .12, 1.08); this.rec('swish', .9, .3, 1.2); this.rec('swish', .7, .45, 1.35); break;
+        case 'block-raid': this.rec('door-close', 1, 0); this.rec('wood-hit', .9, .05, .9); this.rec('wood-hit', .7, .25, 1.05); break;
+        case 'block-catapult': this.rec('bow', 1, 0, 1.1); this.rec('bow', .8, .1, .95); this.rec('stone2', .8, .3); break;
+        case 'block-fire': this.rec('splash', 1, 0); break;
+        case 'hit-raid': this.rec('coins', 1, 0); this.rec('coins2', .9, .25); this.rec('coins', .7, .5, 1.1); break;
+        case 'hit-catapult': this.rec('stone', 1, 0); this.rec('impact', .8, .02); this.rec('debris', .6, .2); break;
+        case 'hit-fire': this.rec('fire', 1, 0); this.rec('wood-hit', .5, .1, 1.2); break;
+        case 'held': this.rec('door-close', .9, 0, .9); this.rec('coin', .5, .3); break;
+        case 'council': this.rec('door-open', 1, 0); this.rec('step', .3, .5); break;
+        case 'order': this.rec('coins2', .5, 0); break;
+        case 'name': this.rec('step', .4, 0); break;
         case 'vs': this.rec('impact', .8); this.rec('hit', .9, .38); break;
       case 'rank': this.rec('impact', .7); break;
         case 'crown': this.rec('big_kill', .7); [.4, .8, 1.2, 1.6].forEach(t => this.rec('impact', .6, t, 1.2)); for (let i = 0; i < 8; i++) this.rec('coin', .4, 1.8 + i * .1, .9 + i * .03); break;
@@ -86,7 +100,7 @@ const SFX = {
     } catch (e) { }
   }
 };
-const FX_SOUND = { build: 'build', buzz: 'buzz', correct: 'correct', wrong: 'wrong', open: 'open', reveal: 'reveal', lead: 'lead', timeup: 'timeup', join: 'join', seg: 'seg', 'treasure-in': 'treasure-in', treasure: 'treasure', crack: 'crack', deny: 'deny', theme: 'theme', draw: 'draw', rank: 'rank', crown: 'crown', show: 'open' };
+const FX_SOUND = { build: 'build', buzz: 'buzz', correct: 'correct', wrong: 'wrong', open: 'open', reveal: 'reveal', lead: 'lead', timeup: 'timeup', join: 'join', seg: 'seg', 'treasure-in': 'treasure-in', treasure: 'treasure', crack: 'crack', deny: 'deny', theme: 'theme', draw: 'draw', rank: 'rank', crown: 'crown', show: 'open', council: 'council', order: 'order', name: 'name' };
 
 // ---------- تشفير الرسائل الخاصة (ECDH P-256 + AES-GCM) ----------
 // كل جوال يولّد مفتاحًا، ولا يستطيع أحد غيره وغير حاسوب المشرف قراءة رسالته الخاصة.

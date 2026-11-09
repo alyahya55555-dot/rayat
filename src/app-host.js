@@ -19,7 +19,7 @@ const Host = {
     this.net.on('state', P => { if (P && P.code === this.e.s.code && P.hs !== this.HS) { this.otherHost = Date.now(); this.renderBar(); } });
     this.layout();
     this.net.init().then(() => { if (this.net.mq) this.net.mq.ensureKey().then(k => { if (k) { this.fp = k.fp; this.render(); this.broadcast(true); } }); });
-    if (saved && saved.code && saved.ver === 4) this.resumeAsk(saved);
+    if (saved && saved.code && saved.ver === 5) this.resumeAsk(saved);
     setInterval(() => { this.e.tick(); this.tickUI(); }, 200);
     setInterval(() => this.broadcast(true), 3000);
     setInterval(() => this.sendPriv(true), 6000);
@@ -38,7 +38,7 @@ const Host = {
   async onCaps() {
     await this.net.joinRoom(this.e.s.code); this.net.presence({ r: 'h', c: this.e.s.code }); this.renderBar();
     const u = this.net.user; if (u) { try { this.uidv = await u.id(); } catch (e) { } }
-    if (this.net.db && this.uidv && !LS.get('bena.host', null)) { try { const d = await this.net.db.doc(`data/users/${this.uidv}/current`).get(); if (d.exists && d.data().s) { const s = JSON.parse(d.data().s); if (s && s.ver === 4 && s.code && !this.e.s.clock.startedAt) this.resumeAsk(s); } } catch (e) { } }
+    if (this.net.db && this.uidv && !LS.get('bena.host', null)) { try { const d = await this.net.db.doc(`data/users/${this.uidv}/current`).get(); if (d.exists && d.data().s) { const s = JSON.parse(d.data().s); if (s && s.ver === 5 && s.code && !this.e.s.clock.startedAt) this.resumeAsk(s); } } catch (e) { } }
   },
   // ---------- استقبال الجوالات ----------
   onPeers(ch) {
@@ -67,7 +67,9 @@ const Host = {
     if ((m = fresh('an')) && it) E.answer(sid, m.q, m.v);
     if ((m = fresh('vc')) && it) E.vaultTry(sid, m.q, m.c);
     if ((m = fresh('buy'))) E.buy(st.team, String(m.k), sid);
-    if ((m = fresh('th'))) E.setTheme(st.team, String(m.t), sid);
+    if ((m = fresh('ord'))) E.order(st.team, m, sid);
+    if ((m = fresh('oc'))) E.cancelOrder(st.team, sid);
+    if ((m = fresh('tn'))) E.setTeamName(st.team, String(m.v || ''), sid);
     if ((m = fresh('wg')) && it && m.q === it.qid) E.setWager(st.team, m.v, sid);
     if ((m = fresh('wp')) && it && m.q === it.qid) E.wagerPick(st.team, m.v, sid);
   },
@@ -120,14 +122,66 @@ const Host = {
     if (!this.sim.on) return; const E = this.e, s = E.s, seg = s.seg, it = E.item(); if (!seg) return;
     const bots = Object.values(s.students).filter(x => x.sid.startsWith('bot-'));
     const capBot = tid => { const c = s.captain[tid]; return c && c.startsWith('bot-') ? c : null; };
-    if (seg.g === 'opening' && seg.phase === 'themes') s.teams.forEach(t => { const c = capBot(t.id); if (c && !E.vil(t.id).theme && Math.random() < .1) E.setTheme(t.id, E.pick(D.THEME_KEYS), c); });
-    if (!['open', 'answering', 'show', 'wager'].includes(seg.phase) && Math.random() < .05) s.teams.forEach(t => { const c = capBot(t.id); if (!c) return; const k = D.BUILD_KEYS.filter(k => { const x = E.buildCost(t.id, k); return x != null && x <= E.vil(t.id).gold; }); if (k.length && Math.random() < .5) E.buy(t.id, E.pick(k), c); });
+    if (seg.g === 'council' && seg.phase === 'council' && !this.demoOn && Math.random() < .12) s.teams.forEach(t => {
+      const c = capBot(t.id); if (!c || Math.random() < .5) return; const v = E.vil(t.id);
+      if (!seg.orders[t.id] && Math.random() < .35 && v.gold >= 30) { const others = s.teams.filter(x => x.id !== t.id && E.attacksOn(x.id) < D.WAR.maxPerTarget); if (others.length) { const to = E.pick(others).id, tv = E.vil(to), type = D.ATTACK_KEYS.slice().sort((a, b) => tv.b[D.ATTACKS[a].def] - tv.b[D.ATTACKS[b].def])[0]; E.order(t.id, { type, to, units: Math.min(D.WAR.maxUnits, Math.max(2, Math.floor(v.gold * .4 / 10))) }, c); } return; }
+      const k = D.BUILD_KEYS.filter(k => { const x = E.buildCost(t.id, k); return x != null && x <= v.gold; }); if (k.length) E.buy(t.id, E.pick(k), c);
+    });
     if (!it) return;
     if (seg.mode === 'buzz' && seg.phase === 'open' && !it.wagerQ && Math.random() < .1) { const c = bots.filter(b => E.canBuzz(b.sid)); if (c.length) E.buzz(E.pick(c).sid, it.qid); }
-    if (seg.mode === 'all' && seg.phase === 'open') bots.forEach(b => { if (it.answers[b.sid] === undefined && Math.random() < .2) E.answer(b.sid, it.qid, Math.random() < .65 ? it.a : Math.floor(Math.random() * it.c.length)); });
+    if (seg.mode === 'all' && seg.phase === 'open' && it.answers) bots.forEach(b => { if (it.answers[b.sid] === undefined && Math.random() < .2) E.answer(b.sid, it.qid, Math.random() < .65 ? it.a : Math.floor(Math.random() * it.c.length)); });
     if (it.kind === 'vault' && seg.phase === 'open') { const done = new Set(); bots.forEach(b => { if (!done.has(b.team) && !it.cracked[b.team] && Math.random() < .03) { done.add(b.team); E.vaultTry(b.sid, it.qid, Math.random() < .6 ? it.a : '1111'); } }); }
     if (it.wagerQ && seg.phase === 'wager') s.teams.forEach(t => { const c = capBot(t.id); if (c && it.wagers[t.id] == null && Math.random() < .2) E.setWager(t.id, Math.round(E.maxWager(t.id) * Math.random()), c); });
     if (it.wagerQ && seg.phase === 'open') s.teams.forEach(t => { const c = capBot(t.id); if (c && it.picks[t.id] === undefined && Math.random() < .2) E.wagerPick(t.id, Math.random() < .6 ? it.a : 0, c); });
+  },
+  // ---------- التشغيل التجريبي الكامل: طلاب افتراضيون + مشرف آلي يمرّ على كل الفقرات ----------
+  demo(on = true) {
+    clearInterval(this.demoT); this.demoOn = on; if (!on) { this.render(); return; }
+    const E = this.e, s = E.s;
+    if (s.seg) { toast('التشغيل التجريبي يبدأ من شاشة الانتظار: اضغط «مسابقة جديدة» أولًا'); this.demoOn = false; return; }
+    const names = ['الصقور', 'السهم', 'الرواد', 'الهمّة']; E.setTeams(s.teams.map((t, i) => ({ ...t, name: names[i] || t.name })));
+    const cnt = { kickoff: 3, observe: 2, arena: 3, cipher: 1, final: 2 }; s.plan.forEach(p => { if (cnt[p.g]) p.count = cnt[p.g]; }); E.touch();
+    if (!Object.keys(s.students).some(k => k.startsWith('bot-'))) this.addBots(12); this.sim.on = true;
+    this.dk = ''; this.dt = Date.now(); this.demoT = setInterval(() => this.demoStep(), 500); toast('🎬 بدأ التشغيل التجريبي');
+  },
+  demoStep() {
+    const E = this.e, s = E.s, seg = s.seg, it = E.item(), now = Date.now();
+    if (!this.demoOn) return; if (!seg) return this.act('start');
+    const key = [s.planIdx, seg.g, seg.phase, seg.idx, seg.revealed].join('|'); if (key !== this.dk) { this.dk = key; this.dt = now; this.dDid = false; }
+    const age = (now - this.dt) / 1000, go = (sec, a, arg) => { if (age >= sec) { this.dt = now + 1e9; this.act(a, arg); } }, ph = seg.phase;
+    if (seg.g === 'opening') return go({ welcome: 5, explain: 6, open: 7, reveal: 4, done: 3 }[ph] || 4, ph === 'done' ? 'nextseg' : 'next');
+    if (seg.g === 'council') {
+      if (ph === 'intro') return go(5, 'next');
+      if (ph === 'council') { if (!this.dDid && age > 2) { this.dDid = true; this.demoCouncil(); } return go(11, 'next'); }
+      if (ph === 'battle') return go(4 + 3.8 * (seg.results || []).length + 3, 'next');
+      return go(2, 'nextseg');
+    }
+    if (seg.g === 'crown') { if (ph === 'winner') { if (age > 14) this.demo(false); return; } return go({ island: 7, highlights: 9, reveal: 4 }[ph] || 4, 'next'); }
+    if (ph === 'intro') return go(5, 'next');
+    if (ph === 'done') return go(3, 'nextseg');
+    if (!it) return;
+    if (it.kind === 'vault') { if (ph === 'ready') return go(2, 'open'); if (ph === 'open') return go(16, 'reveal'); if (ph === 'reveal') return go(5, 'next'); return; }
+    if (it.wagerQ) { if (ph === 'wager') return go(6, 'lockw'); if (ph === 'open') return go(7, 'judgew'); if (ph === 'reveal') return go(5, 'next'); return; }
+    if (ph === 'ready') return go(2, 'open');
+    if (ph === 'show') return;
+    if (ph === 'open' && seg.mode === 'all') return go(7, 'lock');
+    if (ph === 'open') { if (age > 8) { const el = it.eligible.filter(t => !it.locked.includes(t)); if (el.length) go(0, 'mbuzz', E.pick(el)); else go(0, 'reveal'); } return; }
+    if (ph === 'answering') return go(2.5, 'judge', Math.random() < .72 ? '1' : '0');
+    if (ph === 'paused') return go(2, 'reopen');
+    if (ph === 'reveal') return go(4.5, 'next');
+  },
+  // قرارات قادة افتراضيين بخطة واضحة: يبنون ما ينقصهم ويهاجم بعضهم أضعف دفاع عند المتصدر
+  demoCouncil() {
+    const E = this.e, s = E.s, W = D.WAR, rk = E.ranking();
+    s.teams.forEach((t, i) => {
+      const c = s.captain[t.id]; if (!c) return; const v = E.vil(t.id);
+      const want = (s.seg.n + i) % 2 ? ['wall', 'tower', 'well', 'farm', 'house', 'market'] : ['farm', 'house', 'market', 'wall', 'tower', 'well'];
+      let built = 0; for (const k of want) { const x = E.buildCost(t.id, k); if (built < 2 && x != null && x <= v.gold - (i % 2 ? 0 : 20)) { E.buy(t.id, k, c); built++; } }
+      if ((i + s.seg.n) % 3 === 0 || v.gold < W.unitCost * 2) return;
+      const tgt = rk.map(r => r.id).filter(id => id !== t.id && E.attacksOn(id) < W.maxPerTarget)[0]; if (!tgt) return;
+      const tv = E.vil(tgt), type = D.ATTACK_KEYS.slice().sort((a, b) => tv.b[D.ATTACKS[a].def] - tv.b[D.ATTACKS[b].def])[0];
+      E.order(t.id, { type, to: tgt, units: Math.min(W.maxUnits, Math.max(2, Math.floor(E.vil(t.id).gold * .6 / W.unitCost))) }, c);
+    });
   },
   // ---------- الواجهة ----------
   layout() {
@@ -167,11 +221,17 @@ const Host = {
     let h = '';
     if (!seg) h = `<div class="h2">جاهز للبدء</div><div class="note">اعرض شاشة الانضمام، وانتظر دخول الطلاب (تبويب «الغرفة»)، ثم ابدأ.</div><div class="ctl">${big('▶ ابدأ المسابقة', 'start')}</div>`;
     else if (seg.g === 'opening') {
-      const steps = { welcome: ['الانضمام وعرض الجزيرة', 'شرح الفكرة ←'], explain: ['شرح الفكرة (دقيقتان)', 'إنهاء الافتتاح ←'], done: ['الجزيرة جاهزة', 'الجولة الأولى: ' + this.nextName() + ' ←'] };
-      const [t, b] = steps[seg.phase];
-      h = `<div class="h2">🎬 الافتتاح: ${t}</div>${seg.phase === 'themes' ? `<div class="row wrap">${T.map(x => { const th = E.vil(x.id).theme; return `<span class="pill" style="border-bottom:3px solid ${x.color}">${esc(x.name)}: ${th ? D.THEMES[th].name : '…'}</span>`; }).join('')}</div>` : ''}${seg.phase === 'welcome' ? '<div class="note">تأكد أن كل فريق له قائد (يظهر بالتاج في بطاقات الفرق).</div>' : ''}<div class="ctl">${big(b, seg.phase === 'done' ? 'nextseg' : 'next')}</div>` + timer;
+      const steps = { welcome: ['الانضمام وعرض الجزيرة', 'شرح الفكرة ←'], explain: ['شرح الفكرة (دقيقتان)', 'سؤال تجريبي بلا نقاط ←'], open: ['سؤال تجريبي: الطلاب يجيبون', 'إغلاق وكشف الإجابة ←'], reveal: ['نتيجة السؤال التجريبي', 'إنهاء الافتتاح ←'], done: ['الجزيرة جاهزة', 'الجولة الأولى: ' + this.nextName() + ' ←'] };
+      const [t, b] = steps[seg.phase] || ['', 'التالي ←'];
+      h = `<div class="h2">🎬 الافتتاح: ${t}</div>${seg.phase === 'themes' ? `<div class="row wrap">${T.map(x => { const th = E.vil(x.id).theme; return `<span class="pill" style="border-bottom:3px solid ${x.color}">${esc(x.name)}: ${th ? D.THEMES[th].name : '…'}</span>`; }).join('')}</div>` : ''}${seg.phase === 'welcome' ? '<div class="note">تأكد أن كل فريق له قائد (يظهر بالتاج في بطاقات الفرق). القائد يستطيع كتابة اسم قريته من جواله الآن.</div>' : ''}${seg.phase === 'open' ? (() => { const ac = E.answerCounts(); return `<div class="row wrap">${T.map(t => `<span class="pill" style="border-bottom:3px solid ${t.color}">${esc(t.name)}: ${ac.byTeam[t.id] || 0}/${E.teamMembers(t.id, true).length}</span>`).join('')}<b>${ac.n} إجابة</b></div><div class="note">من لم تظهر إجابته فجواله لا يصل: ساعده الآن قبل البدء.</div>`; })() : ''}<div class="ctl">${big(b, seg.phase === 'done' ? 'nextseg' : 'next')}</div>` + timer;
+    } else if (seg.g === 'council') {
+      const A = D.ATTACKS, W = D.WAR;
+      if (seg.phase === 'intro') h = `<div class="h2">🏛️ مجلس القرية ${seg.n || ''}</div><div class="note">${D.COUNCIL_HOW.map(esc).join('<br>')}</div><div class="ctl">${big('افتح المجلس (' + W.councilSec + ' ث) ←', 'next')}<button class="btn" data-act="nextseg">تخطي المجلس</button></div>`;
+      else if (seg.phase === 'council') h = `<div class="h2">🏛️ المجلس مفتوح — القادة يقررون</div><div class="col">${T.map(t => { const o = seg.orders[t.id], g = (seg.gains || {})[t.id] || {}; return `<div class="row"><b style="color:${t.color};min-width:90px">${esc(t.name)}</b><span class="mut">💰 ${E.vil(t.id).gold}</span>${g.farm ? `<span class="pill">🌾 +${g.farm}</span>` : ''}${g.aid ? `<span class="pill">🤝 +${g.aid}</span>` : ''}${E.vil(t.id).shield ? '<span class="pill">🛡️ درع</span>' : ''}<span class="grow"></span>${o ? `<span class="pill gold-p">${A[o.type].icon} ${o.units} → ${esc(E.team(o.to).name)}</span>` : '<span class="mut">لا هجوم</span>'}</div>`; }).join('')}</div><div class="note">الأوامر سرية عن الطلاب وتظهر لك فقط. ينتهي المجلس تلقائيًا بانتهاء الوقت.</div><div class="ctl">${big('⚔️ إنهاء المجلس وبدء المعركة ←', 'next')}</div>` + timer;
+      else if (seg.phase === 'battle') h = `<div class="h2">⚔️ المعركة تُعرض على الشاشة</div><div class="col">${(seg.results || []).map(r => `<div class="row"><b style="color:${E.team(r.from).color}">${esc(E.team(r.from).name)}</b> ${A[r.type].icon} <b style="color:${E.team(r.to).color}">${esc(E.team(r.to).name)}</b><span class="mut">${r.units} ${A[r.type].units} · أوقف ${Math.min(r.units, r.block)}</span><span class="grow"></span><b>${r.held ? 'صمود +' + r.held : r.type === 'raid' ? r.gold + ' 💰' : r.type === 'catapult' ? '−' + r.pts : (r.off || []).map(k => D.BUILD[k].name).join('، ')}</b></div>`).join('') || '<div class="mut">لم يهاجم أحد</div>'}</div><div class="ctl">${big('متابعة ←', 'next')}</div>`;
+      else h = `<div class="h2">✅ انتهى المجلس</div><div class="ctl">${big('الجولة التالية: ' + this.nextName() + ' ←', 'nextseg')}</div>`;
     } else if (seg.g === 'crown') {
-      const tie = E.tieInfo(), lbl = { island: 'أبرز الإنجازات ←', highlights: 'كشف الترتيب ←', reveal: 'كشف المركز التالي ←' }[seg.phase];
+      const tie = E.tieInfo(), lbl = { island: 'ألقاب التتويج ←', highlights: 'كشف الترتيب ←', reveal: 'كشف المركز التالي ←' }[seg.phase];
       h = `<div class="h2">🏆 التتويج</div>${tie && seg.phase === 'winner' ? `<div class="warnbox">تعادل في الصدارة. شغّل جولة كسر التعادل (3 أسئلة استباق للمتعادلين).</div>` : ''}<div class="ctl">${lbl ? big(lbl, 'next') : '<span class="pill">انتهت المسابقة وحُفظت النتيجة</span>'}${tie ? '<button class="btn gold" data-act="tiebreak">⚖️ كسر التعادل</button>' : ''}</div>`;
     } else if (seg.phase === 'intro') {
       const def = E.gameDef(seg.g) || {};
@@ -221,9 +281,9 @@ const Host = {
     const E = this.e, s = E.s, sc = E.scores(), rk = E.ranking();
     $('#teams').innerHTML = s.teams.map(t => {
       const v = E.vil(t.id), r = rk.find(x => x.id === t.id), mem = E.teamMembers(t.id), cap = s.captain[t.id], on = mem.filter(m => m.online).length;
-      return `<div class="tcard" style="--tc:${t.color}"><div class="row"><b class="h" style="font-size:18px">${esc(t.name)}</b><span class="pill">#${r ? r.rank : ''}</span><span class="grow"></span><span class="sc">${sc[t.id]}</span></div>
+      return `<div class="tcard" style="--tc:${t.color}"><div class="row">${!s.seg || s.seg.g === 'opening' ? `<input class="in sm grow" style="font-weight:800" value="${esc(t.name)}" data-tname="${s.teams.indexOf(t)}" title="اسم القرية">` : `<b class="h" style="font-size:18px">${esc(t.name)}</b>`}<span class="pill">#${r ? r.rank : ''}</span><span class="grow"></span><span class="sc">${sc[t.id]}</span></div>
         <div class="row" style="justify-content:space-between;font-size:13px"><span>💰 <b>${v.gold}</b> ذهب</span><span class="mut">👥 ${on}/${mem.length}</span>${!s.seg || s.seg.g === 'opening' ? `<select class="in sm" data-theme-t="${t.id}" title="طابع القرية (شكل فقط)">${D.THEME_KEYS.map(k => `<option value="${k}" ${v.theme === k ? 'selected' : ''}>قرية ${D.THEMES[k].name}</option>`).join('')}</select>` : `<span class="mut">${v.theme ? 'قرية ' + D.THEMES[v.theme].name : ''}</span>`}</div>
-        <div class="tvil">${villageSVG({ id: t.id, color: t.color, theme: v.theme }, v.b)}</div>
+        <div class="tvil">${villageSVG({ id: t.id, color: t.color, theme: v.theme, name: t.name }, v.b, { gold: v.gold, shield: v.shield, off: v.off })}</div>
         <label class="row" style="font-size:12px">👑 القائد <select class="in sm" data-cap="${t.id}">${mem.length ? mem.map(m => `<option value="${m.sid}" ${m.sid === cap ? 'selected' : ''}>${esc(m.name)}${m.online ? '' : ' (غير متصل)'}</option>`).join('') : '<option>— لا أعضاء —</option>'}</select></label>
         <div class="cards-row"><button class="chipbtn win" data-act="live" data-arg="${t.id}" title="فاز في تحدٍّ حضوري: +20 نقطة و+20 ذهب">🏆 فوز حضوري</button><button class="chipbtn" data-act="adj" data-arg="${t.id}|10" title="نقاط فقط">+10 نقاط</button><button class="chipbtn" data-act="adj" data-arg="${t.id}|-10" title="خصم نقاط">−10 نقاط</button><button class="chipbtn" data-act="gold" data-arg="${t.id}|10">+10 ذهب</button><button class="chipbtn" data-act="buildm" data-arg="${t.id}">🏗️ بناء</button></div></div>`;
     }).join('');
@@ -239,7 +299,7 @@ const Host = {
     return `<div class="row" style="align-items:flex-start;gap:12px"><div class="qrbox">${url ? qrSvg(url) : '<div style="color:#333;font-size:11px;padding:8px">ضع رابط الصفحة في الإعدادات</div>'}</div><div class="col grow" style="min-width:0"><div>الرمز: <span class="code-badge">${esc(s.code)}</span></div>${url ? `<div class="mut" style="font-size:11px;direction:ltr;word-break:break-all">${esc(url)}</div><button class="btn sm" data-act="copy" data-arg="${esc(url)}">نسخ رابط الانضمام</button>` : ''}<div class="row wrap"><button class="btn sm" data-act="newcode" ${s.clock.startedAt ? 'disabled' : ''}>رمز جديد</button><button class="btn sm" data-act="balance">🎲 قرعة متوازنة</button><label class="row" style="font-size:12px"><input type="checkbox" data-set="allowTeamChoice" ${s.settings.allowTeamChoice ? 'checked' : ''}> الطالب يختار فريقه</label></div></div></div>
       ${IN_CLAUDE ? '<div class="infobox">داخل Claude: يحتاج كل طالب حساب Claude ودعوة إلى الصفحة. للدخول بلا حسابات استخدم النسخة المنشورة على GitHub Pages.</div>' : '<div class="infobox">يدخل الطلاب بالرابط أو رمز QR دون أي حساب.</div>'}
       ${byTeam}
-      <details class="card" style="margin-top:10px;background:rgba(255,255,255,.03)"><summary><b>🤖 طلاب افتراضيون للتجربة</b></summary><div class="note">يضيف مشاركين وهميين داخل هذا الحاسوب فقط يجيبون ويشترون عشوائيًا. ليسوا أجهزة حقيقية.</div><div class="row wrap"><button class="btn sm" data-act="bots" data-arg="8">+8</button><button class="btn sm" data-act="bots" data-arg="20">+20</button><label class="row" style="font-size:12px"><input type="checkbox" data-simon ${this.sim.on ? 'checked' : ''}> تشغيل تلقائي</label>${bots ? `<button class="btn sm bad" data-act="nobots">حذف (${bots})</button>` : ''}</div></details>
+      <details class="card" style="margin-top:10px;background:rgba(255,255,255,.03)"><summary><b>🤖 طلاب افتراضيون للتجربة</b></summary><div class="note">يضيف مشاركين وهميين داخل هذا الحاسوب فقط يجيبون ويشترون عشوائيًا. ليسوا أجهزة حقيقية. «التشغيل التجريبي الكامل» يمرّ وحده على المسابقة كلها مختصرة (نحو 6 دقائق) لترى كل شيء على الشاشة.</div><div class="row wrap"><button class="btn sm" data-act="bots" data-arg="8">+8</button><button class="btn sm" data-act="bots" data-arg="20">+20</button><label class="row" style="font-size:12px"><input type="checkbox" data-simon ${this.sim.on ? 'checked' : ''}> تشغيل تلقائي</label><button class="btn sm gold" data-act="demo">${this.demoOn ? '⏹ إيقاف التشغيل التجريبي' : '🎬 تشغيل تجريبي كامل'}</button>${bots ? `<button class="btn sm bad" data-act="nobots">حذف (${bots})</button>` : ''}</div></details>
       <div class="note" style="margin-top:8px">التشخيص: ${esc(this.net.label().t)}${this.net.mq ? ' · ' + this.net.mq.links.filter(Boolean).map(l => l.b.n + (l.up ? ' ✓' : ' ✗')).join('، ') + ' · وارد ' + this.net.mq.stats.in + ' · مرفوض ' + this.net.mq.stats.bad : ''}</div>`;
   },
   side_plan() {
@@ -263,6 +323,7 @@ const Host = {
       <label class="col"><span class="mut">اسم المسابقة</span><input class="in" data-title value="${esc(s.title)}"></label>
       <div class="mut">الفرق (2–4)</div>${s.teams.map((t, i) => `<div class="row"><input type="color" value="${t.color}" data-tcolor="${i}" style="width:40px;height:34px;border:0;background:none"><input class="in grow" value="${esc(t.name)}" data-tname="${i}">${s.teams.length > 2 ? `<button class="chipbtn" data-act="tdel" data-arg="${i}">✕</button>` : ''}</div>`).join('')}${s.teams.length < 4 ? '<button class="btn sm" data-act="tadd">+ فريق</button>' : ''}
       <div class="row wrap"><label class="row">وقت الإجابة بعد الاستباق <input class="in sm" style="width:60px" type="number" min="3" max="60" data-set="answerTime" value="${st.answerTime}"> ث</label><label class="row">ذهب سفينة الكنز <input class="in sm" style="width:60px" type="number" min="0" max="200" data-set="treasureGold" value="${st.treasureGold}"></label></div>
+      <label class="row"><input type="checkbox" data-set="hideScores" ${st.hideScores ? 'checked' : ''}> إخفاء أرقام النقاط على الشاشة (يُعرف الترتيب من «سارية المجد» حتى التتويج)</label>
       <label class="row">المؤثرات على الشاشة <select class="in sm" data-set="fx"><option value="high" ${st.fx === 'high' ? 'selected' : ''}>كاملة</option><option value="low" ${st.fx === 'low' ? 'selected' : ''}>مخففة</option><option value="off" ${st.fx === 'off' ? 'selected' : ''}>بلا حركة</option></select></label>
       <hr><div class="row wrap"><b>الشعار</b><label class="btn sm">تغيير<input type="file" accept="image/*" data-logo hidden></label><button class="btn sm" data-act="logoreset">الأصلي</button><b style="margin-inline-start:12px">الخط</b><label class="btn sm">تحميل ملف خط<input type="file" accept=".otf,.ttf,.woff,.woff2" data-font hidden></label><button class="btn sm" data-act="fontreset">الافتراضي</button></div>
       <label class="col"><span class="mut">رابط الصفحة لرمز QR (اتركه فارغًا للتلقائي)</span><input class="in" data-url value="${esc(LS.get('bena.url', ''))}" style="direction:ltr"></label>
@@ -276,7 +337,9 @@ const Host = {
       <div>3. يمسح الطلاب رمز QR ويكتبون أسماءهم. أول من يدخل كل فريق يصبح قائده، ويمكنك تغييره.</div>
       <div>4. اضغط الزر الأخضر الكبير في كل خطوة. المسافة = الزر الكبير، 1/0 = صحيحة/خاطئة، Ctrl+Z = تراجع.</div>
       <b class="h" style="margin-top:6px">القواعد</b>
-      <div>سهل 10، متوسط 20، صعب 30 نقطة، والحسم ×2. كل نقطة = قطعة ذهب. الشراء لا ينقص النقاط. الخزنة: 30/20/10. سفينة الكنز: ذهب فقط. الرهان حتى ربع النقاط.</div>
+      <div>سهل 10، متوسط 20، صعب 30 نقطة، والحسم ×2. كل نقطة مكتسبة = قطعة ذهب. الخزنة: 30/20/10. سفينة الكنز: ذهب فقط. الرهان حتى ربع النقاط.</div>
+      <div><b>مجلس القرية</b> بعد كل جولة (90 ثانية): القائد يبني ويحصّن ويرسل أمرًا سريًا واحدًا. كل وحدة هجوم بـ10 ذهب. الغارة يصدها السور، والمنجنيق يصده البرج، والسهام المشتعلة يطفئها البئر؛ كل مستوى دفاع يوقف وحدتين. ما يتجاوز يصيب: الفارس يسرق 15 ذهبًا، والحجر يخصم 15 نقطة، والسهم يحرق 5 ذهب ويعطّل مبنى. الصد الكامل = +5 نقاط صمود. لا تُهاجَم قرية أكثر من مرتين في المجلس.</div>
+      <div><b>كل مبنى</b> يضيف 5 نقاط (المنزل 15). المزرعة دخل كل مجلس، والسوق ذهب مع كل سؤال تكسبونه. <b>درع التماسك</b> لمن أجاب 60% من أعضائه صحيحًا في الجولة. <b>عون الجيران</b> 15 ذهبًا للأخير.</div>
       <b class="h" style="margin-top:6px">الاتصال</b>
       <div>خارج Claude تعمل المنصة عبر خوادم بث مجانية عامة (EMQX ثم HiveMQ ثم Mosquitto). كل الجوالات تتصل بالخادم الأول نفسه، فأسبقية الضغط تُحدَّد بترتيب وصولها إليه ثم إلى حاسوبك. وأي رسالة مزيفة تُرفض لأن كل رسالة موقّعة رقميًا.</div>
       <div>أبقِ نافذة اللوحة ظاهرة، ولا تصغّرها.</div>
@@ -344,6 +407,7 @@ const Host = {
       case 'kick': confirmBox('إزالة هذا المشارك؟', () => E.removeStudent(arg, true)); break;
       case 'bots': this.addBots(+arg); break;
       case 'nobots': this.removeBots(); break;
+      case 'demo': this.demo(!this.demoOn); break;
       case 'plan60': s.plan = JSON.parse(JSON.stringify(D.DEFAULT_PLAN)); if (s.planIdx >= s.plan.length) s.planIdx = s.plan.length - 1; E.touch(); break;
       case 'qtoggle': { const i = this.disabled.indexOf(arg); if (i >= 0) this.disabled.splice(i, 1); else this.disabled.push(arg); this.saveBank(); this.renderSide(); break; }
       case 'qdel': this.custom = this.custom.filter(c => c.id !== arg); this.saveBank(); this.renderSide(); break;
@@ -355,8 +419,8 @@ const Host = {
       case 'logoreset': LS.del('bena.logo'); this.net.emit('logo', null); this.stage.refreshLogo(); this.render(); break;
       case 'fontreset': LS.del('bena.font'); document.documentElement.style.removeProperty('--fh'); break;
       case 'backup': this.textOut('نسخة احتياطية — احفظ النص في ملف', JSON.stringify(Object.assign({}, s, { undo: [] }))); break;
-      case 'restore': modal(`<div class="col"><b>الصق نص النسخة الاحتياطية</b><textarea class="in" rows="8" id="rs" style="direction:ltr"></textarea><div class="row"><button class="btn pri" data-ok>استعادة</button><button class="btn" data-close>إلغاء</button></div></div>`, (m, close) => { $('[data-ok]', m).onclick = () => { try { const st = JSON.parse($('#rs', m).value); if (st.ver !== 4 || !st.teams) throw 0; st.undo = st.undo || []; this.newEngine(st); this.afterReset(); close(); toast('تمت الاستعادة'); } catch (e) { toast('النص غير صالح'); } }; }); break;
-      case 'reset': confirmBox('بدء مسابقة جديدة؟ تُمسح النقاط والطلاب والقرى.', () => { const keep = { teams: s.teams, settings: s.settings, plan: s.plan, title: s.title }; this.sim.on = false; this.newEngine(null); Object.assign(this.e.s, JSON.parse(JSON.stringify(keep))); this.e.s.vil = {}; this.e.s.teams.forEach(t => { this.e.s.vil[t.id] = this.e.newVillage(); }); this.afterReset(); }); break;
+      case 'restore': modal(`<div class="col"><b>الصق نص النسخة الاحتياطية</b><textarea class="in" rows="8" id="rs" style="direction:ltr"></textarea><div class="row"><button class="btn pri" data-ok>استعادة</button><button class="btn" data-close>إلغاء</button></div></div>`, (m, close) => { $('[data-ok]', m).onclick = () => { try { const st = JSON.parse($('#rs', m).value); if (st.ver !== 5 || !st.teams) throw 0; st.undo = st.undo || []; this.newEngine(st); this.afterReset(); close(); toast('تمت الاستعادة'); } catch (e) { toast('النص غير صالح'); } }; }); break;
+      case 'reset': confirmBox('بدء مسابقة جديدة؟ تُمسح النقاط والطلاب والقرى.', () => { const keep = { teams: s.teams, settings: s.settings, plan: s.plan, title: s.title }; this.sim.on = false; clearInterval(this.demoT); this.demoOn = false; this.newEngine(null); Object.assign(this.e.s, JSON.parse(JSON.stringify(keep))); this.e.s.vil = {}; this.e.s.teams.forEach((t, i) => { this.e.s.vil[t.id] = this.e.newVillage(D.THEME_KEYS[i % 4]); }); this.afterReset(); }); break;
       case 'sound': this.sound = !this.sound; LS.set('bena.hostSound', this.sound); this.renderBar(); break;
       case 'present': this.presentMode(); break;
       case 'displayhelp': this.displayHelp(); break;

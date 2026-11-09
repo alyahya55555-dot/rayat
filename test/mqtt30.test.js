@@ -37,7 +37,7 @@ const until = async (fn, ms = 8000, step = 150) => { const t = Date.now(); let v
   check(a1 === N, `كل الجوالات على الخادم الأول: ${a0}/${N} فورًا، و${a1}/${N} بعد محاولة العودة التلقائية`);
 
   // سؤال للجميع
-  await host.evaluate(() => { Host.e.s.plan = [{ g: 'kickoff', min: 5 }, { g: 'final', min: 5 }, { g: 'crown', min: 2 }]; Host.e.goSegment(0); Host.e.nextItem(); Host.e.openItem(); Host.broadcast(true); });
+  await host.evaluate(() => { Host.e.s.plan = [{ g: 'kickoff', min: 5 }, { g: 'council', min: 2 }, { g: 'final', min: 5 }, { g: 'crown', min: 2 }]; Host.e.goSegment(0); Host.e.nextItem(); Host.e.openItem(); Host.broadcast(true); });
   await until(async () => (await Promise.all(S.map(p => p.$('[data-ans]').then(Boolean)))).every(Boolean), 8000);
   const t1 = Date.now();
   await Promise.all(S.map((p, i) => p.click(`[data-ans="${i % 4}"]`).catch(() => null)));
@@ -48,7 +48,7 @@ const until = async (fn, ms = 8000, step = 150) => { const t = Date.now(); let v
   check(!!fb, 'كل جوال أظهر نتيجة إجابته بعد الكشف');
   const gold = await host.evaluate(() => Host.e.s.teams.map(t => [t.id, Host.e.vil(t.id).gold]));
   // شراء من جوال القائد عبر الخادم
-  const capSid = await host.evaluate(() => { Host.e.manualGold('t1', 30); Host.broadcast(true); return Host.e.s.captain.t1; });
+  const capSid = await host.evaluate(() => { Host.e.manualGold('t1', 30); Host.e.goSegment(1); Host.e.nextItem(); Host.broadcast(true); return Host.e.s.captain.t1; }); // الشراء في مجلس القرية فقط
   let bought = false;
   if (capSid) {
     const cp = (await Promise.all(S.map(async p => (await p.evaluate(() => Student.cfg.sid)) === capSid ? p : null))).find(Boolean);
@@ -63,7 +63,7 @@ const until = async (fn, ms = 8000, step = 150) => { const t = Date.now(); let v
   check(!!bought, 'القائد اشترى منزلًا من جواله عبر الخادم: ' + JSON.stringify(gold));
 
   // استباق متزامن
-  await host.evaluate(() => { Host.e.goSegment(1); Host.e.nextItem(); Host.e.openItem(); Host.broadcast(true); });
+  await host.evaluate(() => { Host.e.goSegment(2); Host.e.nextItem(); Host.e.openItem(); Host.broadcast(true); });
   const hasBtn = await until(async () => (await Promise.all(S.map(p => p.$('[data-buzz]').then(Boolean)))).every(Boolean), 8000);
   check(!!hasBtn, 'زر الاستباق ظاهر في كل الجوالات');
   await Promise.all(S.map(p => p.dispatchEvent('[data-buzz]', 'pointerdown').catch(() => null)));

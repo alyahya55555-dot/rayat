@@ -35,13 +35,14 @@ const Display = {
     document.body.appendChild(o);
     // التحكم في الصوت: كتم + مستوى (يظهر عند تمرير الفأرة فقط، ولا يشوّش على الجمهور)
     const sb = document.createElement('div'); sb.className = 'sndbox';
-    sb.innerHTML = `<button class="btn sm" id="sndm"></button><input type="range" id="sndv" min="0" max="100" step="5" title="مستوى الصوت">`;
+    sb.innerHTML = `<button class="btn sm" id="snap" title="حفظ صورة الذكرى">📸</button><button class="btn sm" id="sndm"></button><input type="range" id="sndv" min="0" max="100" step="5" title="مستوى الصوت">`;
     document.body.appendChild(sb); const mb = $('#sndm', sb), vr = $('#sndv', sb);
     const vol0 = +LS.get('bena.vol', 80); vr.value = vol0; SFX.vol = vol0 / 100;
     const upd = () => { mb.textContent = SFX.on && SFX.vol > 0 ? '🔊' : '🔇'; };
     mb.onclick = e => { e.stopPropagation(); SFX.unlock(); SFX.on = !SFX.on; if (!SFX.on) SFX.stopAmbient(); upd(); };
     vr.oninput = e => { e.stopPropagation(); SFX.unlock(); SFX.setVol(+vr.value / 100); LS.set('bena.vol', +vr.value); upd(); };
     sb.onclick = e => e.stopPropagation(); upd();
+    $('#snap', sb).onclick = e => { e.stopPropagation(); this.stage.snapshot().catch(() => toast('تعذّر حفظ الصورة')); };
     const b = document.createElement('div'); b.id = 'dbadge'; b.style.cssText = 'position:fixed;bottom:6px;left:8px;z-index:40;font-size:11px;opacity:.45'; document.body.appendChild(b); this.badge();
   },
   badge() { const b = $('#dbadge'); if (b) { const l = this.net.label(); b.innerHTML = `<span class="dot ${l.cls}"></span> ${esc(l.t)}${this.code ? ' · ' + esc(this.code) : ''}`; } },

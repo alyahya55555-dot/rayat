@@ -172,23 +172,33 @@
     ['fun', 2, 'أي هذه الحيوانات من الثدييات؟', ['الخفاش', 'البطريق', 'التمساح', 'السلحفاة']],
   ];
 
-  // ===== جزيرة القرى =====
-  // ستة مبانٍ، ولكل مبنى مستويان فقط. الذهب يُصرف عليها ولا يُنقص النقاط.
+  // ===== جزيرة القرى: ستة مبانٍ بمستويين =====
+  // ثلاثة للازدهار داخل القرية، وثلاثة للدفاع في أماكن ثابتة على أطرافها.
   const BUILD = {
-    house: { name: 'منزل', cost: [20, 30], desc: 'بيت لأهل القرية', up: 'بيتان، أحدهما بطابقين' },
-    farm: { name: 'مزرعة', cost: [25, 35], desc: 'حقل أخضر وفزّاعة', up: 'حصاد ذهبي وحظيرة وصومعة' },
-    market: { name: 'سوق', cost: [35, 45], desc: 'دكان بمظلة وبضائع', up: 'سوق بدكانين وفوانيس' },
-    workshop: { name: 'ورشة', cost: [35, 45], desc: 'ورشة يتصاعد دخانها', up: 'ورشة أكبر بمدخنتين وترس' },
-    library: { name: 'مكتبة', cost: [45, 55], desc: 'مكتبة بأعمدة', up: 'مكتبة بقبة علمية' },
-    castle: { name: 'قلعة', cost: [60, 80], desc: 'برج حجري', up: 'قلعة بثلاثة أبراج وسور' }
+    house: { name: 'منزل', icon: '🏠', grp: 'grow', cost: [20, 30], pts: [15, 15], desc: '+15 نقطة فورًا', up: '+15 نقطة أخرى' },
+    farm: { name: 'مزرعة', icon: '🌾', grp: 'grow', cost: [25, 35], inc: [10, 20], pts: [5, 5], desc: '+10 ذهب في كل مجلس', up: '+20 ذهب في كل مجلس' },
+    market: { name: 'سوق', icon: '🏪', grp: 'grow', cost: [30, 40], bonus: [5, 10], pts: [5, 5], desc: '+5 ذهب مع كل سؤال يكسب فيه فريقك', up: '+10 ذهب مع كل سؤال تكسبونه' },
+    wall: { name: 'سور', icon: '🧱', grp: 'def', cost: [20, 35], vs: 'raid', pts: [5, 5], desc: 'يوقف فارسين من كل غارة', up: 'يوقف أربعة فرسان' },
+    tower: { name: 'برج المراقبة', icon: '🗼', grp: 'def', cost: [20, 35], vs: 'catapult', pts: [5, 5], desc: 'رماته يوقفون حجرين من كل منجنيق', up: 'يوقف أربعة أحجار' },
+    well: { name: 'بئر', icon: '🪣', grp: 'def', cost: [15, 25], vs: 'fire', pts: [5, 5], desc: 'يطفئ سهمين من كل رمية مشتعلة', up: 'يطفئ أربعة أسهم' }
   };
-  const BUILD_KEYS = ['house', 'farm', 'market', 'workshop', 'library', 'castle'];
+  const BUILD_KEYS = ['house', 'farm', 'market', 'wall', 'tower', 'well'];
+  const BLOCK = [0, 2, 4];   // ما يوقفه الدفاع من الوحدات بحسب مستواه
+  // ثلاث هجمات؛ كل وحدة بـ10 ذهب، ولكل هجمة دفاع يصدها
+  const ATTACKS = {
+    raid: { name: 'غارة الفرسان', icon: '🐎', unit: 'فارس', units: 'فرسان', def: 'wall', fx: 'تسرق 15 ذهبًا عن كل فارس يتجاوز السور' },
+    catapult: { name: 'المنجنيق', icon: '🪨', unit: 'حجر', units: 'أحجار', def: 'tower', fx: 'يخصم 15 نقطة عن كل حجر يتجاوز البرج' },
+    fire: { name: 'السهام المشتعلة', icon: '🔥', unit: 'سهم', units: 'أسهم', def: 'well', fx: 'تحرق 5 ذهب عن كل سهم، وتعطّل مبنى حتى المجلس التالي' }
+  };
+  const ATTACK_KEYS = ['raid', 'catapult', 'fire'];
+  const WAR = { unitCost: 10, maxUnits: 8, maxPerTarget: 2, steal: 15, pts: 15, burn: 5, held: 5, aid: 15, cohesion: .6, councilSec: 90 };
+
   // طابع القرية: يغيّر المظهر فقط، ولا يؤثر في فرص الفوز
   const THEMES = {
     agri: { name: 'زراعية', mark: 'طاحونة هواء', ground: '#86b86a', roof: '#c4552d', wall: '#f1e3c4', accent: '#e8c64a' },
     trade: { name: 'تجارية', mark: 'مرسى ومركب', ground: '#d6c08e', roof: '#2f6db5', wall: '#f6ead2', accent: '#e0712c' },
     science: { name: 'علمية', mark: 'مرصد فلكي', ground: '#94bfae', roof: '#5b4bb3', wall: '#eef1f6', accent: '#2fb3c9' },
-    fort: { name: 'حصينة', mark: 'سور خشبي', ground: '#a3a874', roof: '#7a4f36', wall: '#d2c9b8', accent: '#8a8f96' }
+    fort: { name: 'حصينة', mark: 'إسطبل الخيل', ground: '#a3a874', roof: '#7a4f36', wall: '#d2c9b8', accent: '#8a8f96' }
   };
   const THEME_KEYS = ['agri', 'trade', 'science', 'fort'];
 
@@ -213,25 +223,26 @@
   // ===== الجولات الخمس =====
   // how: تعليمات لا تتجاوز ثلاث جمل قصيرة تظهر قبل الجولة
   const GAMES = {
-    kickoff: { name: 'الانطلاقة', icon: '🚀', mode: 'all', kind: 'mcq', filter: { d: [1, 2] }, count: 10, time: 15, base: 20,
+    kickoff: { name: 'الانطلاقة', icon: '🚀', mode: 'all', kind: 'mcq', filter: { d: [1, 2] }, count: 8, time: 15, base: 20,
       how: ['المطلوب: أسئلة سريعة متنوعة.', 'طريقة الإجابة: كل واحد يجيب من جواله قبل انتهاء الوقت.', 'المكافأة: نقاط وذهب بقدر الصحيحين في فريقك.'] },
-    observe: { name: 'قوة الملاحظة', icon: '👁️', mode: 'all', kind: 'observe', count: 8, time: 15, base: 20,
+    observe: { name: 'قوة الملاحظة', icon: '👁️', mode: 'all', kind: 'observe', count: 6, time: 15, base: 20,
       how: ['المطلوب: تأمّل الصورة، فهي تظهر لثوانٍ ثم تختفي أو تتغيّر.', 'طريقة الإجابة: كل واحد يجيب من جواله عمّا رآه.', 'المكافأة: نقاط وذهب بقدر الصحيحين في فريقك.'] },
-    arena: { name: 'ساحة المواجهة', icon: '⚔️', mode: 'buzz', kind: 'mcq', pairs: true, treasure: true, filter: { d: [1, 2, 3] }, count: 11, time: 15,
+    arena: { name: 'ساحة المواجهة', icon: '⚔️', mode: 'buzz', kind: 'mcq', pairs: true, treasure: true, filter: { d: [1, 2, 3] }, count: 9, time: 15,
       how: ['المطلوب: فريقان وجهًا لوجه في كل سؤال.', 'طريقة الإجابة: أسرع ضغطة على زر الجوال تمنح فريقك حق الإجابة بصوتك.', 'المكافأة: نقاط وذهب للصحيحة، وإن أخطأتم انتقلت الفرصة للخصم.'] },
     cipher: { name: 'فك الشفرة', icon: '🔐', mode: 'team', kind: 'vault', count: 3, time: 140,
       how: ['المطلوب: افتحوا الخزنة برمز من أرقام.', 'طريقة الإجابة: كل عضو يرى تلميحًا في جواله؛ تشاوروا ثم يُدخل ممثلكم الرمز.', 'المكافأة: الأسرع يكسب أكثر: 30 ثم 20 ثم 10.'] },
-    final: { name: 'الحسم', icon: '🏁', mode: 'buzz', kind: 'mcq', mult: 2, wager: true, filter: { d: [2, 3] }, count: 6, time: 15,
+    final: { name: 'الحسم', icon: '🏁', mode: 'buzz', kind: 'mcq', mult: 2, wager: true, filter: { d: [2, 3] }, count: 5, time: 15,
       how: ['المطلوب: أسئلة حاسمة لكل الفرق، والنقاط مضاعفة.', 'طريقة الإجابة: الاستباق من الجوال، وفي الختام سؤال رهان يحدده القائد.', 'المكافأة: الرهان الصحيح يُضاف، والخاطئ يُخصم.'] }
   };
-  const PITCH = n => [`أنتم ${['', '', 'فريقان', 'ثلاثة فرق', 'أربعة فرق'][n] || n + ' فرق'}، ولكل فريق قرية على الجزيرة.`, 'كل إجابة صحيحة تمنحكم نقاطًا وذهبًا.', 'النقاط تحدد الفائز، والذهب تبنون به قريتكم.', 'كل بناء يشتريه قائد فريقكم من جواله يظهر أمام الجميع على الشاشة.', 'الفريق الأعلى نقاطًا في النهاية هو الفائز.'];
+  const COUNCIL_HOW = ['المطلوب: قرروا كيف تبنون قريتكم وتحمونها، وهل تهاجمون.', 'طريقة القرار: القائد يعتمد من جواله؛ والأوامر سرية حتى المعركة.', 'المعركة: كل دفاع يوقف عددًا من الوحدات، وما يتجاوزه يصيب.'];
+  const PITCH = n => [`أنتم ${['', '', 'فريقان', 'ثلاثة فرق', 'أربعة فرق'][n] || n + ' فرق'}، ولكل فريق قرية على الجزيرة.`, 'كل إجابة صحيحة تمنحكم نقاطًا وذهبًا، والنقاط تحدد الفائز.', 'بعد كل جولة «مجلس القرية»: تبنون بالذهب، وتحمون قريتكم، وتهاجمون إن شئتم.', 'الغارة يصدها السور، والمنجنيق يصده البرج، والسهام المشتعلة يطفئها البئر.', 'ارتفاع علم «سارية المجد» في كل قرية يكشف ترتيبها… والتتويج يكشف كل شيء.'];
 
-  // البرنامج: 60 دقيقة تشمل البداية والختام
+  // البرنامج: 60 دقيقة تشمل البداية والمجالس والختام
   const DEFAULT_PLAN = [
-    { g: 'opening', min: 5 }, { g: 'kickoff', min: 10 }, { g: 'observe', min: 9 }, { g: 'arena', min: 12 },
-    { g: 'cipher', min: 10 }, { g: 'final', min: 10 }, { g: 'crown', min: 4 }
+    { g: 'opening', min: 5 }, { g: 'kickoff', min: 8 }, { g: 'council', min: 2 }, { g: 'observe', min: 7 }, { g: 'council', min: 2 },
+    { g: 'arena', min: 10 }, { g: 'council', min: 2 }, { g: 'cipher', min: 8 }, { g: 'council', min: 2 }, { g: 'final', min: 9 }, { g: 'crown', min: 5 }
   ];
 
-  const DATA = { CATS, MCQ, GAMES, DEFAULT_PLAN, BUILD, BUILD_KEYS, THEMES, THEME_KEYS, VAULT, SCENE, SCENE_COLORS, PITCH };
+  const DATA = { CATS, MCQ, GAMES, DEFAULT_PLAN, BUILD, BUILD_KEYS, BLOCK, ATTACKS, ATTACK_KEYS, WAR, COUNCIL_HOW, THEMES, THEME_KEYS, VAULT, SCENE, SCENE_COLORS, PITCH };
   if (typeof module !== 'undefined' && module.exports) module.exports = DATA; else root.BENA_DATA = DATA;
 })(typeof window !== 'undefined' ? window : globalThis);

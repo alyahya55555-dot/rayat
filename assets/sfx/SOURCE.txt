@@ -10,3 +10,15 @@ Audio, CC0 1.0
 
 Kenney Starter Kits (MIT, © 2025 Kenney) — https://github.com/KenneyNL/Starter-Kit-City-Builder و Starter-Kit-3D-Platformer:
 hammer-a..d (placement)، debris (removal-a)، nature (ambience، أول 45 ثانية)، break.
+
+أصوات المعارك والقرية (أُضيفت 2026-11-09):
+Kenney (CC0) — RPG Audio وImpact Sounds، عبر المرآة العامة github.com/kapishdima/soundcn/assets:
+  coins.mp3 = handleCoins.ogg، coins2.mp3 = handleCoins2.ogg، door-open.mp3 = doorOpen_1.ogg،
+  door-close.mp3 = doorClose_4.ogg، creak.mp3 = creak1.ogg، stone.mp3 = impactMining_000.ogg،
+  stone2.mp3 = impactMining_003.ogg، wood-hit.mp3 = impactWood_heavy_000.ogg
+OpenGameArt.org (قُصّت وضُغطت فقط):
+  fire.mp3 — "Fire Crackling" by AntumDeluge, CC0 — https://opengameart.org/node/16327
+  splash.mp3 — "Ocean splash" (cannon_miss.ogg) by Thimras, CC0 — https://opengameart.org/content/ocean-splash
+  bow.mp3, swish.mp3 — "Battle Sound Effects" (Bow.wav, swish_2.wav) by artisticdude, CC0 — https://opengameart.org/content/battle-sound-effects
+  gallop.mp3 — "Horse gallop on different surfaces" (ground) by congusbongus, CC-BY 4.0 — https://opengameart.org/node/167525
+               مشتق من "Single Horse Galopp" by D4XX (CC0) — https://freesound.org/people/D4XX/sounds/564628/

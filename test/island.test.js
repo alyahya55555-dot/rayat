@@ -20,11 +20,19 @@ let shotN = 0; const shot = (p, n) => p.screenshot({ path: D + String(++shotN).p
   const st = await host.evaluate(() => ({ n: Object.keys(Host.e.s.students).length, cap: Host.e.s.captain }));
   check(st.n === 8, 'انضم 8 لاعبين'); check(Object.keys(st.cap).length === 4, 'لكل فريق قائد: ' + JSON.stringify(st.cap));
   await shot(disp, 'display-join'); await shot(S[0], 'phone-lobby'); await shot(host, 'host-lobby');
-  // الافتتاح
-  await host.click('[data-act="start"]'); await sleep(500); await host.click('#deck .btn.pri.big'); await sleep(600); await shot(disp, 'display-explain');
+  // الافتتاح: اسم القرية من جوال القائد، ثم الشرح، ثم سؤال تجريبي بلا نقاط
+  await host.click('[data-act="start"]'); await sleep(600);
+  await S[0].fill('#tname', 'الصقور'); await S[0].click('[data-tname]'); await sleep(900);
+  check(await host.evaluate(() => Host.e.team('t1').name) === 'الصقور', 'القائد كتب اسم قريته من جواله');
+  await host.click('#deck .btn.pri.big'); await sleep(700); await shot(disp, 'display-explain');
   const th = await host.evaluate(() => Host.e.s.teams.map(t => Host.e.vil(t.id).theme));
-  check(JSON.stringify(th) === '["agri","trade","science","fort"]', 'الطوابع الافتراضية: الوفاء زراعية، النماء تجارية، الإخاء علمية، العطاء حصينة');
-  check(await S[0].$('[data-theme]') === null, 'لا خيارات طابع على الجوال (يغيّره المشرف فقط)');
+  check(JSON.stringify(th) === '["agri","trade","science","fort"]', 'الطوابع الافتراضية للقرى الأربع');
+  await host.click('#deck .btn.pri.big'); await sleep(900);
+  const ta = await host.evaluate(() => Host.e.item().a);
+  for (let i = 0; i < 8; i++) { const x = await S[i].$(`[data-ans="${ta}"]`); if (x) await x.click(); }
+  await sleep(900); check(await host.evaluate(() => Object.keys(Host.e.item().answers).length) === 8, 'السؤال التجريبي: وصلت 8 إجابات');
+  await shot(disp, 'display-trial'); await host.click('#deck .btn.pri.big'); await sleep(700);
+  check(await host.evaluate(() => Object.values(Host.e.scores()).every(v => v === 0)), 'السؤال التجريبي بلا نقاط');
   await host.click('#deck .btn.pri.big'); await sleep(400); await host.click('#deck .btn.pri.big'); await sleep(700);
   check(await host.evaluate(() => Host.e.s.seg.g) === 'kickoff', 'بدأت الانطلاقة'); await shot(disp, 'display-intro');
   // سؤال للجميع
@@ -36,24 +44,36 @@ let shotN = 0; const shot = (p, n) => p.screenshot({ path: D + String(++shotN).p
   await host.click('[data-act="lock"]'); await sleep(900); await shot(disp, 'display-reveal');
   const g = await host.evaluate(() => Host.e.s.teams.map(t => [Host.e.scores()[t.id], Host.e.vil(t.id).gold]));
   check(g.every(([p, gd]) => p === gd && p > 0), 'النقاط = الذهب بعد الإجابة: ' + JSON.stringify(g));
-  // الشراء من جوال القائد
-  await host.evaluate(() => Host.e.manualGold('t1', 60));
-  await sleep(600); await S[0].click('[data-act="shop"]'); await sleep(400); await shot(S[0], 'phone-shop');
-  await S[0].click('[data-buy="house"]'); await sleep(1200);
-  check(await host.evaluate(() => Host.e.vil('t1').b.house) === 1, 'القائد اشترى منزلًا من جواله');
-  const scoreAfter = await host.evaluate(() => Host.e.scores().t1); check(scoreAfter === g[0][0], 'الشراء لم ينقص النقاط');
-  await sleep(900); await shot(disp, 'display-building');
-  check(await disp.evaluate(() => !!document.querySelector('.plot[data-t="t1"] .bld[data-k="house"]')), 'المنزل ظهر في قرية الوفاء على الشاشة');
-  // غير القائد لا يرى السوق
-  check(await S[4].$('[data-act="shop"]') === null, 'غير القائد لا يرى سوق البناء');
-  // شراء أثناء سؤال مفتوح: إشعار فقط ثم حركة بعد الكشف
+  check(await disp.evaluate(() => document.querySelectorAll('.isl-labels circle').length === 0), 'أرقام النقاط مخفية على الشاشة (الترتيب من السواري)');
+  // شراء أثناء سؤال مفتوح (من المشرف): إشعار فقط ثم حركة بعد الكشف
   await host.click('#deck .btn.pri.big'); await sleep(300); await host.click('#deck .btn.pri.big'); await sleep(600);
-  await host.evaluate(() => Host.e.buy('t1', 'farm', null)); await sleep(700);
+  await host.evaluate(() => { Host.e.manualGold('t1', 30); Host.e.buy('t1', 'farm', null); }); await sleep(700);
   const during = await disp.evaluate(() => ({ note: !!document.querySelector('.note-b'), farm: !!document.querySelector('.plot[data-t="t1"] .bld[data-k="farm"]') }));
   check(during.note && !during.farm, 'أثناء السؤال: إشعار صغير فقط، والمبنى ينتظر');
-  await shot(disp, 'display-note-during-question');
   await host.click('[data-act="lock"]'); await sleep(1600);
   check(await disp.evaluate(() => !!document.querySelector('.plot[data-t="t1"] .bld[data-k="farm"]')), 'بعد الكشف: ظهرت المزرعة بحركة بناء');
+  // مجلس القرية
+  await host.evaluate(() => { const E = Host.e; E.manualGold('t2', 80); E.goSegment(E.s.plan.findIndex(p => p.g === 'council')); }); await sleep(700); await shot(disp, 'display-council-intro');
+  await host.click('#deck .btn.pri.big'); await sleep(1200);
+  check(await host.evaluate(() => Host.e.s.seg.phase) === 'council', 'المجلس مفتوح');
+  check(await host.evaluate(() => (Host.e.s.seg.gains.t1 || {}).farm === 10), 'دخل المزرعة وصل لقرية الصقور');
+  await shot(S[0], 'phone-council-build');
+  check((await S[4].$$('[data-buy]')).length === 0, 'غير القائد لا يرى أزرار البناء');
+  await S[0].click('[data-buy="house"]'); await sleep(1200);
+  check(await host.evaluate(() => Host.e.vil('t1').b.house) === 1, 'القائد بنى منزلًا من جواله في المجلس');
+  await S[0].click('[data-buy="wall"]').catch(() => null); await sleep(900);
+  await S[1].click('[data-ctab="attack"]'); await sleep(300); await S[1].click('[data-atype="catapult"]'); await sleep(300); await S[1].click('[data-ato="t1"]'); await sleep(300);
+  await S[1].click('[data-au="1"]'); await sleep(200); await S[1].click('[data-au="1"]'); await sleep(200); await shot(S[1], 'phone-council-attack');
+  await S[1].click('[data-asend]'); await sleep(1200);
+  const ord = await host.evaluate(() => Host.e.s.seg.orders.t2);
+  check(ord && ord.type === 'catapult' && ord.to === 't1' && ord.units === 4, 'أمر هجوم سري من جوال القائد: ' + JSON.stringify(ord));
+  check(await disp.evaluate(() => !document.body.innerText.includes('المنجنيق')), 'الأمر سري: لا يظهر نوعه على الشاشة');
+  await sleep(800); await shot(disp, 'display-council'); await shot(S[5], 'phone-council-member');
+  await host.click('#deck .btn.pri.big'); await sleep(1900); await shot(disp, 'display-battle-mid');
+  await sleep(3500); await shot(disp, 'display-battle-result'); await shot(S[0], 'phone-battle');
+  const br = await host.evaluate(() => Host.e.s.seg.results);
+  check(br.length === 1 && br[0].hits >= 0, 'المعركة حُسمت: ' + JSON.stringify(br[0]));
+  await host.click('#deck .btn.pri.big'); await sleep(400);
   // قوة الملاحظة
   await host.evaluate(() => { const E = Host.e; E.goSegment(E.s.plan.findIndex(p => p.g === 'observe')); E.nextItem(); E.openItem(); }); await sleep(800);
   await shot(disp, 'display-observe-show'); check(await disp.evaluate(() => !!document.querySelector('.scene')), 'المشهد معروض');
@@ -85,7 +105,7 @@ let shotN = 0; const shot = (p, n) => p.screenshot({ path: D + String(++shotN).p
   await S[0].click(`[data-wpick="${wa}"]`); await sleep(800); check(await host.evaluate(() => Host.e.item().picks.t1 === Host.e.item().a), 'القائد أجاب سؤال الرهان من جواله');
   await host.click('[data-act="judgew"]'); await sleep(900); await shot(disp, 'display-wager-result');
   // التتويج
-  await host.evaluate(() => { const E = Host.e; ['t2', 't3', 't4'].forEach((t, i) => { E.manualGold(t, 200); E.buy(t, 'castle', null); E.buy(t, 'library', null); E.buy(t, 'market', null); }); E.goSegment(E.s.plan.length - 1); }); await sleep(2500);
+  await host.evaluate(() => { const E = Host.e; ['t2', 't3', 't4'].forEach((t, i) => { E.manualGold(t, 200); E.buy(t, 'tower', null); E.buy(t, 'wall', null); E.buy(t, 'market', null); E.buy(t, 'house', null); }); E.goSegment(E.s.plan.length - 1); }); await sleep(2500);
   await shot(disp, 'display-crown-island');
   await host.evaluate(() => Host.e.nextItem()); await sleep(1500); await shot(disp, 'display-highlights');
   for (let i = 0; i < 4; i++) { await host.evaluate(() => Host.e.nextItem()); await sleep(700); }

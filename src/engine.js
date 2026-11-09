@@ -3,7 +3,7 @@
    نظامان فقط: النقاط تحدد الفائز، والذهب يبني القرى. */
 (function (root) {
   const TEAM_COLORS = ['#2F80ED', '#27AE60', '#F2994A', '#9B51E0'];
-  const TEAM_NAMES = ['الوفاء', 'النماء', 'الإخاء', 'العطاء'];
+  const TEAM_NAMES = ['الفريق الأول', 'الفريق الثاني', 'الفريق الثالث', 'الفريق الرابع'];
   const BASE_BY_D = { 1: 10, 2: 20, 3: 30 };
   const VAULT_PTS = [30, 20, 10, 5];
 
@@ -15,7 +15,7 @@
       this.rng = opts.rng || Math.random;
       this.now = opts.now || (() => Date.now());
       this.onChange = () => {};
-      this.s = opts.state && opts.state.ver === 4 ? opts.state : this.freshState(opts);
+      this.s = opts.state && opts.state.ver === 5 ? opts.state : this.freshState(opts);
       this.buildBank(opts.custom || [], opts.disabled || []);
     }
 
@@ -24,17 +24,18 @@
       const n = Math.max(2, Math.min(4, opts.teamCount || 4));
       const teams = []; for (let i = 0; i < n; i++) teams.push({ id: 't' + (i + 1), name: TEAM_NAMES[i], color: TEAM_COLORS[i] });
       const s = {
-        ver: 4, v: 0, code: opts.code || this.makeCode(), title: 'ميدان بناء', createdAt: this.now(),
-        settings: { allowTeamChoice: true, answerTime: 10, fx: 'high', treasureGold: 40, buzzPenalty: 0 },
+        ver: 5, v: 0, code: opts.code || this.makeCode(), title: 'ميدان بناء', createdAt: this.now(),
+        settings: { allowTeamChoice: true, answerTime: 10, fx: 'high', treasureGold: 40, buzzPenalty: 0, hideScores: true },
         teams, students: {}, banned: {}, ledger: [], txSeq: 0,
-        vil: {}, captain: {}, buildLog: [],
+        vil: {}, captain: {}, buildLog: [], coh: {}, cohAll: {}, cohRes: {}, battles: [], news: [], councilN: 0,
         plan: clone(this.D.DEFAULT_PLAN), planIdx: -1, clock: { startedAt: null, segStart: null },
         seg: null, seq: 0, used: {}, timer: null, fx: { n: 0, k: null }, undo: [], leader: null, ended: false
       };
       teams.forEach((t, i) => { s.vil[t.id] = this.newVillage(this.D.THEME_KEYS[i % this.D.THEME_KEYS.length]); });
       return s;
     }
-    newVillage(theme) { const b = {}; this.D.BUILD_KEYS.forEach(k => { b[k] = 0; }); return { gold: 0, earned: 0, b, theme: theme || null }; }
+    newVillage(theme) { const b = {}; this.D.BUILD_KEYS.forEach(k => { b[k] = 0; }); return { gold: 0, earned: 0, b, theme: theme || null, off: {}, shield: false, stats: { blk: 0, dmg: 0, held: 0, hit: 0 } }; }
+    news(x) { this.s.news.push({ t: this.now(), x }); if (this.s.news.length > 14) this.s.news.shift(); }
     makeCode() { let c = ''; for (let i = 0; i < 4; i++) c += Math.floor(this.rng() * 10); return c === '0000' ? '1357' : c; }
     touch(fxKind, fxData) { this.s.v++; if (fxKind) this.s.fx = { n: this.s.fx.n + 1, k: fxKind, d: fxData || null }; this.onChange(this.s); }
     pick(arr) { return arr[Math.floor(this.rng() * arr.length)]; }
@@ -127,12 +128,12 @@
     }
     leaderId() { const r = this.ranking(); return (r.length > 1 && r[0].score > r[1].score && r[0].score > 0) ? r[0].id : null; }
     tieInfo() { const r = this.ranking(); if (r.length < 2 || r[0].score !== r[1].score) return null; return r.filter(x => x.score === r[0].score).map(x => x.id); }
-    snapshot() { const s = this.s; return { len: s.ledger.length, vil: clone(s.vil), captain: clone(s.captain), bl: s.buildLog.length, stu: Object.fromEntries(Object.entries(s.students).map(([k, v]) => [k, clone(v.st)])) }; }
+    snapshot() { const s = this.s; return { len: s.ledger.length, vil: clone(s.vil), captain: clone(s.captain), bl: s.buildLog.length, ord: s.seg && s.seg.orders ? clone(s.seg.orders) : null, stu: Object.fromEntries(Object.entries(s.students).map(([k, v]) => [k, clone(v.st)])) }; }
     beginTx(label) { this.s.undo.push({ label, snap: this.snapshot() }); if (this.s.undo.length > 40) this.s.undo.shift(); return ++this.s.txSeq; }
     undo() {
       const u = this.s.undo.pop(); if (!u) return null;
       const s = this.s, sn = u.snap;
-      s.ledger.length = sn.len; s.vil = sn.vil; s.captain = sn.captain; s.buildLog.length = Math.min(s.buildLog.length, sn.bl);
+      s.ledger.length = sn.len; s.vil = sn.vil; s.captain = sn.captain; s.buildLog.length = Math.min(s.buildLog.length, sn.bl); if (sn.ord && s.seg && s.seg.orders && s.seg.phase === 'council') s.seg.orders = sn.ord;
       Object.entries(sn.stu).forEach(([k, v]) => { if (s.students[k]) s.students[k].st = v; });
       s.leader = this.leaderId(); this.touch('undo');
       return u.label;
@@ -143,8 +144,11 @@
       const g = d > 0 && !opts.noGold ? d * (opts.goldMult || 1) : 0;
       this.s.ledger.push({ tx, t: this.now(), team: tid, d, g, why });
       if (g) { const v = this.vil(tid); v.gold += g; v.earned += g; }
+      if (opts.q && d > 0) { const v = this.vil(tid), L = v.b.market; if (L && !v.off.market) { const bn = this.D.BUILD.market.bonus[L - 1]; v.gold += bn; v.earned += bn; this.s.ledger.push({ tx, t: this.now(), team: tid, d: 0, g: bn, why: 'مكسب السوق' }); } }
       return d;
     }
+    // التماسك: نسبة الإجابات الصحيحة لأعضاء الفريق في الجولة
+    coh(tid, ok) { const s = this.s; for (const k of ['coh', 'cohAll']) { const c = s[k][tid] = s[k][tid] || { ok: 0, n: 0 }; c.n++; if (ok) c.ok++; } }
     giveGold(tid, g, why, tx) { if (!this.team(tid) || !g) return; const v = this.vil(tid); v.gold = Math.max(0, v.gold + g); if (g > 0) v.earned += g; this.s.ledger.push({ tx, t: this.now(), team: tid, d: 0, g, why }); }
     afterScore() { const L = this.leaderId(), prev = this.s.leader; this.s.leader = L; if (L && L !== prev) this.touch('lead', { team: L }); else this.touch('score'); }
     manualAdjust(tid, d, why) { const tx = this.beginTx('تعديل يدوي'); this.award(tid, d, why || 'تعديل من المشرف', tx, { noGold: true }); this.afterScore(); }
@@ -158,16 +162,26 @@
     buy(tid, key, sid) {
       const s = this.s; if (!this.team(tid) || !this.D.BUILD[key]) return { ok: false, why: 'bad' };
       if (sid != null && s.captain[tid] !== sid) return { ok: false, why: 'not-captain' };
+      if (sid != null && !(s.seg && s.seg.g === 'council' && s.seg.phase === 'council')) return { ok: false, why: 'closed' };
       const v = this.vil(tid), c = this.buildCost(tid, key);
       if (c == null) return { ok: false, why: 'max' };
       if (v.gold < c) return { ok: false, why: 'gold' };
       const tx = this.beginTx('بناء'); v.gold -= c; v.b[key]++;
       const lv = v.b[key]; s.buildLog.push({ team: tid, key, lv, t: this.now() });
       s.ledger.push({ tx, t: this.now(), team: tid, d: 0, g: -c, why: 'بنى ' + this.D.BUILD[key].name + (lv > 1 ? ' (المستوى 2)' : '') });
+      const hp = (this.D.BUILD[key].pts || [])[lv - 1]; if (hp) this.award(tid, hp, 'نقاط ' + this.D.BUILD[key].name, tx, { noGold: true });
+      this.news((this.team(tid) || {}).name + (lv > 1 ? ' تطوّر ' : ' تبني ') + this.D.BUILD[key].name);
       if (sid) { const st = s.students[sid]; if (st) st.st.lastAct = s.seq; }
-      this.touch('build', { team: tid, key, lv }); return { ok: true };
+      if (hp) this.afterScore(); this.touch('build', { team: tid, key, lv }); return { ok: true };
     }
     buildScore(tid) { const b = this.vil(tid).b; return this.D.BUILD_KEYS.reduce((a, k) => a + b[k], 0); }
+    // اسم القرية: يكتبه المشرف، أو القائد قبل بدء الجولات
+    setTeamName(tid, name, sid) {
+      const s = this.s, t = this.team(tid); if (!t) return false;
+      if (sid != null && (s.captain[tid] !== sid || (s.seg && s.seg.g !== 'opening'))) return false;
+      name = String(name || '').replace(/[\u0000-\u001f<>]/g, '').trim().slice(0, 20); if (name.length < 2) return false;
+      t.name = name; this.touch('name', { team: tid }); return true;
+    }
     // طابع القرية: افتراضي لكل فريق، ويغيّره المشرف قبل المسابقة (شكل فقط)
     setTheme(tid, theme, sid) {
       const s = this.s; if (!this.team(tid) || !this.D.THEMES[theme]) return false;
@@ -188,6 +202,7 @@
       if (!t || t.paused != null || t.fired || this.now() < t.end) return;
       t.fired = true;
       const it = this.item();
+      if (seg && seg.g === 'council' && seg.phase === 'council') return this.resolveCouncil();
       if (!seg || !it) return this.touch('timeup');
       if (seg.phase === 'show') return this.afterShow();
       if (seg.phase === 'open') {
@@ -202,7 +217,7 @@
 
     // ---------- البرنامج والجولات ----------
     gameDef(g) { return this.D.GAMES[g] || null; }
-    segName(g) { if (g === 'opening') return 'الافتتاح'; if (g === 'crown') return 'التتويج'; if (g === 'tiebreak') return 'كسر التعادل'; const d = this.gameDef(g); return d ? d.name : g; }
+    segName(g) { if (g === 'opening') return 'الافتتاح'; if (g === 'crown') return 'التتويج'; if (g === 'council') return 'مجلس القرية'; if (g === 'tiebreak') return 'كسر التعادل'; const d = this.gameDef(g); return d ? d.name : g; }
     item() { const seg = this.s.seg; return seg && seg.idx >= 0 ? seg.items[seg.idx] || null : null; }
     schedule() {
       const s = this.s; let cum = 0; const rows = s.plan.map((p, i) => { const r = { i, g: p.g, name: this.segName(p.g), min: p.min, startAt: cum }; cum += p.min; return r; });
@@ -216,7 +231,8 @@
       if (!s.clock.startedAt) s.clock.startedAt = this.now();
       s.clock.segStart = this.now(); s.planIdx = i; s.timer = null;
       if (s.seg && s.seg.g === 'opening') this.fillThemes();
-      s.seg = this.makeSeg(p);
+      if (s.seg && !['council', 'opening', 'crown'].includes(s.seg.g)) this.closeCohesion();
+      s.seg = this.makeSeg(p); if (p.g !== 'council') s.coh = {};
       this.touch('seg', { g: p.g });
     }
     nextSegment() { if (this.s.planIdx + 1 < this.s.plan.length) this.goSegment(this.s.planIdx + 1); }
@@ -232,6 +248,7 @@
       if (def.treasure && seg.items.length >= 2) { const b = this.draw('mcq', 1, { d: [1, 2] })[0]; if (b) seg.items.splice(Math.floor(seg.items.length / 2), 0, Object.assign(this.mcqItem(b), { treasure: true })); }
       if (def.wager) { const w = this.draw('mcq', 1, { d: [2, 3] })[0]; if (w) seg.items.push(Object.assign(this.mcqItem(w), { wagerQ: true, wagers: {}, picks: {} })); }
       if (g === 'opening') { seg.mode = 'special'; seg.phase = 'welcome'; }
+      if (g === 'council') { seg.mode = 'council'; seg.orders = {}; seg.results = null; seg.n = ++this.s.councilN; }
       if (g === 'crown') { seg.mode = 'special'; seg.phase = 'island'; seg.revealed = 0; }
       return seg;
     }
@@ -277,6 +294,7 @@
       const s = this.s, seg = s.seg; if (!seg) return;
       if (seg.g === 'opening') return this.openingNext();
       if (seg.g === 'crown') return this.crownNext();
+      if (seg.g === 'council') return this.councilNext();
       s.timer = null;
       seg.idx++;
       if (seg.idx >= seg.items.length) return this.finishSeg();
@@ -331,10 +349,10 @@
     judge(correct) {
       const s = this.s, seg = s.seg, it = this.item(); if (!it || !it.buzz || seg.phase !== 'answering') return;
       const tid = it.buzz.team, st = it.buzz.sid ? s.students[it.buzz.sid] : null;
-      const tx = this.beginTx(correct ? 'إجابة صحيحة' : 'إجابة خاطئة');
+      const tx = this.beginTx(correct ? 'إجابة صحيحة' : 'إجابة خاطئة'); this.coh(tid, correct);
       if (correct) {
         if (it.treasure) { const g = s.settings.treasureGold || 40; this.giveGold(tid, g, 'سفينة الكنز' + (st ? ' — ' + st.name : ''), tx); it.gold = g; }
-        else this.award(tid, this.itemPoints(it), this.segName(seg.g) + ': إجابة صحيحة' + (st ? ' — ' + st.name : ''), tx);
+        else this.award(tid, this.itemPoints(it), this.segName(seg.g) + ': إجابة صحيحة' + (st ? ' — ' + st.name : ''), tx, { q: true });
         if (st) { st.st.ok++; st.st.win++; }
         it.result = { team: tid, ok: true, pts: it.treasure ? 0 : this.itemPoints(it), gold: it.treasure ? it.gold : this.itemPoints(it) };
         it.revealed = true; seg.phase = 'reveal'; s.timer = null;
@@ -371,8 +389,8 @@
       const tx = this.beginTx(this.segName(seg.g)); const res = {};
       s.teams.forEach(t => { res[t.id] = { ok: 0, n: 0, pts: 0 }; });
       const per = Object.entries(it.answers).map(([sid, a]) => ({ sid, st: s.students[sid], a })).filter(x => x.st);
-      per.forEach(x => { const ok = x.a.v === it.a; res[x.st.team].n++; if (ok) { res[x.st.team].ok++; x.st.st.ok++; } x.ok = ok; });
-      s.teams.forEach(t => { const r = res[t.id], denom = (it.denom && it.denom[t.id]) || 1; if (r.ok) r.pts = this.award(t.id, Math.round(base * Math.min(1, r.ok / denom)), this.segName(seg.g) + ': ' + r.ok + ' إجابة صحيحة', tx); });
+      per.forEach(x => { const ok = x.a.v === it.a; res[x.st.team].n++; if (ok) { res[x.st.team].ok++; if (!it.trial) x.st.st.ok++; } x.ok = ok; if (!it.trial) this.coh(x.st.team, ok); });
+      if (!it.trial) s.teams.forEach(t => { const r = res[t.id], denom = (it.denom && it.denom[t.id]) || 1; if (r.ok) r.pts = this.award(t.id, Math.round(base * Math.min(1, r.ok / denom)), this.segName(seg.g) + ': ' + r.ok + ' إجابة صحيحة', tx, { q: true }); });
       const fastest = per.filter(x => x.ok).sort((a, b) => a.a.t - b.a.t)[0]; if (fastest) it.fastest = fastest.sid;
       it.result = res; it.dist = it.c.map((_, i) => per.filter(x => x.a.v === i).length);
       this.afterScore(); this.touch('reveal');
@@ -407,24 +425,103 @@
       code = String(code || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g, '').slice(0, 8); if (!code) return { ok: false };
       it.tries[t] = (it.tries[t] || 0) + 1; st.st.lastAct = s.seq; st.st.ans++;
       if (code === it.a) return this.crack(t, sid);
-      it.lock[t] = now + 8000; this.touch('deny', { team: t }); return { ok: false, why: 'wrong' };
+      this.coh(t, false); it.lock[t] = now + 8000; this.touch('deny', { team: t }); return { ok: false, why: 'wrong' };
     }
     crack(t, sid) {
       const s = this.s, it = this.item(); if (!it || it.kind !== 'vault' || it.cracked[t] || s.seg.phase !== 'open') return { ok: false };
       const ord = ++it.order; const pts = VAULT_PTS[ord - 1] || 5; const tx = this.beginTx('فك الشفرة');
-      it.cracked[t] = { ord, by: sid || null, at: this.now() - (it.openedAt || this.now()) }; this.award(t, pts, 'فك الشفرة: المركز ' + ord, tx);
+      it.cracked[t] = { ord, by: sid || null, at: this.now() - (it.openedAt || this.now()) }; this.coh(t, true); this.award(t, pts, 'فك الشفرة: المركز ' + ord, tx, { q: true });
       if (sid && s.students[sid]) { s.students[sid].st.ok++; s.students[sid].st.win++; }
       this.afterScore(); this.touch('crack', { team: t, ord });
       if (!s.teams.some(x => !it.cracked[x.id] && this.teamMembers(x.id).length)) this.revealItem();
       return { ok: true };
     }
 
+    // ---------- مجلس القرية: البناء والدفاع والهجوم ----------
+    // درع التماسك: من أجاب أغلب أعضائه إجابات صحيحة في الجولة
+    closeCohesion() { const s = this.s, W = this.D.WAR; s.cohRes = {}; s.teams.forEach(t => { const c = s.coh[t.id]; s.cohRes[t.id] = !!(c && c.n >= 2 && c.ok / c.n >= W.cohesion); }); }
+    councilNext() {
+      const s = this.s, seg = s.seg;
+      if (seg.phase === 'intro') return this.startCouncil();
+      if (seg.phase === 'council') return this.resolveCouncil();
+      if (seg.phase === 'battle') return this.finishSeg();
+    }
+    startCouncil() {
+      const s = this.s, seg = s.seg, W = this.D.WAR; if (seg.phase !== 'intro') return;
+      const tx = this.beginTx('مجلس القرية'), rk = this.ranking();
+      seg.gains = {};
+      s.teams.forEach(t => {
+        const v = this.vil(t.id), gn = seg.gains[t.id] = {};
+        const fl = v.b.farm; if (fl && !v.off.farm) { const g = this.D.BUILD.farm.inc[fl - 1]; this.giveGold(t.id, g, 'دخل المزرعة', tx); gn.farm = g; }
+        v.off = {}; v.shield = !!s.cohRes[t.id]; if (v.shield) { gn.shield = 1; this.news(t.name + ' تنال درع التماسك'); }
+      });
+      // عون الجيران: للفريق الأخير وحده إن كان متأخرًا فعلًا
+      const last = rk[rk.length - 1], prev = rk[rk.length - 2];
+      if (last && prev && last.score < prev.score) { this.giveGold(last.id, W.aid, 'عون الجيران', tx); seg.gains[last.id].aid = W.aid; this.news('عون الجيران يصل إلى ' + this.team(last.id).name); }
+      seg.phase = 'council'; this.startTimer(W.councilSec, 'مجلس القرية'); this.touch('council');
+    }
+    attacksOn(to, except) { const seg = this.s.seg; return seg && seg.orders ? Object.entries(seg.orders).filter(([f, o]) => o.to === to && f !== except).length : 0; }
+    // أمر هجوم واحد لكل فريق في المجلس؛ يُحجز ذهبه فورًا ويُعاد إن أُلغي
+    order(tid, o, sid) {
+      const s = this.s, seg = s.seg, W = this.D.WAR, A = this.D.ATTACKS;
+      if (!seg || seg.g !== 'council' || seg.phase !== 'council' || !this.team(tid)) return { ok: false, why: 'closed' };
+      if (sid != null && s.captain[tid] !== sid) return { ok: false, why: 'not-captain' };
+      const type = String(o.type), to = String(o.to), units = Math.round(+o.units || 0);
+      if (!A[type] || !this.team(to) || to === tid || units < 1 || units > W.maxUnits) return { ok: false, why: 'bad' };
+      if (this.attacksOn(to, tid) >= W.maxPerTarget) return { ok: false, why: 'full' };
+      const v = this.vil(tid), old = seg.orders[tid], refund = old ? old.units * W.unitCost : 0, cost = units * W.unitCost;
+      if (v.gold + refund < cost) return { ok: false, why: 'gold' };
+      v.gold += refund - cost; seg.orders[tid] = { type, to, units, at: this.now() };
+      if (!old) this.news('أمر سري جديد في مجلس ' + this.team(tid).name);
+      this.touch('order', { team: tid }); return { ok: true };
+    }
+    cancelOrder(tid, sid) {
+      const s = this.s, seg = s.seg; if (!seg || seg.g !== 'council' || seg.phase !== 'council') return false;
+      if (sid != null && s.captain[tid] !== sid) return false; const o = seg.orders[tid]; if (!o) return false;
+      this.vil(tid).gold += o.units * this.D.WAR.unitCost; delete seg.orders[tid]; this.touch(); return true;
+    }
+    resolveCouncil() {
+      const s = this.s, seg = s.seg, W = this.D.WAR, A = this.D.ATTACKS, B = this.D.BUILD;
+      if (!seg || seg.g !== 'council' || seg.phase !== 'council') return;
+      s.timer = null; const tx = this.beginTx('المعركة'), res = [];
+      s.teams.map(t => t.id).filter(f => seg.orders[f]).forEach(f => {
+        const o = seg.orders[f], tv = this.vil(o.to), av = this.vil(f), lvl = tv.b[A[o.type].def];
+        const block = this.D.BLOCK[lvl] + (tv.shield ? 1 : 0), hits = Math.max(0, o.units - block), from = this.team(f).name, toN = this.team(o.to).name;
+        const r = { from: f, to: o.to, type: o.type, units: o.units, block, lvl, shield: tv.shield ? 1 : 0, hits };
+        s.ledger.push({ tx, t: this.now(), team: f, d: 0, g: -o.units * W.unitCost, why: 'تجهيز ' + A[o.type].name + ' (' + o.units + ')' });
+        if (o.type === 'raid' && hits) { const g = Math.min(hits * W.steal, tv.gold); tv.gold -= g; av.gold += g; r.gold = g; s.ledger.push({ tx, t: this.now(), team: o.to, d: 0, g: -g, why: 'غارة من ' + from }); s.ledger.push({ tx, t: this.now(), team: f, d: 0, g, why: 'غنيمة الغارة على ' + toN }); av.stats.dmg += g; }
+        if (o.type === 'catapult' && hits) { const p = Math.min(hits * W.pts, Math.max(0, this.scores()[o.to] || 0)); if (p) this.award(o.to, -p, 'منجنيق ' + from, tx, { noGold: true }); r.pts = p; av.stats.dmg += p; }
+        if (o.type === 'fire' && hits) {
+          const g = Math.min(hits * W.burn, tv.gold); if (g) { tv.gold -= g; s.ledger.push({ tx, t: this.now(), team: o.to, d: 0, g: -g, why: 'حريق من ' + from }); } r.gold = g;
+          const built = ['farm', 'market', 'house'].filter(k => tv.b[k] && !tv.off[k]).sort((a, b) => tv.b[b] - tv.b[a]);
+          r.off = built.slice(0, hits >= 4 ? 2 : 1); r.off.forEach(k => { tv.off[k] = true; }); av.stats.dmg += g + r.off.length * 10;
+        }
+        tv.stats.blk += Math.min(o.units, block);
+        if (!hits) { this.award(o.to, W.held, 'صمود أمام ' + A[o.type].name, tx, { noGold: true }); r.held = W.held; tv.stats.held++; }
+        else av.stats.hit++;
+        res.push(r);
+        this.news(hits ? from + ' تصيب ' + toN + ' بـ' + A[o.type].name : toN + ' تصدّ ' + A[o.type].name + ' ' + from);
+      });
+      s.teams.forEach(t => { this.vil(t.id).shield = false; });
+      seg.results = res; seg.phase = 'battle'; s.battles.push({ n: seg.n, res });
+      this.afterScore(); this.touch('battle', { n: res.length });
+    }
+
     // ---------- نهاية الجولة والافتتاح والتتويج ----------
     finishSeg() { const seg = this.s.seg; this.s.timer = null; seg.phase = 'done'; seg.idx = seg.items.length; this.touch('segdone'); }
     openingNext() {
-      const seg = this.s.seg, order = ['welcome', 'explain', 'done'];
+      const s = this.s, seg = s.seg;
+      // سؤال تجريبي بلا نقاط: يتأكد كل طالب أن جواله يعمل
+      if (seg.phase === 'open') return this.lockAll();
+      if (seg.phase === 'reveal') { seg.phase = 'done'; seg.mode = 'special'; s.timer = null; this.fillThemes(); return this.touch('seg'); }
+      const order = ['welcome', 'explain', 'trial', 'done'];
       const i = order.indexOf(seg.phase); seg.phase = order[Math.min(order.length - 1, i + 1)];
-      if (seg.phase === 'done') { this.s.timer = null; this.fillThemes(); }
+      if (seg.phase === 'trial') {
+        const b = this.draw('mcq', 1, { d: [1] })[0];
+        if (b) { const it = Object.assign(this.mcqItem(b), { trial: true, qid: ++s.seq, answers: {}, buzz: null, locked: [], late: [], result: null, revealed: false, bo: 1, openedAt: this.now() }); it.eligible = s.teams.map(t => t.id); it.denom = {}; s.teams.forEach(t => { it.denom[t.id] = Math.max(1, this.teamMembers(t.id, true).length); }); seg.items = [it]; seg.idx = 0; seg.mode = 'all'; seg.phase = 'open'; this.startTimer(25, 'سؤال تجريبي'); return this.touch('open'); }
+        seg.phase = 'done';
+      }
+      if (seg.phase === 'done') { s.timer = null; this.fillThemes(); }
       this.touch('seg');
     }
     crownNext() {
@@ -438,11 +535,13 @@
     }
     highlights() {
       const s = this.s, T = s.teams, out = [];
-      const built = T.map(t => ({ t: t.id, v: this.buildScore(t.id) })).sort((a, b) => b.v - a.v);
-      if (built[0] && built[0].v > 0 && (!built[1] || built[0].v > built[1].v)) out.push({ k: 'build', team: built[0].t, v: built[0].v });
-      const gold = T.map(t => ({ t: t.id, v: this.vil(t.id).earned })).sort((a, b) => b.v - a.v);
-      if (gold[0] && gold[0].v > 0 && (!gold[1] || gold[0].v > gold[1].v)) out.push({ k: 'gold', team: gold[0].t, v: gold[0].v });
-      const L = Object.values(s.students).filter(x => !x.sid.startsWith('bot-') || true).sort((a, b) => (b.st.ok - a.st.ok) || (b.st.win - a.st.win));
+      const best = (f, min = 1) => { const L = T.map(t => ({ t: t.id, v: f(t.id) })).sort((a, b) => b.v - a.v); return L[0] && L[0].v >= min && (!L[1] || L[0].v > L[1].v) ? L[0] : null; };
+      let x;
+      if ((x = best(id => this.vil(id).stats.blk))) out.push({ k: 'wall', team: x.t, v: x.v });
+      if ((x = best(id => this.vil(id).stats.dmg))) { const cap = s.students[s.captain[x.t]]; out.push({ k: 'cunning', team: x.t, v: x.v, name: cap ? cap.name : '' }); }
+      if ((x = best(id => { const c = s.cohAll[id]; return c && c.n >= 3 ? Math.round(100 * c.ok / c.n) : 0; }))) out.push({ k: 'unity', team: x.t, v: x.v });
+      if ((x = best(id => this.buildScore(id)))) out.push({ k: 'build', team: x.t, v: x.v });
+      const L = Object.values(s.students).sort((a, b) => (b.st.ok - a.st.ok) || (b.st.win - a.st.win));
       if (L[0] && L[0].st.ok) out.push({ k: 'star', team: L[0].team, name: L[0].name, v: L[0].st.ok });
       return out;
     }
@@ -465,6 +564,7 @@
       Object.values(s.students).forEach(st => {
         if (st.sid.startsWith('bot-')) return; const o = {};
         if (it && it.kind === 'vault' && it.cdist && seg.phase === 'open' && it.cdist[st.sid]) o.k = it.cdist[st.sid].map(i => it.clues[i]);
+        if (seg && seg.g === 'council' && seg.orders && seg.orders[st.team]) { const r = seg.orders[st.team]; o.ord = [r.type, r.to, r.units]; }
         out[st.sid] = o;
       });
       return out;
@@ -476,7 +576,9 @@
       const P = {
         v: s.v, code: s.code, title: s.title, fx: s.fx, fxl: s.settings.fx, ended: s.ended,
         // [id, name, color, score, gold, theme, levels[6], captainSid, captainName]
-        T: s.teams.map(t => { const v = this.vil(t.id), cap = s.students[s.captain[t.id]]; return [t.id, t.name, t.color, sc[t.id], v.gold, v.theme, this.D.BUILD_KEYS.map(k => v.b[k]), cap ? cap.sid : null, cap ? cap.name : '']; }),
+        T: s.teams.map(t => { const v = this.vil(t.id), cap = s.students[s.captain[t.id]]; return [t.id, t.name, t.color, sc[t.id], v.gold, v.theme, this.D.BUILD_KEYS.map(k => v.b[k]), cap ? cap.sid : null, cap ? cap.name : '', { sh: v.shield ? 1 : 0, off: Object.keys(v.off || {}) }]; }),
+        hide: s.settings.hideScores ? 1 : 0, NW: s.news.slice(-4).map(n => n.x), nwn: s.news.length,
+        el: s.clock.startedAt ? (this.now() - s.clock.startedAt) / 60000 : 0, tot: s.plan.reduce((a, p) => a + p.min, 0),
         BL: s.buildLog.length, B: s.buildLog.slice(-6).map((b, i, A) => [s.buildLog.length - A.length + i, b.team, b.key, b.lv]),
         tm: s.timer ? { r: this.remaining(), d: s.timer.dur, p: s.timer.paused != null ? 1 : 0, l: s.timer.label } : null
       };
@@ -484,7 +586,8 @@
       P.g = seg.g; P.gn = this.segName(seg.g); P.ph = seg.phase; P.mode = seg.mode; P.mult = seg.mult; P.ii = seg.idx; P.in = seg.items.length;
       const def = this.gameDef(seg.g); if (def) { P.gi = def.icon; if (seg.phase === 'intro') P.how = def.how; }
       if (seg.g === 'tiebreak' && seg.phase === 'intro') P.how = ['الفرق المتعادلة فقط.', 'أول إجابة صحيحة تحسم.'];
-      if (seg.g === 'crown') { P.rev = seg.revealed; P.rk = this.ranking().map(r => [r.id, r.score, r.rank]); if (seg.hl) P.hl = seg.hl; P.tie = this.tieInfo(); }
+      if (seg.g === 'council') { P.cn = seg.n; if (seg.phase === 'intro') P.how = this.D.COUNCIL_HOW; P.CO = { cnt: Object.fromEntries(s.teams.map(t => [t.id, this.attacksOn(t.id)])), done: Object.keys(seg.orders || {}) }; if (seg.gains) P.GN = seg.gains; if (seg.results) P.BR = seg.results; }
+      if (seg.g === 'crown') { P.BX = s.buildLog.map(b => [b.team, b.key, b.lv]); P.rev = seg.revealed; P.rk = this.ranking().map(r => [r.id, r.score, r.rank]); if (seg.hl) P.hl = seg.hl; P.tie = this.tieInfo(); }
       if (it && seg.phase !== 'done') {
         const I = { k: it.kind, q: it.q, qid: it.qid, bo: it.bo || 0, d: it.d, el: it.eligible, lk: it.locked, rv: it.revealed ? 1 : 0 };
         if (it.c) I.c = it.c;

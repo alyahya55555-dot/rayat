@@ -24,16 +24,77 @@ test('القيادة تنتقل تلقائيًا إن غاب القائد 20 ث�
   const e = mk(); addStudents(e, 8); e.setOffline('s0'); e.tick(); assert.strictEqual(e.s.captain.t1, 's0', 'لا تنتقل فورًا');
   e.adv(21000); e.tick(); assert.strictEqual(e.s.captain.t1, 's4');
 });
-test('النقاط والذهب نظامان منفصلان: الشراء لا ينقص النقاط', () => {
-  const e = mk(); addStudents(e, 4); e.award('t1', 60, 'x', 1); assert.strictEqual(e.vil('t1').gold, 60);
-  assert.ok(e.buy('t1', 'house', 's0').ok); assert.strictEqual(e.scores().t1, 60); assert.strictEqual(e.vil('t1').gold, 40);
+function council(e) { e.s.plan = [{ g: 'council', min: 2 }]; e.goSegment(0); e.nextItem(); }
+test('النقاط والذهب نظامان منفصلان: الشراء لا ينقص النقاط، والمنزل يضيف نقاطًا', () => {
+  const e = mk(); addStudents(e, 4); e.award('t1', 60, 'x', 1); assert.strictEqual(e.vil('t1').gold, 60); council(e);
+  assert.ok(e.buy('t1', 'house', 's0').ok); assert.strictEqual(e.scores().t1, 75); assert.strictEqual(e.vil('t1').gold, 40);
+  assert.ok(e.buy('t1', 'wall', 's0').ok); assert.strictEqual(e.scores().t1, 80);
 });
-test('الشراء للقائد وحده، والمستوى الأقصى 2، ولا شراء بلا ذهب', () => {
-  const e = mk(); addStudents(e, 8); e.award('t1', 150, 'x', 1);
+test('الشراء للقائد وحده وفي المجلس فقط، والمستوى الأقصى 2، ولا شراء بلا ذهب', () => {
+  const e = mk(); addStudents(e, 8); e.award('t1', 100, 'x', 1);
+  assert.strictEqual(e.buy('t1', 'farm', 's0').why, 'closed', 'لا شراء من الجوال خارج المجلس');
+  council(e);
   assert.strictEqual(e.buy('t1', 'farm', 's4').why, 'not-captain');
   assert.ok(e.buy('t1', 'farm', 's0').ok); assert.ok(e.buy('t1', 'farm', 's0').ok); assert.strictEqual(e.buy('t1', 'farm', 's0').why, 'max');
-  assert.strictEqual(e.buy('t1', 'castle', null).ok, true); assert.strictEqual(e.buy('t1', 'castle', null).why, 'gold');
+  assert.strictEqual(e.buy('t1', 'tower', null).ok, true); assert.strictEqual(e.buy('t1', 'tower', null).why, 'gold');
   assert.strictEqual(e.s.buildLog.length, 3);
+});
+test('المجلس: دخل المزرعة، وعون الجيران للأخير، ودرع التماسك', () => {
+  const e = mk(); addStudents(e, 8); e.award('t1', 100, 'x', 1); e.award('t2', 50, 'x', 1); e.award('t3', 40, 'x', 1);
+  e.vil('t1').b.farm = 2; e.s.cohRes = { t2: true };
+  council(e); const P = e.pub();
+  assert.strictEqual(e.vil('t1').gold, 120, 'مزرعة مستوى 2 = 20'); assert.strictEqual(e.vil('t4').gold, 15, 'عون الجيران للأخير');
+  assert.ok(e.vil('t2').shield); assert.strictEqual(P.T[1][9].sh, 1); assert.strictEqual(P.ph, 'council'); assert.ok(P.tm);
+});
+test('الهجوم: الوحدات تُحجز، والدفاع يوقف بعضها، والصد الكامل يمنح نقاط الصمود', () => {
+  const e = mk(); addStudents(e, 8); ['t1', 't2', 't3', 't4'].forEach(t => e.award(t, 100, 'x', 1)); council(e);
+  e.vil('t2').b.wall = 1; e.vil('t3').b.tower = 2;
+  assert.ok(e.order('t1', { type: 'raid', to: 't2', units: 5 }, 's0').ok); assert.strictEqual(e.vil('t1').gold, 50);
+  assert.strictEqual(e.order('t1', { type: 'raid', to: 't2', units: 5 }, 's4').why, 'not-captain');
+  assert.ok(e.order('t4', { type: 'catapult', to: 't3', units: 3 }, 's3').ok);
+  assert.ok(e.order('t3', { type: 'fire', to: 't2', units: 2 }, 's2').ok);
+  assert.strictEqual(e.order('t2', { type: 'raid', to: 't2', units: 1 }, 's1').why, 'bad', 'لا يهاجم نفسه');
+  const P = e.pub(); assert.strictEqual(P.CO.cnt.t2, 2); assert.ok(!JSON.stringify(P).includes('"raid"'), 'الأوامر سرية في البث العام');
+  assert.deepStrictEqual(e.privData()['s4'].ord, ['raid', 't2', 5], 'أعضاء الفريق يرون أمرهم');
+  assert.strictEqual(e.order('t2', { type: 'raid', to: 't1', units: 9 }, 's1').why, 'bad');
+  e.vil('t2').b.farm = 1;
+  const sc0 = e.scores(); e.resolveCouncil(); const R = e.s.seg.results;
+  const raid = R.find(r => r.type === 'raid'); assert.strictEqual(raid.block, 2); assert.strictEqual(raid.hits, 3); assert.strictEqual(raid.gold, 45);
+  assert.strictEqual(e.vil('t1').gold, 95); assert.strictEqual(e.vil('t2').gold, 100 - 45 - 10);
+  const cat = R.find(r => r.type === 'catapult'); assert.strictEqual(cat.hits, 0); assert.strictEqual(cat.held, 5); assert.strictEqual(e.scores().t3, sc0.t3 + 5);
+  const fire = R.find(r => r.type === 'fire'); assert.strictEqual(fire.hits, 2); assert.deepStrictEqual(fire.off, ['farm']); assert.ok(e.vil('t2').off.farm);
+  assert.strictEqual(e.s.seg.phase, 'battle'); assert.ok(e.pub().BR.length === 3);
+});
+test('المجلس: لا تُهاجَم قرية أكثر من مرتين، والإلغاء يعيد الذهب، والتراجع يعيد الأمر', () => {
+  const e = mk(); addStudents(e, 8); ['t1', 't2', 't3', 't4'].forEach(t => e.award(t, 100, 'x', 1)); council(e);
+  assert.ok(e.order('t1', { type: 'catapult', to: 't4', units: 2 }, 's0').ok); assert.ok(e.order('t2', { type: 'catapult', to: 't4', units: 2 }, 's1').ok);
+  assert.strictEqual(e.order('t3', { type: 'raid', to: 't4', units: 2 }, 's2').why, 'full');
+  assert.ok(e.cancelOrder('t1', 's0')); assert.strictEqual(e.vil('t1').gold, 100); assert.ok(e.order('t3', { type: 'raid', to: 't4', units: 2 }, 's2').ok);
+  assert.ok(e.order('t3', { type: 'raid', to: 't4', units: 4 }, 's2').ok, 'تعديل الأمر'); assert.strictEqual(e.vil('t3').gold, 60);
+  e.tick(); e.adv(91000); e.tick(); assert.strictEqual(e.s.seg.phase, 'battle', 'ينتهي المجلس تلقائيًا بانتهاء الوقت');
+});
+test('الحريق يعطّل المبنى حتى المجلس التالي: لا دخل للمزرعة المحترقة', () => {
+  const e = mk(); addStudents(e, 8); e.vil('t2').b.farm = 1; e.vil('t2').off.farm = true;
+  council(e); assert.strictEqual(e.vil('t2').gold, 0, 'المزرعة المعطلة لا تدرّ'); assert.ok(!e.vil('t2').off.farm, 'تعود للعمل');
+});
+test('السوق يضيف ذهبًا مع كل سؤال يكسبه الفريق', () => {
+  const e = mk(); addStudents(e, 4); e.vil('t1').b.market = 1; goGame(e, 'kickoff'); e.openItem(); e.answer('s0', e.item().qid, e.item().a); e.lockAll();
+  assert.strictEqual(e.vil('t1').gold, e.scores().t1 + 5);
+});
+test('السؤال التجريبي في الافتتاح لا يمنح نقاطًا', () => {
+  const e = mk(); addStudents(e, 4); e.s.plan = [{ g: 'opening', min: 5 }]; e.goSegment(0); e.nextItem(); e.nextItem();
+  assert.strictEqual(e.s.seg.phase, 'open'); const it = e.item(); assert.ok(it.trial); e.answer('s0', it.qid, it.a); e.nextItem();
+  assert.strictEqual(e.s.seg.phase, 'reveal'); assert.strictEqual(e.scores().t1, 0); assert.ok(e.pub().I.res2); e.nextItem(); assert.strictEqual(e.s.seg.phase, 'done');
+});
+test('اسم القرية: يكتبه القائد في الافتتاح فقط، والمشرف متى شاء', () => {
+  const e = mk(); addStudents(e, 4); assert.strictEqual(e.team('t1').name, 'الفريق الأول');
+  assert.ok(e.setTeamName('t1', 'الصقور', 's0')); assert.ok(!e.setTeamName('t1', 'x', 's0')); assert.ok(!e.setTeamName('t2', 'السهم', 's0'));
+  goGame(e, 'kickoff'); assert.ok(!e.setTeamName('t1', 'النسور', 's0')); assert.ok(e.setTeamName('t1', 'النسور', null));
+});
+test('درع التماسك يُحسب من نسبة الصحيحين في الجولة', () => {
+  const e = mk(); addStudents(e, 8); e.s.plan = [{ g: 'kickoff', min: 5 }, { g: 'council', min: 2 }]; e.goSegment(0);
+  for (let k = 0; k < 2; k++) { e.nextItem(); e.openItem(); const it = e.item(); Object.values(e.s.students).forEach(st => e.answer(st.sid, it.qid, st.team === 't1' ? it.a : (it.a + 1) % 4)); e.lockAll(); }
+  e.goSegment(1); e.nextItem(); assert.ok(e.vil('t1').shield); assert.ok(!e.vil('t2').shield);
 });
 test('التراجع عن الشراء يعيد الذهب والمبنى', () => { const e = mk(); addStudents(e, 4); e.award('t1', 50, 'x', 1); e.buy('t1', 'house', 's0'); e.undo(); assert.strictEqual(e.vil('t1').gold, 50); assert.strictEqual(e.vil('t1').b.house, 0); assert.strictEqual(e.s.buildLog.length, 0); });
 test('التعديل اليدوي للنقاط لا يمنح ذهبًا', () => { const e = mk(); e.manualAdjust('t2', 30); assert.strictEqual(e.scores().t2, 30); assert.strictEqual(e.vil('t2').gold, 0); });
@@ -115,9 +176,10 @@ test('مسابقة كاملة بالبرنامج الافتراضي مع شرا�
     e.goSegment(i); let guard = 0;
     while (e.s.seg.phase !== 'done' && e.s.seg.phase !== 'winner' && guard++ < 400) {
       const seg = e.s.seg, it = e.item(), ph = seg.phase;
-      if (seg.g === 'opening') { if (ph === 'themes') e.setTheme('t1', 'agri', e.s.captain.t1); e.nextItem(); continue; }
+      if (seg.g === 'opening') { if (ph === 'open') Object.values(e.s.students).forEach(st => e.answer(st.sid, it.qid, it.a)); e.nextItem(); continue; }
       if (seg.g === 'crown') { e.nextItem(); continue; }
-      if (ph === 'intro' || ph === 'reveal') { e.s.teams.forEach(t => { const k = D.BUILD_KEYS.find(k => e.buildCost(t.id, k) != null && e.buildCost(t.id, k) <= e.vil(t.id).gold); if (k) e.buy(t.id, k, e.s.captain[t.id]); }); e.nextItem(); continue; }
+      if (seg.g === 'council') { if (ph === 'council') { e.s.teams.forEach((t, i) => { const k = D.BUILD_KEYS.find(k => e.buildCost(t.id, k) != null && e.buildCost(t.id, k) <= e.vil(t.id).gold); if (k) e.buy(t.id, k, e.s.captain[t.id]); const to = e.s.teams[(i + 1) % 4].id; if (e.vil(t.id).gold >= 20) e.order(t.id, { type: D.ATTACK_KEYS[i % 3], to, units: 2 }, e.s.captain[t.id]); }); } e.nextItem(); continue; }
+      if (ph === 'intro' || ph === 'reveal') { e.nextItem(); continue; }
       if (ph === 'ready') { e.openItem(); continue; }
       if (ph === 'show') { e.adv(8000); e.tick(); continue; }
       if (ph === 'wager') { e.s.teams.forEach(t => e.setWager(t.id, 10, e.s.captain[t.id])); e.lockWagers(); continue; }
@@ -130,7 +192,8 @@ test('مسابقة كاملة بالبرنامج الافتراضي مع شرا�
       throw new Error('حالة غير معالجة: ' + seg.g + '/' + ph);
     }
   }
-  assert.ok(e.s.ended); assert.ok(e.s.buildLog.length >= 8, 'بُنيت مبانٍ: ' + e.s.buildLog.length);
+  assert.ok(e.s.ended); assert.ok(e.s.buildLog.length >= 8, 'بُنيت مبانٍ: ' + e.s.buildLog.length); assert.ok(e.s.battles.length === 4 && e.s.battles.some(b => b.res.length), 'أربعة مجالس فيها معارك');
+  const hl = e.highlights(); assert.ok(hl.length >= 2, 'ألقاب التتويج: ' + JSON.stringify(hl.map(h => h.k)));
   const goldIn = e.s.ledger.reduce((a, x) => a + Math.max(0, x.g || 0), 0), spent = -e.s.ledger.reduce((a, x) => a + Math.min(0, x.g || 0), 0);
   e.s.teams.forEach(t => assert.ok(e.vil(t.id).gold >= 0)); assert.strictEqual(goldIn - spent, e.s.teams.reduce((a, t) => a + e.vil(t.id).gold, 0), 'سجل الذهب متسق');
   assert.ok(e.pub().hl === undefined || true);

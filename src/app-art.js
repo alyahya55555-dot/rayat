@@ -1,7 +1,8 @@
 /* ===== فن الجزيرة: تضاريس وشواطئ وطرق وأشجار وقرى ومبانٍ بمنظور متساوي القياس (SVG خفيف) ===== */
 const ISO_A = 78;          // نصف عرض بلاطة البناء
 const VSC = 1.15;          // تكبير القرية على الجزيرة
-const SLOT = { library: [0, 0], market: [1, 0], castle: [2, 0], house: [0, 1], workshop: [1, 1], farm: [2, 1] };
+// أماكن ثابتة لكل مبنى داخل القرية (إحداثيات محلية): الازدهار في الوسط، والدفاع على الأطراف
+const SPOT = { house: [-100, -22], market: [105, -18], farm: [0, 52], tower: [192, -58], well: [-178, 62] };
 function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function shade(hex, k) { if (hex.length === 4) hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3]; const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255; const f = v => Math.max(0, Math.min(255, Math.round(k < 0 ? v * (1 + k) : v + (255 - v) * k))); return '#' + [f(r), f(g), f(b)].map(v => v.toString(16).padStart(2, '0')).join(''); }
 const f1 = v => (+v).toFixed(1);
@@ -88,30 +89,34 @@ const BUILDERS = {
     if (lv > 1) return shop(x - 20, y - 12, 26, 30, tc) + shop(x + 24, y + 12, 22, 24, T.accent) + `<path d="M ${x - 46} ${y - 40} Q ${x} ${y - 20} ${x + 46} ${y - 22}" stroke="#eee" fill="none" stroke-width="1.5"/>` + [0, 1, 2, 3, 4].map(i => `<circle cx="${x - 36 + i * 18}" cy="${y - 34 + (i === 2 ? 8 : i === 1 || i === 3 ? 5 : 0)}" r="3.5" fill="#ffe27a"/>`).join('') + DECO.crates(x - 46, y + 18) + DECO.barrels(x + 50, y - 6);
     return shop(x, y, 28, 28, tc) + DECO.crates(x - 34, y + 18) + `<circle cx="${x - 20}" cy="${y + 8}" r="4" fill="#e74c3c"/><circle cx="${x - 13}" cy="${y + 11}" r="4" fill="#f1c40f"/>`;
   },
-  workshop(x, y, T, tc, lv) {
-    const s = lv > 1 ? 40 : 32, h = lv > 1 ? 40 : 30; let g = shadowE(x + 12, y + 6, s * 1.4, s * .5) + isoBox(x, y, s, h, '#86603e', { top: '#4a3a2c' });
-    g += quadR(x, y, s, .2, .62, 0, 24, '#2f241a') + quadR(x, y, s, .22, .6, 2, 20, 'rgba(255,170,80,.55)') + quadL(x, y, s, .4, .7, 14, 26, '#ffb35c');
-    g += gable(x, y, s + 2, h, 16, '#5d4a3a');
-    const ch = (cx, cy) => isoBox(cx, cy, 6, 24, '#777') + `<g class="smoke"><circle cx="${cx}" cy="${cy - 34}" r="7" fill="rgba(220,220,220,.7)"/><circle cx="${cx + 6}" cy="${cy - 50}" r="9" fill="rgba(220,220,220,.5)"/><circle cx="${cx + 2}" cy="${cy - 68}" r="11" fill="rgba(220,220,220,.3)"/></g>`;
-    g += ch(x + 14, y - h - 10);
-    g += isoBox(x + s + 8, y + 10, 8, 10, '#a3a7aa') + `<rect x="${x - s - 14}" y="${y - 6}" width="6" height="14" fill="#6b4a2b"/><rect x="${x - s - 20}" y="${y - 9}" width="18" height="4" fill="#555"/>`;
-    if (lv > 1) g += ch(x - 14, y - h - 2) + `<circle cx="${x - s * .5}" cy="${y - h * .5}" r="11" fill="none" stroke="${T.accent}" stroke-width="5" stroke-dasharray="4 3" class="gear"/>`;
+  // أيقونة السور (للجوال والتتويج)؛ وعلى الجزيرة يُرسم حلقةً حول القرية
+  wall(x, y, T, tc, lv) {
+    if (lv > 1) {
+      let g = shadowE(x + 6, y + 10, 72, 14) + isoBox(x - 34, y + 16, 30, 24, '#a7a197') + isoBox(x + 34, y - 18, 30, 24, '#a7a197');
+      [-52, -40, -28].forEach(dx => { g += isoBox(x + dx, y + 16 + (dx + 34) * .5 - 24 - 2, 4, 7, '#a7a197'); });
+      [28, 40, 52].forEach(dx => { g += isoBox(x + dx, y - 18 - (dx - 34) * .5 - 24 - 2, 4, 7, '#a7a197'); });
+      return g + isoBox(x, y - 2, 16, 42, '#9a948a') + quadL(x, y - 2, 16, .25, .75, 0, 22, '#3b2a1a') + flag(x, y - 46, 24, tc, 18);
+    }
+    let g = shadowE(x + 6, y + 8, 62, 12);
+    for (let i = 0; i < 11; i++) { const px = x - 56 + i * 11, py = y + 18 - i * 5.5; g += `<rect x="${px - 4}" y="${py - 34}" width="8" height="34" fill="#8b5a2b" stroke="#5b3a1e" stroke-width="1"/><polygon points="${px - 4},${py - 34} ${px},${py - 42} ${px + 4},${py - 34}" fill="#8b5a2b"/>`; }
     return g;
   },
-  library(x, y, T, tc, lv) {
-    const s = lv > 1 ? 42 : 36, h = lv > 1 ? 40 : 32; let g = shadowE(x + 12, y + 6, s * 1.45, s * .5) + isoBox(x, y + 4, s + 6, 6, '#d9d2c3') + isoBox(x, y, s, h, T.wall);
-    for (let i = 0; i < 4; i++) g += quadR(x, y, s, .1 + i * .22, .17 + i * .22, 0, h - 5, '#ffffff') + quadR(x, y, s, .17 + i * .22, .2 + i * .22, 0, h - 5, '#d6d6d6');
-    g += quadL(x, y, s, .4, .6, 0, 18, '#5b3a1e') + quadL(x, y, s, .12, .28, 14, 24, '#8fc3e6') + quadL(x, y, s, .72, .88, 14, 24, '#8fc3e6');
-    g += poly([[x - s - 4, y - h], [x, y + s / 2 - h + 2], [x + s + 4, y - h], [x, y - s / 2 - h - 2]], shade(T.wall, -.12)) + poly([[x, y + s / 2 - h + 2], [x + s + 4, y - h], [x + s * .5, y - h - 14]], shade(T.roof, -.1));
-    if (lv > 1) g += `<ellipse cx="${x}" cy="${y - h - 4}" rx="${s * .55}" ry="${s * .27}" fill="${shade(T.roof, -.25)}"/><path d="M ${x - s * .55} ${y - h - 4} A ${s * .55} ${s * .62} 0 0 1 ${x + s * .55} ${y - h - 4} Z" fill="${T.roof}"/><path d="M ${x - s * .2} ${y - h - 20} A ${s * .3} ${s * .3} 0 0 1 ${x + s * .1} ${y - h - 26}" stroke="rgba(255,255,255,.45)" stroke-width="3" fill="none"/><rect x="${x - 2}" y="${y - h - 46}" width="4" height="14" fill="#ddd"/><circle cx="${x}" cy="${y - h - 48}" r="4" fill="${T.accent}"/>`;
-    else g += pyramid(x, y, s * .5, h + 2, 18, T.roof);
-    return g;
+  tower(x, y, T, tc, lv) {
+    if (lv > 1) {
+      let g = shadowE(x + 10, y + 6, 30, 10) + isoBox(x, y, 18, 92, '#a7a197'); for (let k = 1; k < 5; k++) g += quadL(x, y, 18, 0, 1, k * 18, k * 18 + 1, 'rgba(0,0,0,.12)');
+      g += quadL(x, y, 18, .4, .6, 50, 66, '#2b2b2b') + quadR(x, y, 18, .4, .6, 30, 46, '#2b2b2b') + isoBox(x, y - 92, 22, 10, '#9a948a');
+      [-15, 0, 15].forEach(dx => { g += isoBox(x + dx, y - 102, 4, 8, '#9a948a'); });
+      return g + flag(x, y - 110, 30, tc);
+    }
+    let g = shadowE(x + 8, y + 4, 24, 8);
+    [[-12, -6], [12, -6], [-12, 6], [12, 6]].forEach(([dx, dy]) => { g += `<line x1="${x + dx}" y1="${y + dy}" x2="${x + dx * .55}" y2="${y + dy * .5 - 62}" stroke="#6b4a2b" stroke-width="4"/>`; });
+    g += `<path d="M ${x - 12} ${y - 6} L ${x + 12} ${y - 34} M ${x + 12} ${y - 6} L ${x - 12} ${y - 34}" stroke="#7a5530" stroke-width="2.5"/>` + isoBox(x, y - 62, 15, 10, '#8b6239') + pyramid(x, y - 72, 17, 0, 18, '#5b3a1e');
+    return g + flag(x, y - 90, 20, tc, 18);
   },
-  castle(x, y, T, tc, lv) {
-    const stone = '#aaa49b';
-    const tower = (cx, cy, s, h) => { let g = isoBox(cx, cy, s, h, stone); for (let i = 0; i < 3; i++) g += isoBox(cx - s * .6 + i * s * .6, cy - h - s * .15 + (i === 1 ? -s * .1 : 0), s * .22, 8, stone); g += quadL(cx, cy, s, .4, .6, h * .55, h * .72, '#2b2b2b') + quadR(cx, cy, s, .4, .6, h * .4, h * .55, '#2b2b2b'); for (let k = 1; k < 4; k++) g += quadL(cx, cy, s, 0, 1, h * k / 4, h * k / 4 + 1, 'rgba(0,0,0,.12)'); return g + flag(cx, cy - h - 8, 30, tc); };
-    if (lv > 1) { let g = shadowE(x + 14, y + 10, 66, 22) + isoBox(x, y + 6, 44, 30, stone); [.12, .32, .52, .72, .92].forEach(u => { const p = faceL(x, y + 6, 44, u, 30), q = faceR(x, y + 6, 44, u, 30); g += isoBox(p[0], p[1] + 2, 4, 6, stone) + isoBox(q[0], q[1] + 2, 4, 6, stone); }); g += quadR(x, y + 6, 44, .38, .62, 0, 22, '#3b2a1a') + poly([faceR(x, y + 6, 44, .38, 22), faceR(x, y + 6, 44, .5, 28), faceR(x, y + 6, 44, .62, 22)], '#3b2a1a'); g += tower(x - 40, y - 4, 16, 60) + tower(x + 40, y - 4, 16, 60) + tower(x, y - 24, 20, 80); return g; }
-    return shadowE(x + 12, y + 6, 34, 12) + tower(x, y, 22, 70) + isoBox(x + 30, y + 10, 16, 18, stone);
+  well(x, y, T, tc, lv) {
+    let g = shadowE(x + 5, y + 4, 18, 6) + `<ellipse cx="${x}" cy="${y}" rx="15" ry="7.5" fill="#8a9196"/><rect x="${x - 15}" y="${y - 12}" width="30" height="12" fill="#9aa0a6"/><ellipse cx="${x}" cy="${y - 12}" rx="15" ry="7.5" fill="#aab0b4"/><ellipse cx="${x}" cy="${y - 12}" rx="10" ry="4.8" fill="#2e6f8e"/><line x1="${x - 13}" y1="${y - 12}" x2="${x - 13}" y2="${y - 36}" stroke="#6b4a2b" stroke-width="3"/><line x1="${x + 13}" y1="${y - 12}" x2="${x + 13}" y2="${y - 36}" stroke="#6b4a2b" stroke-width="3"/><polygon points="${x - 19},${y - 35} ${x},${y - 46} ${x + 19},${y - 35}" fill="#8b3a2b"/><line x1="${x}" y1="${y - 36}" x2="${x}" y2="${y - 20}" stroke="#333"/><rect x="${x - 3}" y="${y - 22}" width="6" height="6" fill="#7a5a2c"/>`;
+    if (lv > 1) g += [[30, 4], [42, 10], [24, 14]].map(([dx, dy]) => `<rect x="${x + dx - 6}" y="${y + dy - 14}" width="12" height="14" rx="3" fill="#8b5a2b"/><ellipse cx="${x + dx}" cy="${y + dy - 14}" rx="6" ry="2.5" fill="#4aa3c8"/>`).join('') + `<path d="M ${x - 42} ${y + 8} h 24 v 8 h -24 z" fill="#6b4a2b"/><rect x="${x - 40}" y="${y + 6}" width="20" height="4" fill="#4aa3c8"/>`;
+    return g;
   }
 };
 
@@ -120,7 +125,10 @@ const THEME_MARK = {
   agri(x, y, T, tc) { return shadowE(x + 10, y + 4, 22, 8) + isoBox(x, y, 13, 62, '#e8dcc0') + pyramid(x, y, 15, 62, 16, '#8a4b2a') + quadL(x, y, 13, .35, .65, 0, 14, '#5b3a1e') + `<g class="mill">${[0, 90, 180, 270].map(a => `<g transform="rotate(${a} ${x} ${y - 56})"><rect x="${x - 2}" y="${y - 98}" width="4" height="42" fill="#7a5a3a"/><rect x="${x + 2}" y="${y - 96}" width="9" height="32" fill="#f5f0e1" stroke="#9a8c6c"/></g>`).join('')}</g><circle cx="${x}" cy="${y - 56}" r="4.5" fill="#5b3a1e"/>`; },
   trade(x, y, T, tc) { return `<path d="${blob(x, y + 4, 56, 26, 91, .1, 18)}" fill="#3b95b5" stroke="#d9c79a" stroke-width="4"/><path d="M ${x - 30} ${y + 4} q 10 -4 20 0" stroke="rgba(255,255,255,.5)" stroke-width="2" fill="none"/>` + poly([[x + 6, y - 10], [x + 52, y + 13], [x + 44, y + 17], [x - 2, y - 6]], '#8b6239', 'stroke="#5b3a1e"') + boat(x - 14, y + 6, '#9c4a22', '#f6ead2', .8) + isoBox(x + 46, y - 8, 7, 9, '#b88a4a') + isoBox(x + 56, y - 2, 6, 8, '#a0703c'); },
   science(x, y, T, tc) { return shadowE(x + 10, y + 4, 28, 10) + isoBox(x, y, 22, 28, '#e9edf3') + `<path d="M ${x - 22} ${y - 28} A 22 22 0 0 1 ${x + 22} ${y - 28} Z" fill="${T.roof}"/><path d="M ${x - 6} ${y - 46} L ${x + 4} ${y - 49} L ${x + 4} ${y - 28} L ${x - 6} ${y - 28} Z" fill="#1d1f3a"/><line x1="${x}" y1="${y - 40}" x2="${x + 28}" y2="${y - 62}" stroke="#333" stroke-width="6" stroke-linecap="round"/><circle cx="${x + 29}" cy="${y - 63}" r="4" fill="${T.accent}"/>`; },
-  fort(x, y, T, tc) { let g = shadowE(x + 10, y + 4, 22, 8); [[-12, 0], [12, 0]].forEach(([dx]) => { g += `<line x1="${x + dx}" y1="${y + 6}" x2="${x + dx * .6}" y2="${y - 70}" stroke="#6b4a2b" stroke-width="5"/>`; }); g += `<path d="M ${x - 11} ${y - 10} L ${x + 11} ${y - 30} M ${x + 11} ${y - 10} L ${x - 11} ${y - 30} M ${x - 9} ${y - 40} L ${x + 9} ${y - 58}" stroke="#7a5530" stroke-width="3"/>` + isoBox(x, y - 70, 18, 14, '#8b6239') + pyramid(x, y - 70, 20, 14, 18, '#5b3a1e') + flag(x, y - 102, 22, tc, 20); return g; }
+  fort(x, y, T, tc) { let g = shadowE(x + 10, y + 6, 34, 10) + isoBox(x - 4, y - 4, 24, 26, '#9c7a52') + gable(x - 4, y - 4, 26, 26, 16, '#6b4a2b') + quadR(x - 4, y - 4, 24, .3, .7, 0, 18, '#3b2a1a');
+    g += `<path d="M ${x + 10} ${y + 18} l 40 -20 M ${x + 10} ${y + 10} l 40 -20" stroke="#7a5530" stroke-width="3"/>`;
+    g += `<g fill="#6b4226"><ellipse cx="${x + 34}" cy="${y + 2}" rx="14" ry="7"/><path d="M ${x + 44} ${y} l 8 -14 l 5 2 l -6 14 z"/><rect x="${x + 24}" y="${y + 6}" width="3" height="11"/><rect x="${x + 30}" y="${y + 7}" width="3" height="11"/><rect x="${x + 38}" y="${y + 6}" width="3" height="11"/><rect x="${x + 43}" y="${y + 5}" width="3" height="11"/></g><path d="M ${x + 21} ${y} q -6 4 -4 12" stroke="#3b2a1a" stroke-width="2.5" fill="none"/>`;
+    return g + flag(x - 4, y - 46, 22, tc, 18); }
 };
 // ---------- إضافات تظهر تدريجيًا مع نمو القرية (بحسب الطابع) ----------
 const DECO = {
@@ -146,53 +154,93 @@ const DECO = {
   tower: (x, y, c) => shadowE(x + 6, y + 3, 16, 6) + isoBox(x, y, 10, 46, '#9a948a') + isoBox(x, y - 46, 13, 6, '#8a847a') + flag(x, y - 52, 18, c, 16)
 };
 const DECO_BY = {
-  agri: ['hay', 'crops', 'sheep', 'cart', 'scarecrow', 'hay'],
-  trade: ['crates', 'barrels', 'stall', 'camel', 'lamp', 'cart'],
-  science: ['telescope', 'lamp', 'garden', 'statue', 'bench', 'sundial'],
-  fort: ['wall', 'torch', 'banner', 'tower', 'stones', 'wall']
+  agri: ['hay', 'sheep', 'scarecrow'],
+  trade: ['crates', 'camel', 'barrels'],
+  science: ['telescope', 'garden', 'sundial'],
+  fort: ['banner', 'stones', 'torch']
 };
-const DECO_AT = [1, 2, 4, 6, 8, 10];
-const DECO_SPOT = [[205, -25], [-170, -70], [120, 106], [-232, 60], [22, 124], [55, -108]];
+const DECO_AT = [2, 5, 8];
+const DECO_SPOT = [[-122, -98], [212, 28], [74, 112]];
 function starterHut(x, y, T, theme) {
   const roof = { agri: '#d8b45a', trade: '#d0603a', science: '#7d8fc8', fort: '#6b4a2b' }[theme] || T.roof;
   return shadowE(x + 8, y + 5, 26, 8) + isoBox(x, y, 17, 16, theme === 'fort' ? '#9c7a52' : T.wall) + quadR(x, y, 17, .4, .7, 0, 11, '#5b3a1e') + gable(x, y, 19, 16, 14, roof);
 }
-function well(x, y) { return shadowE(x + 5, y + 4, 16, 6) + `<ellipse cx="${x}" cy="${y}" rx="13" ry="6.5" fill="#8a9196"/><rect x="${x - 13}" y="${y - 10}" width="26" height="10" fill="#9aa0a6"/><ellipse cx="${x}" cy="${y - 10}" rx="13" ry="6.5" fill="#aab0b4"/><ellipse cx="${x}" cy="${y - 10}" rx="9" ry="4.2" fill="#2e6f8e"/><line x1="${x - 11}" y1="${y - 10}" x2="${x - 11}" y2="${y - 32}" stroke="#6b4a2b" stroke-width="3"/><line x1="${x + 11}" y1="${y - 10}" x2="${x + 11}" y2="${y - 32}" stroke="#6b4a2b" stroke-width="3"/><polygon points="${x - 16},${y - 31} ${x},${y - 41} ${x + 16},${y - 31}" fill="#8b3a2b"/>`; }
+// سارية المجد: يرتفع علمها مع نقاط الفريق، فيُعرف الترتيب من شكل الجزيرة
+function gloryPole(x, y, h, tc, lead) {
+  const top = y - h;
+  return shadowE(x + 8, y + 3, 22, 7) + isoBox(x, y + 2, 14, 8, '#b9b2a4') + isoBox(x, y - 6, 9, 6, '#cfc8b9') +
+    `<line x1="${x}" y1="${y - 10}" x2="${x}" y2="${f1(top)}" stroke="${lead ? '#f4c430' : '#e9e4d8'}" stroke-width="${lead ? 5 : 4}"/><circle cx="${x}" cy="${f1(top)}" r="${lead ? 6 : 4}" fill="#f4d35e"/>` +
+    `<path class="flag big" d="M ${x} ${f1(top + 2)} q 22 -6 44 0 q 0 14 0 28 q -22 -6 -44 0 z" fill="${tc}" stroke="${lead ? '#f4c430' : 'rgba(0,0,0,.25)'}" stroke-width="${lead ? 3 : 1}"/>` +
+    (lead ? `<text x="${x + 22}" y="${f1(top + 22)}" text-anchor="middle" font-size="16">⭐</text>` : '');
+}
+// صندوق الذهب عند البوابة: يكبر مع ذهب الفريق
+function goldChest(x, y, gold) {
+  if (!gold) return '';
+  const n = gold >= 120 ? 3 : gold >= 50 ? 2 : 1;
+  let g = shadowE(x + 4, y + 4, 22, 6) + isoBox(x, y, 13, 11, '#8b5a2b') + poly([[x - 13, y - 11], [x, y - 4.5], [x + 13, y - 11], [x, y - 17.5]], '#f4c430') + quadL(x, y, 13, .4, .6, 3, 8, '#f4d35e');
+  for (let i = 1; i < n; i++) g += `<ellipse cx="${x + 18 * i}" cy="${y + 4 - 2 * i}" rx="9" ry="5" fill="#f4c430" stroke="#b8860b"/><ellipse cx="${x + 18 * i}" cy="${y - 1 - 2 * i}" rx="7" ry="4" fill="#f4d35e" stroke="#b8860b"/>`;
+  return g;
+}
+function fireOn(x, y) { return `<g class="burn"><circle cx="${x}" cy="${y - 50}" r="20" fill="rgba(70,70,70,.45)" class="smoke"/><circle cx="${x + 10}" cy="${y - 74}" r="16" fill="rgba(90,90,90,.35)" class="smoke"/><path class="fire" d="M ${x - 16} ${y - 6} q 4 -30 16 -40 q 0 18 8 22 q 4 -12 10 -16 q 6 20 -2 34 z" fill="#ff7a1a"/><path class="fire" d="M ${x - 6} ${y - 6} q 2 -18 8 -24 q 2 12 6 14 q 2 -6 4 -8 q 4 10 -2 18 z" fill="#ffd23a"/></g>`; }
+// حلقة السور حول القرية: المستوى 1 أوتاد خشبية، والمستوى 2 سور حجري؛ نصفها الخلفي قبل المباني والأمامي بعدها
+function wallRing(lv, rx, ry, half) {
+  let g = ''; if (!lv) return g;
+  const gate = a => a > 70 && a < 110;
+  if (lv === 1) { for (let a = 0; a < 360; a += 5.5) { if (gate(a)) continue; const r = a * Math.PI / 180, x = Math.cos(r) * rx, y = Math.sin(r) * ry; if ((y < 0) !== (half === 'back')) continue; g += `<rect x="${f1(x - 3)}" y="${f1(y - 24)}" width="6" height="24" fill="#8b5a2b" stroke="#5b3a1e" stroke-width=".8"/><polygon points="${f1(x - 3)},${f1(y - 24)} ${f1(x)},${f1(y - 30)} ${f1(x + 3)},${f1(y - 24)}" fill="#8b5a2b"/>`; } return g; }
+  const seg = [], H = 26;
+  for (let a = 0; a <= 360; a += 4) { if (gate(a)) { seg.push(null); continue; } const r = a * Math.PI / 180; seg.push([Math.cos(r) * rx, Math.sin(r) * ry, a]); }
+  for (let i = 0; i < seg.length - 1; i++) {
+    const p = seg[i], q = seg[i + 1]; if (!p || !q) continue; const back = (p[1] + q[1]) / 2 < 0; if (back !== (half === 'back')) continue;
+    g += poly([[p[0], p[1]], [q[0], q[1]], [q[0], q[1] - H], [p[0], p[1] - H]], back ? '#8f897f' : '#aaa499', 'stroke="rgba(0,0,0,.18)" stroke-width=".8"');
+    g += poly([[p[0], p[1] - H], [q[0], q[1] - H], [q[0], q[1] - H - 4], [p[0], p[1] - H - 4]], '#c3bdb1');
+    if (i % 2 === 0) g += `<rect x="${f1(p[0] - 3)}" y="${f1(p[1] - H - 10)}" width="7" height="7" fill="#b3ad a2"/>`.replace('#b3ad a2', '#b3ada2');
+  }
+  return g;
+}
+function gateSign(name, tc, lv) {
+  const y = 150, posts = lv > 1 ? '#9a948a' : '#6b4a2b', w = Math.min(200, 44 + String(name).length * 15);
+  return (lv > 1 ? isoBox(-62, y - 22, 13, 36, '#9a948a') + isoBox(62, y - 22, 13, 36, '#9a948a') : `<rect x="-66" y="${y - 58}" width="9" height="40" fill="${posts}"/><rect x="57" y="${y - 58}" width="9" height="40" fill="${posts}"/>`) +
+    `<rect x="${-w / 2}" y="${y - 40}" width="${w}" height="32" rx="7" fill="${tc}" stroke="rgba(255,255,255,.9)" stroke-width="2"/><text x="0" y="${y - 17}" text-anchor="middle" font-size="20" font-weight="800" fill="#fff">${esc(name)}</text>`;
+}
+function torch(x, y) { return `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 34}" stroke="#5b3a1e" stroke-width="3.5"/><circle cx="${x}" cy="${y - 40}" r="18" fill="rgba(255,170,60,.28)" class="glow"/><path class="fire" d="M ${x - 6} ${y - 34} q 6 -20 12 0 z" fill="#ff9a2e"/>`; }
 
 // ---------- القرية (إحداثيات محلية حول المركز 0,0) ----------
-const tilePos = (cx, cy, i, j) => [cx + (i - j - .5) * ISO_A, cy + (i + j - 1.5) * ISO_A / 2];
 function villageArt(team, opts = {}) {
-  const th = team.theme || 'agri', T = D.THEMES[th] || D.THEMES.agri, tc = team.color, lv = opts.levels || {};
+  const th = team.theme || 'agri', T = D.THEMES[th] || D.THEMES.agri, tc = team.color, lv = opts.levels || {}, off = opts.off || {};
   const seed = (team.id || 't1').charCodeAt(1) * 31 + th.length * 7, r = rng(seed);
-  const tot = D.BUILD_KEYS.reduce((a, k) => a + (lv[k] || 0), 0);
+  const tot = D.BUILD_KEYS.reduce((a, k) => a + (lv[k] || 0), 0), RX = 238, RY = 120;
   let g = `<path d="${blob(0, 8, 258, 134, seed, .06)}" fill="${shade(T.ground, -.25)}" opacity=".35"/><path d="${blob(0, 0, 242, 122, seed + 1, .05)}" fill="${T.ground}" opacity=".82"/>`;
-  for (let i = 0; i < 9; i++) g += `<ellipse cx="${f1((r() - .5) * 360)}" cy="${f1((r() - .5) * 170)}" rx="${f1(20 + r() * 40)}" ry="${f1(8 + r() * 14)}" fill="${shade(T.ground, r() > .5 ? .12 : -.08)}" opacity=".6"/>`;
-  // ممرات ترابية داخل القرية
-  g += `<path d="M -190 40 Q -60 70 60 30 T 220 -10" stroke="${shade(T.ground, -.2)}" stroke-width="16" fill="none" stroke-linecap="round" opacity=".55"/>`;
-  // سياج خفيف وأعلام الفريق على الأطراف
-  const fence = []; for (let a = 0; a < 360; a += 9) { if (a > 60 && a < 120) continue; const rad = a * Math.PI / 180, x = Math.cos(rad) * 238, y = Math.sin(rad) * 120; fence.push([x, y]); }
-  const back = [], front = [];
-  fence.forEach(([x, y]) => (y < 0 ? back : front).push(`<rect x="${f1(x - 1.6)}" y="${f1(y - 11)}" width="3.2" height="11" fill="#7a5a3a"/>`));
-  g += back.join('');
+  for (let i = 0; i < 8; i++) g += `<ellipse cx="${f1((r() - .5) * 360)}" cy="${f1((r() - .5) * 170)}" rx="${f1(20 + r() * 40)}" ry="${f1(8 + r() * 14)}" fill="${shade(T.ground, r() > .5 ? .12 : -.08)}" opacity=".55"/>`;
+  g += `<path d="M 0 122 Q -10 80 0 40 M -150 40 Q -60 70 0 40 T 160 10" stroke="${shade(T.ground, -.2)}" stroke-width="14" fill="none" stroke-linecap="round" opacity=".5"/>`;
+  g += wallRing(lv.wall || 0, RX, RY, 'back');
   const items = [];
-  [[-150, -100], [160, -96]].forEach(([x, y]) => items.push([y, `<line x1="${x}" y1="${y}" x2="${x}" y2="${y - 48}" stroke="#5b3a1e" stroke-width="3"/><path d="M ${x} ${y - 46} h 18 v 24 l -9 -6 l -9 6 z" fill="${tc}"/>`]));
-  items.push([5, THEME_MARK[th] ? THEME_MARK[th](-200, 8, T, tc) : '']);
-  items.push([-64, shadowE(136, -60, 10, 4) + flag(130, -62, 76, tc, 34) + `<ellipse cx="130" cy="-62" rx="8" ry="4" fill="#8a847a"/>`]);
-  items.push([82, starterHut(-140, 82, T, th)]); items.push([100, starterHut(-62, 102, T, th)]);
-  items.push([66, well(185, 66)]);
+  const P = opts.pole; items.push([-80, gloryPole(0, -80, P ? P.h : 60, tc, P && P.lead)]);
+  items.push([-35, THEME_MARK[th] ? THEME_MARK[th](-205, -35, T, tc) : '']);
+  items.push([70, starterHut(150, 70, T, th)]);
+  if (opts.gold != null) items.push([96, goldChest(-96, 96, opts.gold)]);
   const decos = DECO_BY[th] || DECO_BY.agri;
   DECO_AT.forEach((need, k) => { if (tot >= need) { const [x, y] = DECO_SPOT[k]; items.push([y, `<g class="deco">${DECO[decos[k]](x, y, tc, r)}</g>`]); } });
-  D.BUILD_KEYS.forEach(k => {
-    const [i, j] = SLOT[k], [x, y] = tilePos(0, 0, i, j), L = lv[k] || 0;
-    if (!L) { items.push([y, `<g class="slot">${(i + j) % 2 ? treeRound(x + 10, y, .7, i + j) : treePine(x + 12, y + 2, .75)}${bush(x - 20, y + 6, .8)}${tuft(x + 4, y + 14)}${tuft(x - 30, y - 6)}${opts.labels ? `<text x="${x}" y="${y + 30}" text-anchor="middle" font-size="15" fill="rgba(255,255,255,.85)" stroke="rgba(0,0,0,.35)" stroke-width="3" paint-order="stroke">${D.BUILD[k].name}</text>` : ''}</g>`]); return; }
-    items.push([y, `<g class="bld" data-k="${k}" data-lv="${L}">${poly(tileDiamond(x, y + 2, 54), shade(T.ground, -.14), 'opacity=".7"')}<g transform="translate(${x} ${y}) scale(1.2) translate(${-x} ${-y})">${BUILDERS[k](x, y, T, tc, L)}</g></g>`]);
+  ['house', 'market', 'farm', 'tower', 'well'].forEach(k => {
+    const [x, y] = SPOT[k], L = lv[k] || 0;
+    if (!L) {
+      if (k === 'tower' || k === 'well') items.push([y, `<g class="slot">${tuft(x, y)}${tuft(x - 14, y + 8)}${opts.labels ? `<text x="${x}" y="${y + 24}" text-anchor="middle" font-size="14" fill="rgba(255,255,255,.75)" stroke="rgba(0,0,0,.35)" stroke-width="3" paint-order="stroke">${D.BUILD[k].name}</text>` : ''}</g>`]);
+      else items.push([y, `<g class="slot">${k === 'farm' ? bush(x - 30, y, .9) + treeRound(x + 22, y - 4, .7, 2) : treeRound(x + 8, y, .72, k.length)}${bush(x - 22, y + 8, .8)}${tuft(x + 6, y + 16)}${opts.labels ? `<text x="${x}" y="${y + 34}" text-anchor="middle" font-size="14" fill="rgba(255,255,255,.75)" stroke="rgba(0,0,0,.35)" stroke-width="3" paint-order="stroke">${D.BUILD[k].name}</text>` : ''}</g>`]);
+      return;
+    }
+    const sc = k === 'tower' || k === 'well' ? 1.1 : 1.2;
+    items.push([y, `<g class="bld" data-k="${k}" data-lv="${L}">${k === 'farm' || k === 'tower' || k === 'well' ? '' : poly(tileDiamond(x, y + 2, 54), shade(T.ground, -.14), 'opacity=".7"')}<g transform="translate(${x} ${y}) scale(${sc}) translate(${-x} ${-y})">${BUILDERS[k](x, y, T, tc, L)}</g>${off[k] ? fireOn(x, y) : ''}</g>`]);
   });
   items.sort((a, b) => a[0] - b[0]);
-  return g + items.map(x => x[1]).join('') + front.join('');
+  g += items.map(x => x[1]).join('');
+  // السور الأمامي والبوابة واسم القرية
+  g += `<g class="bld" data-k="wall" data-lv="${lv.wall || 0}">${wallRing(lv.wall || 0, RX, RY, 'front')}</g>` + gateSign(team.name || '', tc, lv.wall || 0);
+  if (P && P.lead) g += [[-150, 104], [150, 104], [-232, 10], [232, 10]].map(([x, y]) => torch(x, y)).join('');
+  if (opts.shield) g += `<ellipse class="shield" cx="0" cy="-20" rx="250" ry="148" fill="rgba(140,220,255,.08)" stroke="rgba(170,235,255,.8)" stroke-width="3"/><text x="215" y="-128" font-size="34" text-anchor="middle">🛡️</text>`;
+  return g;
 }
 function plotSVG(team, idx, cx, cy, opts = {}) { return `<g class="plot" data-t="${team.id}" transform="translate(${cx} ${cy}) scale(${VSC})">${villageArt(team, opts)}</g>`; }
 // قرية مستقلة (للجوال ولوحة المشرف)
-function villageSVG(team, levels, opts = {}) { return `<svg viewBox="-268 -200 536 340" class="vsvg" xmlns="http://www.w3.org/2000/svg"><rect x="-268" y="-200" width="536" height="340" fill="#4f8f45"/>${villageArt(team, { levels, labels: opts.labels })}</svg>`; }
+function villageSVG(team, levels, opts = {}) { return `<svg viewBox="-300 -235 600 410" class="vsvg" xmlns="http://www.w3.org/2000/svg"><rect x="-300" y="-235" width="600" height="410" fill="#4f8f45"/>${villageArt(team, Object.assign({ levels }, opts))}</svg>`; }
 
 // مبنى منفرد (لسوق البناء في الجوال)
 function buildingSVG(team, k, lv) { const T = D.THEMES[team.theme] || D.THEMES.agri; return `<svg viewBox="-85 -160 170 195" class="vsvg" xmlns="http://www.w3.org/2000/svg"><ellipse cx="0" cy="8" rx="78" ry="30" fill="${T.ground}"/>${BUILDERS[k](0, 0, T, team.color, lv)}</svg>`; }

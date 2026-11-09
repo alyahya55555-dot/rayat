@@ -68,12 +68,12 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure
 const scene = new THREE.Scene();
 const SEA = '#0e4a5e'; scene.background = new THREE.Color(SEA); scene.fog = new THREE.Fog(SEA, 20, 40);
 const camera = new THREE.PerspectiveCamera(30, 16 / 9, .1, 200);
-scene.add(new THREE.HemisphereLight('#dff0ff', '#6d5b3c', 1.15));
+scene.add(new THREE.HemisphereLight('#dff0ff', '#6d5b3c', .85));
 const sun = new THREE.DirectionalLight('#ffe9c9', 2.9); sun.position.set(-6, 11, 5); sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096); Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 8, bottom: -8, near: 1, far: 40 }); sun.shadow.bias = -.0005; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
 scene.add(sun, sun.target);
 const fill = new THREE.DirectionalLight('#a9d4ff', .55); fill.position.set(7, 5, -6); scene.add(fill);
-const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture; scene.environmentIntensity = .35;
+const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), .04).texture; scene.environmentIntensity = .22;
 const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { samples: 4, type: THREE.HalfFloatType }));
 composer.addPass(new RenderPass(scene, camera));
 composer.addPass(new OutputPass());
@@ -310,7 +310,7 @@ function rider(o, coat = 0, banner = false) {
   const horse = new THREE.Group(); g.add(horse);
   mesh(new THREE.CapsuleGeometry(.026, .07, 6, 14), H, [0, .085, 0], [Math.PI / 2, 0, 0], horse);          // الجسم
   const neck = new THREE.Group(); neck.position.set(0, .1, .045); horse.add(neck); mesh(cyl(.014, .019, .055, 12), H, [0, .022, .01], [.55, 0, 0], neck);
-  const head = new THREE.Group(); head.position.set(0, .048, .03); neck.add(head); mesh(new THREE.CapsuleGeometry(.011, .032, 4, 10), H, [0, 0, .012], [1.25, 0, 0], head);
+  const head = new THREE.Group(); head.position.set(0, .05, .035); neck.add(head); mesh(new THREE.CapsuleGeometry(.0105, .03, 4, 10), H, [0, -.008, .016], [2.05, 0, 0], head);
   mesh(new THREE.ConeGeometry(.004, .012, 6), H, [-.006, .015, -.004], null, head); mesh(new THREE.ConeGeometry(.004, .012, 6), H, [.006, .015, -.004], null, head);
   mesh(new THREE.BoxGeometry(.006, .05, .016), SM.hair, [0, .03, .0], [.55, 0, 0], neck);                       // العرف
   const tail = mesh(new THREE.ConeGeometry(.008, .06, 8), SM.hair, [0, .085, -.07], [-2.3, 0, 0], horse);
@@ -397,7 +397,7 @@ const banner = document.getElementById('banner');
 const setBanner = (k, html, col) => { document.getElementById('bk').textContent = k; document.getElementById('bt').innerHTML = html; banner.style.setProperty('--c', col); };
 let conquered = false;
 function applyT(t) {
-  U.uTime.value = t; placeArmy(t); updatePuffs(t); camAt(t);
+  U.uTime.value = t; placeArmy(t); updatePuffs(t); if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); } else camAt(t);
   oldFlag.lift = 1 - ease(seg(t, ...T.lower)); oldFlag.g.visible = t < T.lower[1] + .05;
   newFlag.g.visible = t >= T.raise[0]; newFlag.lift = ease(seg(t, ...T.raise)); waveFlags(t);
   const sp = ease(seg(t, ...T.spread)); teamU.uCR.value = sp > 0 && sp < 1 ? target.id : -1; teamU.uCFrom.value.set(TEAMS[D].color); teamU.uCTo.value.set(TEAMS[A].color); teamU.uCC.value.set(clashP[0], clashP[1]); teamU.uCRad.value = sp * 2.4;
@@ -414,6 +414,7 @@ window.R = {
     army.forEach(s => { const f = s.userData.flag; if (f) { f.cl.material.map = flagTexs[f.o]; f.cl.material.color.set('#fff'); f.cl.material.needsUpdate = true; } });
     makeLabels(); hud(); resize(innerWidth, innerHeight); return true; })(),
   renderAt(t) { applyT(t); renderer.render(scene, camera); }, resize, T, stats: () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles }),
+  armyPos: () => army.slice(0, 3).map(s => s.position.toArray()),
   info: () => ({ target: target.name, from: from.name, regions: M.regions.length, trees: treeSpots.pine.length + treeSpots.round.length })
 };
 if (!location.hash.includes('manual')) R.ready.then(() => { const t0 = performance.now(); const loop = () => { R.renderAt(((performance.now() - t0) / 1000) % (T.end + 3)); requestAnimationFrame(loop); }; loop(); });

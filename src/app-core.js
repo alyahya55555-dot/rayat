@@ -68,11 +68,11 @@ const SFX = {
         case 'wrong': this.rec('kill', 1); this.rec('debris', .5, .05); break;
         case 'open': this.noise(.35, .14, 0, 2500, .6); break;
         case 'reveal': this.noise(.45, .12, 0, 900, .5); break;
-        case 'lead': this.rec('boss', .6); this.rec('coin', .8, .2); break;
+        case 'lead': this.rec('impact', .6); this.rec('coin', .8, .2); break;
         case 'tick': this.rec('hammer-d', .35, 0, 1.6); break;
-        case 'timeup': this.rec('boss', .8); break;
+        case 'timeup': this.rec('door-close', .9); this.rec('wood-hit', .6, .08); break;
         case 'join': this.rec('step', .3); break;
-        case 'seg': this.rec('boss', .55); break;
+        case 'seg': this.rec('door-open', .9); this.rec('step', .35, .5); break;
         case 'treasure-in': this.rec('big_kill', .5); this.noise(1.2, .08, .1, 400, .3); break;
         case 'treasure': for (let i = 0; i < 6; i++) this.rec('coin', .5 + i * .05, i * .12, .9 + i * .05); break;
         case 'crack': this.rec('break', .9); this.rec('coin', .8, .2); break;

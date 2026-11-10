@@ -123,3 +123,8 @@ input,select,textarea{font-family:var(--fs)}
 @media (max-width:900px){.hst{grid-template-columns:1fr}.hst .side{max-height:none}}
 
 .banner .rows{display:flex;flex-direction:column;gap:4px;font-family:var(--fs);font-size:clamp(17px,1.35vw,22px);font-weight:700;text-align:start}.banner .rows em{font-style:normal;font-weight:500;color:var(--txt)}
+.mapctl{position:fixed;top:92px;left:24px;z-index:60;display:flex;gap:8px;align-items:center;opacity:.55;transition:opacity .3s}.mapctl:hover,.mapctl.alert{opacity:1}
+.mapctl .btn{font-size:14px;padding:8px 14px}.mapctl .ok{background:#1f9d55;color:#fff}.mapctl .no{background:#c43d5a;color:#fff}
+.mapctl .need{background:#f2c14e;color:#1b1b1b;border-radius:10px;padding:7px 12px;font-weight:700;font-size:14px;animation:needp 1.2s ease-in-out infinite}
+@keyframes needp{50%{opacity:.6}}
+#maplayer .statusbar{display:none}

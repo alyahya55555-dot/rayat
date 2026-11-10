@@ -42,17 +42,29 @@ const Host = {
   },
   // ---------- البث ----------
   changed() { if (!this.bq) this.bq = setTimeout(() => { this.bq = null; this.broadcast(); }, 40); if (!this.rq) this.rq = requestAnimationFrame(() => { this.rq = null; this.render(); }); if (!this.sq) this.sq = setTimeout(() => { this.sq = null; this.save(); }, 800); },
-  broadcast() { const P = this.g.pub(); if (this.fp) P.fp = this.fp; this.net.emit('state', P); },
+  broadcast() { const P = this.g.pub(); if (this.fp) P.fp = this.fp; this.net.emit('state', P); if (this.mapLayer) { try { Display.onState(JSON.parse(JSON.stringify(P))); } catch (e) { console.error(e); } this.renderMapCtl(); } },
   save() { try { LS.set('rayat.save', JSON.parse(this.g.save())); } catch (e) { } },
   // ---------- الواجهة ----------
   tickUI() { const el = $('#htm'); if (el) { const l = this.g.left(); el.textContent = this.g.s.deadline ? Math.ceil(l / 1000) + ' ث' : ''; } },
   renderSide() { const el = $('#hside'); if (!el) return; const g = this.g, s = g.s, P = g.pub(), l = this.net.label();
     el.innerHTML = `<div><h1 class="k">رايـات</h1><div class="mut">لوحة المشرف</div></div>
-      <div class="panel col"><div class="row" style="justify-content:space-between"><span>رمز الغرفة</span><b style="font-size:28px;letter-spacing:6px;direction:ltr">${esc(s.code)}</b></div><div class="mut" style="font-size:13px"><span class="dot ${l.cls}"></span> ${esc(l.t)}</div><button class="btn" id="opendsp">🖥️ افتح شاشة العرض</button></div>
+      <div class="panel col"><div class="row" style="justify-content:space-between"><span>رمز الغرفة</span><b style="font-size:28px;letter-spacing:6px;direction:ltr">${esc(s.code)}</b></div><div class="mut" style="font-size:13px"><span class="dot ${l.cls}"></span> ${esc(l.t)}</div><button class="btn pri" id="maphere">🗺️ اعرض الخريطة هنا</button><a class="btn" id="opendsp" href="${esc(this.dspLink())}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">🖥️ شاشة العرض في نافذة ثانية</a></div>
       ${g.S ? `<div class="panel col"><b>الفرق</b><div class="tlist">${P.teams.map((t, i) => `<div style="--tc:${t.color}"><span><b>${esc(t.name)}</b> · ${t.n} لاعب</span><span>${P.score[i]} أرض · 🌾${P.res[i].food} 💰${P.res[i].gold} 🪨${P.res[i].stone}</span></div>`).join('')}</div></div>` : ''}
       <div class="panel log"><b>السجل</b>${s.log.slice(-14).reverse().map(x => `<div>${esc(x.text)}</div>`).join('') || '<div>—</div>'}</div>`;
-    $('#opendsp').onclick = () => { const base = (pageBase() || ARTIFACT_URL || '').split('#')[0], link = base && !base.startsWith('%%') ? base + '#display-' + s.code : '#display-' + s.code; let w = null; try { w = window.open(link, 'rayat-display'); } catch (e) { }
-      if (!w) modal(`<div class="col"><h2>شاشة العرض</h2><div class="mut">افتح هذا الرابط في نافذة أخرى على حاسوب العرض (أو على أي جهاز متصل بالبروجكتور):</div><input class="in" readonly value="${esc(link)}" style="direction:ltr" id="dl"><div class="row"><button class="btn pri" id="dcopy">نسخ الرابط</button><button class="btn" data-close>إغلاق</button></div><div class="mut">أو أدخل رمز الغرفة <b>${esc(s.code)}</b> في شاشة العرض.</div></div>`, m => { $('#dcopy', m).onclick = () => { try { navigator.clipboard.writeText(link).then(() => toast('نُسخ الرابط')).catch(() => { $('#dl', m).select(); }); } catch (e) { $('#dl', m).select(); } }; }); }; },
+    $('#maphere').onclick = () => this.showMap(true); },
+  dspLink() { const base = (pageBase() || ARTIFACT_URL || '').split('#')[0]; return (base && !base.startsWith('%%') ? base : '') + '#display-' + this.g.s.code; },
+  // الخريطة في نفس النافذة: شاشة العرض كاملة فوق اللوحة، تأخذ الحالة مباشرة بلا شبكة
+  showMap(on) {
+    if (!this.mapLayer) { const L = document.createElement('div'); L.id = 'maplayer'; L.style.cssText = 'position:fixed;inset:0;z-index:400;background:#0b2230'; document.body.appendChild(L);
+      const box = document.createElement('div'); Display.init(this.g.s.code, { local: true, root: box }); L.appendChild(box);
+      const f = document.createElement('div'); f.className = 'mapctl'; f.id = 'mapctl'; L.appendChild(f); this.mapLayer = L; this.broadcast(); }
+    this.mapLayer.style.display = on ? 'block' : 'none'; this.mapOn = on; this.renderMapCtl();
+    if (on && Display.W) Display.W.resize(innerWidth, innerHeight); },
+  renderMapCtl() { const f = $('#mapctl'); if (!f || !this.mapOn) return; const st = this.g.s.stage, judge = st === 'judge' || (st === 'tie' && this.g.s.tie && this.g.s.tie.buzz);
+    const html = `${judge ? `<span class="need">مطلوب حكمك</span><button class="btn ok" data-mj="1">✓ صحيحة</button><button class="btn no" data-mj="0">✗ خاطئة</button>` : ''}<button class="btn" data-mback>⚙️ لوحة المشرف</button>`;
+    if (f.dataset.h === html) return; f.dataset.h = html; f.innerHTML = html; f.classList.toggle('alert', judge);
+    $$('[data-mj]', f).forEach(b => b.onclick = () => { const ok = b.dataset.mj === '1'; if (this.g.s.stage === 'judge') this.g.judge(ok); else if (this.g.tieJudge) this.g.tieJudge(ok); this.changed(); });
+    $('[data-mback]', f).onclick = () => this.showMap(false); },
   render() { this.renderSide(); const el = $('#hmain'); if (!el) return; const ae = document.activeElement; if (ae && el.contains(ae) && /INPUT|SELECT|TEXTAREA/.test(ae.tagName)) return; const g = this.g, s = g.s, html = s.stage === 'lobby' ? this.setupUI() : this.liveUI(); if (html === this.lastHtml) return; this.lastHtml = html; el.innerHTML = html; this.bind(); },
   setupUI() { const c = this.cfg, s = this.g.s, P = this.g.pub(), url = joinUrl(s.code, this.fp);
     return `<div class="panel col"><h2>إعداد المسابقة</h2>

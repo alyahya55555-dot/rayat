@@ -1,25 +1,29 @@
 /* رايات — شاشة العرض (البروجكتور): الجزيرة ثلاثية الأبعاد + طبقة نظيفة فوقها، عنصر رئيس واحد في كل لحظة */
 
 const Display = {
-  init(code) {
+  init(code, opt = {}) {
+    this.local = !!opt.local; this.root = opt.root || $('#app');
     this.code = code || LS.get('rayat.displayCode', '') || ''; this.P = null; this.W = null; this.lastEv = 0; this.visKey = ''; this.skipSeq = 0; this.endAt = 0; this.dur = 1; this.lastStage = ''; this.lastPhase = -1; this.playing = 0;
-    $('#app').innerHTML = `<canvas id="world"></canvas><div class="dsp" id="dsp"><div class="top"><div class="brand k">رايـــات<small>حرب السيطرة على الجزيرة</small></div><div class="phase" id="phase"></div></div><div class="dom" id="dom"></div><div class="card qcard hide" id="qcard"></div><div class="card banner hide" id="banner"></div><div class="card mid hide" id="mid"></div><div class="card lobby mid hide" id="lobby"></div><div class="sidelog" id="slog"></div></div><div class="statusbar" id="sbar"></div>`;
-    this.net = new Net('display');
-    this.net.on('state', P => this.onState(P));
-    this.net.on('caps', () => { if (this.code) this.join(this.code); });
-    this.net.on('status', () => this.badge());
-    this.net.init(); this.net.presence({ r: 'd' });
-    setInterval(() => this.net.heartbeat(), 3000);
+    this.root.innerHTML = `<canvas id="world"></canvas><div class="dsp" id="dsp"><div class="top"><div class="brand k">رايـــات<small>حرب السيطرة على الجزيرة</small></div><div class="phase" id="phase"></div></div><div class="dom" id="dom"></div><div class="card qcard hide" id="qcard"></div><div class="card banner hide" id="banner"></div><div class="card mid hide" id="mid"></div><div class="card lobby mid hide" id="lobby"></div><div class="sidelog" id="slog"></div></div><div class="statusbar" id="sbar"></div>`;
+    if (this.local) this.net = { label: () => ({ cls: 'on', t: 'العرض في نفس النافذة' }), heartbeat() { }, presence() { }, joinRoom() { } };
+    else {
+      this.net = new Net('display');
+      this.net.on('state', P => this.onState(P));
+      this.net.on('caps', () => { if (this.code) this.join(this.code); });
+      this.net.on('status', () => this.badge());
+      this.net.init(); this.net.presence({ r: 'd' });
+      setInterval(() => this.net.heartbeat(), 3000);
+    }
     this.overlay(); setInterval(() => this.tickUI(), 200);
     window.addEventListener('resize', () => this.W && this.W.resize(innerWidth, innerHeight));
-    setTimeout(() => { if (!this.P) this.askCode(); }, 4000);
+    if (!this.local) setTimeout(() => { if (!this.P) this.askCode(); }, 4000);
   },
   async join(code) { this.code = code; LS.set('rayat.displayCode', code); await this.net.joinRoom(code); this.net.presence({ r: 'd', c: code }); this.badge(); },
   overlay() { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(4,14,20,.7);cursor:pointer';
     o.innerHTML = '<div style="text-align:center"><div class="brand k" style="font-size:90px">رايـــات</div><div class="mut" style="margin-top:14px;font-size:20px">اضغط في أي مكان لتفعيل الصوت وملء الشاشة</div></div>';
-    o.onclick = () => { SFX.unlock(); setTimeout(() => SFX.ambient(), 800); try { document.documentElement.requestFullscreen().catch(() => { }); } catch (e) { } o.remove(); }; document.body.appendChild(o);
-    const sb = document.createElement('div'); sb.className = 'sndbox'; sb.innerHTML = `<button class="btn sm" id="sm">🔊</button><input type="range" id="sv" min="0" max="100" value="${Math.round(SFX.vol * 100)}">`; document.body.appendChild(sb);
-    $('#sm').onclick = () => { SFX.unlock(); SFX.on = !SFX.on; $('#sm').textContent = SFX.on ? '🔊' : '🔇'; }; $('#sv').oninput = e => { SFX.unlock(); SFX.setVol(+e.target.value / 100); }; },
+    o.onclick = () => { SFX.unlock(); setTimeout(() => SFX.ambient(), 800); try { document.documentElement.requestFullscreen().catch(() => { }); } catch (e) { } o.remove(); }; this.root.appendChild(o);
+    const sb = document.createElement('div'); sb.className = 'sndbox'; sb.innerHTML = `<button class="btn sm" id="sm">🔊</button><input type="range" id="sv" min="0" max="100" value="${Math.round(SFX.vol * 100)}">`; this.root.appendChild(sb);
+    $('#sm', this.root).onclick = () => { SFX.unlock(); SFX.on = !SFX.on; $('#sm').textContent = SFX.on ? '🔊' : '🔇'; }; $('#sv', this.root).oninput = e => { SFX.unlock(); SFX.setVol(+e.target.value / 100); }; },
   badge() { const b = $('#sbar'); if (b) { const l = this.net.label(); b.innerHTML = `<span class="dot ${l.cls}"></span> ${esc(l.t)}${this.code ? ' · ' + esc(this.code) : ''}`; } },
   askCode() { if ($('#askcode') || this.P) return; const d = document.createElement('div'); d.id = 'askcode'; d.className = 'modal-bg'; d.innerHTML = `<div class="modal col"><b>لم تصل حالة المسابقة بعد</b><div class="mut">إن كانت لوحة المشرف مفتوحة في المتصفح نفسه فستظهر تلقائيًا. على جهاز آخر أدخل رمز الغرفة:</div><div class="row"><input class="in" id="dcode" maxlength="4" inputmode="numeric" style="direction:ltr;text-align:center;letter-spacing:8px;font-size:24px"><button class="btn pri" id="dgo">ربط</button></div></div>`; document.body.appendChild(d); $('#dgo').onclick = () => { const c = $('#dcode').value.replace(/\D/g, ''); if (c.length === 4) { this.join(c); d.remove(); } }; },
   ensureWorld(P) {

@@ -1,14 +1,28 @@
 /* رايات — الأصوات: تسجيلات حقيقية مرخّصة فقط (المصادر في assets/sfx/SOURCE.txt)، بلا موسيقى ولا طبول ولا أصوات بشرية */
 const SFX_DATA = '%%SFX%%';
 const SFX = {
-  ctx: null, on: true, buf: {}, vol: .85,
-  setVol(v) { this.vol = Math.max(0, Math.min(1, v)); if (this.master) this.master.gain.value = this.vol; },
-  unlock() { try { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = this.vol; this.master.connect(this.ctx.destination); this.load(); } if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => { }); } catch (e) { } },
-  load() { if (typeof SFX_DATA !== 'object' || !SFX_DATA) return;
-    Object.entries(SFX_DATA).forEach(([k, b64]) => { try { const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); this.ctx.decodeAudioData(a.buffer).then(b => { this.buf[k] = b; }).catch(() => { }); } catch (e) { } }); },
-  ready() { return this.on && this.ctx && this.ctx.state === 'running'; },
-  rec(k, v = .9, at = 0, rate = 1) { const b = this.buf[k]; if (!b || !this.ready()) return null; const c = this.ctx, s = c.createBufferSource(), g = c.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = v; s.connect(g).connect(this.master); s.start(c.currentTime + Math.max(0, at)); return s; },
-  ambient() { if (!this.ready() || this.amb || !this.buf.nature) return; const s = this.rec('nature', .16); if (s) { s.loop = true; this.amb = s; } },
+  ctx: null, on: true, buf: {}, dec: {}, fail: [], live: new Set(), vol: .85, susp: false,
+  // الكتم على المخرج الرئيس: يشمل الخلفية المستمرة والأصوات الجارية والمجدولة معًا، ورفعه لا ينشئ خلفية ثانية
+  gainNow() { return this.on && !this.ext ? this.vol : 0; },
+  // كتم خارجي: خريطة المشرف المضمّنة تسكت إذا كانت مخفية أو وُجدت شاشة عرض مستقلة، فلا يتكرر الصوت العام من جهازين
+  setExt(v) { if (this.ext === !!v) return; this.ext = !!v; if (this.master) this.master.gain.value = this.gainNow(); },
+  setVol(v) { this.vol = Math.max(0, Math.min(1, v)); if (this.master) this.master.gain.value = this.gainNow(); },
+  setOn(v) { this.on = !!v; if (this.master) this.master.gain.value = this.gainNow(); },
+  unlock() { try { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = this.gainNow(); this.master.connect(this.ctx.destination); this.load(); } if (this.ctx.state === 'suspended' && !this.susp) this.ctx.resume().catch(() => { }); } catch (e) { this.fail.push('ctx: ' + (e && e.message)); } },
+  // فك ترميز كل العينات فور تفعيل الصوت؛ الفشل يُسجَّل في SFX.fail ويظهر في SFX.status()
+  load() { if (typeof SFX_DATA !== 'object' || !SFX_DATA) { this.fail.push('لا عينات مضمّنة'); return; }
+    Object.entries(SFX_DATA).forEach(([k, b64]) => { try { const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
+      this.dec[k] = this.ctx.decodeAudioData(a.buffer).then(b => { this.buf[k] = b; return b; }).catch(e => { this.fail.push(k); console.warn('رايات: تعذّر تحميل الصوت', k, e && e.message); return null; }); } catch (e) { this.fail.push(k); console.warn('رايات: تعذّر تحميل الصوت', k); } }); },
+  status() { return { total: typeof SFX_DATA === 'object' && SFX_DATA ? Object.keys(SFX_DATA).length : 0, loaded: Object.keys(this.buf).length, failed: this.fail.slice(), on: this.on, vol: this.vol, state: this.ctx ? this.ctx.state : 'none', playing: this.live.size, ambient: !!this.amb }; },
+  ready() { return !!this.ctx && (this.ctx.state === 'running' || this.susp); },
+  rec(k, v = .9, at = 0, rate = 1) { if (!this.ready()) return null; const c = this.ctx, b = this.buf[k];
+    if (!b) { const d = this.dec[k]; if (d) { const t0 = c.currentTime; d.then(bb => { if (!bb) return; const late = c.currentTime - t0; if (late < at + .35) this.rec(k, v, Math.max(0, at - late), rate); }); } else if (!this.fail.includes(k)) { this.fail.push(k); console.warn('رايات: عينة صوت غير موجودة', k); } return null; }
+    const s = c.createBufferSource(), g = c.createGain(); s.buffer = b; s.playbackRate.value = rate; g.gain.value = v; s.connect(g).connect(this.master); s.start(c.currentTime + Math.max(0, at)); this.live.add(s); s.onended = () => this.live.delete(s); if (this.hist) this.hist.push({ k, at: +(c.currentTime + Math.max(0, at)).toFixed(2) }); return s; },
+  ambient() { if (!this.ready() || this.amb) return; const start = () => { if (this.amb || !this.buf.nature) return; const s = this.rec('nature', .16); if (s) { s.loop = true; this.live.delete(s); this.amb = s; } }; if (this.buf.nature) start(); else if (this.dec.nature) this.dec.nature.then(start); },
+  // إيقاف كل الأصوات الجارية والمجدولة (عند التخطي) ما عدا الخلفية
+  stopAll() { this.live.forEach(s => { try { s.stop(); } catch (e) { } }); this.live.clear(); },
+  // الإيقاف المؤقت: يتجمد زمن الصوت مع زمن المشهد، فتبقى الأصوات المجدولة متزامنة عند الاستئناف
+  suspend(v) { if (!this.ctx || this.susp === !!v) return; this.susp = !!v; try { if (v) this.ctx.suspend(); else this.ctx.resume(); } catch (e) { } },
   // dur: مدة الصوت المتكرر (زحف أو التحام) بالثواني
   play(k, at = 0, dur = 0) { if (!this.ready()) return; const r = (a, b) => a + Math.random() * (b - a);
     try { switch (k) {

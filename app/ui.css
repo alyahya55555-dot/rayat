@@ -179,3 +179,7 @@ input,select,textarea{font-family:var(--fs)}
 .ribbon>div{flex:1 1 170px;max-width:240px;background:rgba(255,255,255,.06);border-radius:16px;padding:12px 14px;text-align:start;border-top:3px solid var(--gold);display:flex;flex-direction:column;gap:6px}
 .ribbon b{font-family:var(--fd);font-size:20px;color:var(--gold)}.ribbon span{font-size:14px;line-height:1.5;color:var(--txt);font-family:var(--ft)}
 @media (max-width:600px){.hst .main{padding:16px}.hst .side{padding:14px}.hst .row{flex-wrap:wrap}.hst .row>span[style*="width:110px"]{width:100%!important}.hst .mults{flex-wrap:wrap;min-width:0}.hst .mults button{min-width:52px}.hst .judge .btn{font-size:20px;padding:16px}.hst h1{font-size:32px}}
+.pausebar{background:rgba(242,193,78,.16);border:1px solid rgba(242,193,78,.5);border-radius:14px;padding:12px 14px;text-align:center;font-weight:700;font-size:15px}
+.ph.paused .box button,.ph.paused .buzz{opacity:.45;pointer-events:none}
+.plan{border-radius:14px;padding:10px 12px;font-size:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)}.plan.bad{border-color:var(--gold);background:rgba(242,193,78,.1)}.plan .w{margin-top:6px;color:var(--gold);font-weight:700;line-height:1.5}
+.dsp .pausetag{position:absolute;top:96px;left:50%;transform:translateX(-50%);background:rgba(242,193,78,.92);color:#21180a;border-radius:14px;padding:8px 20px;font-weight:700;font-size:18px;z-index:5}

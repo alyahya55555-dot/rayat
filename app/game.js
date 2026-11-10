@@ -24,9 +24,14 @@
     }
     // ---------- مساعدات ----------
     changed() { this.s.v++; this.onChange(); }
-    t() { return this.now(); }
+    // ساعة اللعب: تتجمد أثناء الإيقاف المؤقت، فتتجمد معها كل المؤقتات والمراحل
+    t() { const s = this.s, n = this.now(); if (!s) return n; return n - (s.pOff || 0) - (s.paused ? n - s.paused.at : 0); }
     setTimer(sec) { this.s.dur = sec * SEC; this.s.deadline = this.t() + sec * SEC; }
     left() { return Math.max(0, this.s.deadline - this.t()); }
+    // المشاهد: إن كانت شاشة عرض متصلة ينتظر المشرف إشارتها «انتهى المشهد» (بسقف زمني)، فلا يُقطع مشهد ولا يُسرَّع؛ وإلا فالمدة الاسمية
+    sceneTimer(d) { const wait = !!(this.hasDisplay && this.hasDisplay()); this.s.sceneNom = d; this.setTimer(wait ? d * 1.6 + 4 : d); }
+    ackKey() { const s = this.s; return ['scene', 'phase', 'harvest'].includes(s.stage) ? s.stage + ':' + (s.ev ? s.ev.id : 'c' + s.cycle) : null; }
+    sceneAck(key) { const s = this.s; if (s.paused || !key || key !== this.ackKey() || !s.deadline) return; if (s.stage === 'harvest' && this.s.dur - this.left() < 2500) { s.deadline = this.t() + 2500 - (s.dur - this.left()); this.changed(); return; } s.deadline = this.t(); this.tick(); }
     say(text, kind = 'info') { const s = this.s; s.log.push({ t: this.t(), text, kind }); if (s.log.length > 60) s.log.shift(); if (kind === 'big') { (s.chron = s.chron || []).push({ p: s.phase || 0, c: s.cycle || 0, text }); if (s.chron.length > 300) s.chron.shift(); } }
     // شريط الحرب: لكل مرحلة أبرز حدثين
     ribbon() { const P = RR().CFG.PHASES, ch = this.s.chron || []; return P.map((ph, i) => { const ev = ch.filter(x => x.p === i && !/^بدأت/.test(x.text)), key = ev.filter(x => /القلعة|ينقضون|ينهبون|عاصمة|يتوَّجون/.test(x.text)), pick = (key.length ? key : ev); return { name: ph.name, ev: [pick[0], pick.length > 1 ? pick[pick.length - 1] : null].filter(Boolean).map(x => x.text) }; }).filter(x => x.ev.length); }
@@ -62,7 +67,7 @@
     }
     enterPhase(i) { const s = this.s, P = RR().CFG.PHASES[i]; if (i > 0) RR().setPhase(this.S, i); s.phase = i; s.phaseStart = this.t();
       this.S.events.filter(e => e.t === 'unally' && e.phase === i).forEach(e => this.pushEv({ k: 'unally', a: e.a, b: e.b, betray: false }));
-      s.stage = 'phase'; s.ev = { id: ++s.evSeq, k: 'phase', key: P.key, name: P.name, unlock: P.unlock }; this.setTimer(DUR.scene.phase); this.say('بدأت مرحلة ' + P.name, 'big');
+      s.stage = 'phase'; s.ev = { id: ++s.evSeq, k: 'phase', key: P.key, name: P.name, unlock: P.unlock }; this.sceneTimer(DUR.scene.phase); this.say('بدأت مرحلة ' + P.name, 'big');
       if (P.key === 'crown') { s.vis = this.snapshot(); this.crown(); return; }
       this.changed(); }
     pushEv(e) { this.s.queue.push(e); }
@@ -96,10 +101,10 @@
       return O; }
     openOrders(teams) { const s = this.s; s.stage = 'orders'; s.orders = {}; s.sug = {}; s.ready = {}; s.orderTeams = teams; this.setTimer(DUR.orders); this.changed(); }
     // القائد يحدد أوامره (قائمة بطول عدد أوامره)
-    setOrders(pid, list) { const s = this.s, p = s.players[pid]; if (s.stage !== 'orders' || !p || this.captain(p.team) !== pid || !s.orderTeams.includes(p.team)) return;
+    setOrders(pid, list, cy) { const s = this.s, p = s.players[pid]; if (cy != null && cy !== s.cycle) return; if (s.stage !== 'orders' || !p || this.captain(p.team) !== pid || !s.orderTeams.includes(p.team)) return;
       const n = this.S.turn ? this.S.turn.left[p.team] : 0; s.orders[p.team] = (Array.isArray(list) ? list : []).slice(0, n).map(o => this.cleanOrder(o)).filter(Boolean); this.changed(); }
     cleanOrder(o) { if (!o || typeof o !== 'object') return null; const k = String(o.k || ''); const out = { k }; if (o.r != null) out.r = +o.r; if (o.res) out.res = String(o.res); if (o.unit) out.unit = String(o.unit); if (o.joint) out.joint = true; if (o.betray) out.betray = true; if (o.revenge) out.revenge = true; return out; }
-    setReady(pid) { const s = this.s, p = s.players[pid]; if (s.stage !== 'orders' || !p || this.captain(p.team) !== pid) return; s.ready[p.team] = true; this.changed(); if (s.orderTeams.every(t => s.ready[t] || !(this.S.turn.left[t] > 0))) this.execute(); }
+    setReady(pid, cy) { const s = this.s, p = s.players[pid]; if (cy != null && cy !== s.cycle) return; if (s.stage !== 'orders' || !p || this.captain(p.team) !== pid) return; s.ready[p.team] = true; this.changed(); if (s.orderTeams.every(t => s.ready[t] || !(this.S.turn.left[t] > 0))) this.execute(); }
     suggest(pid, o) { const s = this.s, p = s.players[pid]; if (s.stage !== 'orders' || !p) return; const c = this.cleanOrder(o); if (!c) return; (s.sug[p.team] = s.sug[p.team] || {})[pid] = c; this.changed(); }
     // التنفيذ: حسب ترتيب الدقة، وأي أمر صار غير ممكن يتحول إلى تموين
     execute() { const s = this.s, S = this.S; s.stage = 'exec'; const plan = [];
@@ -116,7 +121,8 @@
       const calm = [];
       while (s.plan.length) { const { t, o } = s.plan[0]; const L = RR().legal(S, t); let act = L.find(x => this.same(x, o));
         if (!act && o.k === 'attack') act = L.find(x => x.k === 'attack' && x.r === o.r && x.unit === o.unit && !!x.joint === !!o.joint);
-        if (!act) { act = { k: 'supply', res: this.lowRes(t) }; if (o.k !== 'supply') this.say(`${this.tn(t)}: تعذّر الأمر فصار تموينًا`, 'warn'); }
+        if (!act) { const c = RR().costOf(o), R = S.teams[t].res, short = Object.keys(c).filter(k => (R[k] || 0) < c[k]), taken = o.k === 'occupy' && o.r != null && S.regions[o.r] && S.regions[o.r].owner != null;
+          const why = short.length ? `لا يكفي ${short.map(k => RES_AR[k]).join(' و')}` : taken ? `سبقهم غيرهم إلى ${this.rn(o.r)}` : 'لم يعد ممكنًا'; act = { k: 'supply', res: this.lowRes(t) }; if (o.k !== 'supply') this.say(`${this.tn(t)}: تعذّر ${o.k === 'occupy' ? 'الاحتلال' : o.k === 'attack' ? 'الهجوم' : 'الأمر'} (${why}) فصار تموينًا`, 'warn'); }
         if (act.k === 'attack') { if (calm.length) break; s.plan.shift(); return this.beginDuel(t, act); }
         s.plan.shift(); RR().act(S, t, act); calm.push(this.calmEvent(t, act)); }
       if (calm.length) { this.showCalm(calm); return; }
@@ -135,9 +141,9 @@
     showCalm(list) { const s = this.s; const vis = list.filter(e => e.k !== 'supply');
       let d = DUR.scene.supply; if (vis.length === 1) d = DUR.scene[vis[0].k] || 6; else if (vis.length > 1) d = DUR.scene.batch; if (vis.some(e => e.naval)) d += DUR.scene.sail;
       s.ev = vis.length === 1 ? { id: ++s.evSeq, ...vis[0], list, one: vis[0] } : vis.length === 0 && list.length === 1 ? { id: ++s.evSeq, ...list[0], list } : { id: ++s.evSeq, k: 'batch', list, one: null };
-      if (s.ev.k === 'batch' && !vis.length) d = 3; s.stage = 'scene'; s.afterScene = 'next'; this.setTimer(d); this.changed(); }
+      if (s.ev.k === 'batch' && !vis.length) d = 3; s.stage = 'scene'; s.afterScene = 'next'; this.sceneTimer(d); this.changed(); }
     sceneDone() { const s = this.s; s.vis = this.snapshot();
-      if (s.queue.length) { const e = s.queue.shift(); s.ev = { id: ++s.evSeq, ...e }; s.stage = 'scene'; this.setTimer(DUR.scene[e.k] || 3); this.changed(); return; }
+      if (s.queue.length) { const e = s.queue.shift(); s.ev = { id: ++s.evSeq, ...e }; s.stage = 'scene'; this.sceneTimer(DUR.scene[e.k] || 3); this.changed(); return; }
       s.ev = null; const a = s.afterScene; s.afterScene = null;
       if (a === 'question') this.nextQuestion(); else if (a === 'harvestDone') this.afterHarvest(); else this.nextAction(); }
 
@@ -170,12 +176,12 @@
       const r = D.r, result = res.taken ? 'taken' : res.loot ? 'loot' : res.garrisonFell ? 'garrisonFell' : 'hold';
       this.say(result === 'taken' ? `${this.tn(D.a)} يفتحون ${this.rn(r)}` : result === 'loot' ? `${this.tn(D.a)} ينهبون عاصمة ${this.tn(D.d)}` : result === 'garrisonFell' ? `سقطت حامية ${this.rn(r)} وصمدت الأرض` : `${this.tn(D.d != null ? D.d : null)} يصدّون الهجوم على ${this.rn(r)}`, 'big');
       s.stage = 'scene'; const naval = this.seaTo(D.a, r, D.ally); s.ev = { id: ++s.evSeq, k: 'attack', a: D.a, d: D.d, ally: D.ally, r, unit: D.unit, result, from: D.from, loot: res.loot || null, cavLoot: res.cavLoot || 0, naval };
-      s.lastDuel = { a: D.a, d: D.d, r, result, pts: D.pts, kindAr: D.kindAr }; s.duel = null; s.afterScene = 'next'; this.setTimer(DUR.scene.attack + (naval ? DUR.scene.sail : 0));
+      s.lastDuel = { a: D.a, d: D.d, r, result, pts: D.pts, kindAr: D.kindAr }; s.duel = null; s.afterScene = 'next'; this.sceneTimer(DUR.scene.attack + (naval ? DUR.scene.sail : 0));
       // أحداث مؤجلة (خيط الحلف ينقطع) تُعرض بعد المشهد
       this.changed(); }
 
     // ---------- الحصاد والمراحل ----------
-    harvest() { const s = this.s; const h = RR().endCycle(this.S); s.harvest = h; s.vis = this.snapshot(); s.stage = 'harvest'; s.ev = null; this.setTimer(DUR.harvest); this.changed(); }
+    harvest() { const s = this.s; const h = RR().endCycle(this.S); s.harvest = h; s.vis = this.snapshot(); s.stage = 'harvest'; s.ev = null; this.sceneTimer(DUR.harvest); this.changed(); }
     afterHarvest() { const s = this.s, P = RR().CFG.PHASES, i = s.phase, el = (this.t() - s.phaseStart) / 60000;
       if (s.forcePhase || (el >= P[i].min && i < P.length - 1)) { s.forcePhase = false; this.enterPhase(i + 1); return; }
       this.nextQuestion(); }
@@ -185,7 +191,7 @@
     dip(pid, m) { const s = this.s, p = s.players[pid]; if (!p || this.captain(p.team) !== pid || !this.S || s.stage === 'lobby' || s.stage === 'crown') return; const t = p.team;
       try { if (m.k === 'offer') { RR().offer(this.S, t, +m.b); this.say(`${this.tn(t)} يعرضون التحالف على ${this.tn(+m.b)}`); }
         else if (m.k === 'accept') { const a = this.S.teams[t].offerFrom; if (RR().accept(this.S, t, !!m.yes) && a != null) { this.say(`تحالف بين ${this.tn(a)} و${this.tn(t)}`, 'big'); this.pushEv({ k: 'ally', a, b: t }); } }
-        else if (m.k === 'gift') { RR().gift(this.S, t, String(m.res), Math.max(1, Math.min(20, +m.n || 0))); this.say(`${this.tn(t)} يرسلون ${m.n} ${RES_AR[m.res]} لحليفهم`); }
+        else if (m.k === 'gift') { const amt = Math.max(1, Math.min(20, +m.amt || 3)); RR().gift(this.S, t, String(m.res), amt); this.say(`${this.tn(t)} يرسلون ${amt} ${RES_AR[m.res]} لحليفهم`); }
         else if (m.k === 'end') { RR().endQuiet(this.S, t); this.say(`${this.tn(t)} ينهون الحلف بهدوء`); }
       } catch (e) { return; } this.changed(); }
 
@@ -223,7 +229,7 @@
       } }
     // المشرف يتخطى المشهد/المؤقت الحالي
     skip() { const s = this.s; if (s.stage === 'scene' || s.stage === 'phase' || s.stage === 'harvest' || s.stage === 'reveal' || s.stage === 'point' || s.stage === 'predict') { s.deadline = this.t(); s.skipSeq = (s.skipSeq || 0) + 1; this.tick(); } else if (s.stage === 'question') this.reveal(); else if (s.stage === 'orders') this.execute(); }
-    pause(on) { const s = this.s; if (on && !s.paused) { s.paused = { left: this.left() }; s.deadline = 0; } else if (!on && s.paused) { this.setTimer(s.paused.left / 1000); s.dur = s.dur; s.paused = null; } this.changed(); }
+    pause(on) { const s = this.s, n = this.now(); if (on && !s.paused) { s.paused = { at: n, left: this.left() }; } else if (!on && s.paused) { s.pOff = (s.pOff || 0) + (n - s.paused.at); s.paused = null; } this.changed(); }
 
     // ---------- الحالة العامة (للعرض والجوالات) ----------
     pub() { const s = this.s, S = this.S, st = s.stage, hideA = ['question', 'buzz', 'judge', 'predict', 'gq', 'point', 'tie'].includes(st);
@@ -236,13 +242,13 @@
         P.phaseLeft = Math.max(0, RR().CFG.PHASES[S.phase].min * 60000 - (this.t() - s.phaseStart)); P.left = S.turn ? S.turn.left.slice() : null; P.nRegions = S.regions.length; }
       if (s.q && (st === 'question' || st === 'reveal')) P.q = { id: s.q.id, text: s.q.text, c: s.q.c, a: st === 'reveal' ? s.q.a : undefined, topic: s.q.topic, answered: Object.keys(s.answers).length, mine: null };
       if (st === 'question' || st === 'reveal') P.answered = Object.keys(s.answers);
-      if (st === 'reveal' && s.ans) P.ans = s.ans;
+      if (st === 'reveal' && s.ans) P.ans = { ...s.ans, by: Object.fromEntries(Object.entries(s.answers).map(([pid, a]) => [pid, a.c])) };
       if (st === 'orders') { P.orderTeams = s.orderTeams; P.opts = {}; s.orderTeams.forEach(t => { P.opts[t] = this.options(t); }); P.ready = s.ready; P.chosen = Object.fromEntries(Object.entries(s.orders).map(([t, l]) => [t, l.length])); P.sug = s.sug; P.ans = s.ans; }
       if (s.duel) { const D = s.duel; P.duel = { id: D.id, a: D.a, d: D.d, ally: D.ally, r: D.r, rn: S.regions[D.r].name, unit: D.unit, kind: D.kind, kindAr: D.kindAr, need: D.need, pts: D.pts, betray: D.betray, revenge: D.revenge, joint: D.joint, buzz: D.buzz, tried: D.tried, preds: Object.keys(D.preds).length, last: D.last,
         q: D.q ? { id: D.q.id, text: D.q.text, c: D.q.c } : null, gqN: Object.keys(D.gqAns).length };
         if (st === 'gq') P.q = { id: D.q.id, text: D.q.text, c: D.q.c, gq: true }; }
       if (s.lastDuel) P.lastDuel = s.lastDuel;
-      if (s.ev) P.ev = s.ev;
+      if (s.ev) P.ev = s.ev; P.ack = this.ackKey();
       if (st === 'harvest') P.harvest = s.harvest;
       if (s.bini) P.bini = s.bini;
       if (s.tie) P.tie = { teams: s.tie.teams, pts: s.tie.pts, buzz: s.tie.buzz, tried: s.tie.tried, q: s.tie.q ? { id: s.tie.q.id, text: s.tie.q.text, c: s.tie.q.c } : null };
@@ -254,6 +260,8 @@
     save() { return JSON.stringify({ s: this.s, S: this.S }); }
     load(json) { const o = JSON.parse(json); this.s = o.s; this.s.level = lv(this.s.level); this.S = o.S; if (this.S) this.M = G.RayatMap.build(this.s.teams.length, this.s.mapSeed); this.changed(); }
   }
+  // أثناء الإيقاف المؤقت لا يُقبل أي إجراء يغيّر مجرى اللعب (يُرفض في منطق اللعبة نفسه، لا في الأزرار فقط)
+  ['answer', 'setOrders', 'setReady', 'suggest', 'predict', 'buzz', 'judge', 'dip', 'tieBuzz', 'tieJudge', 'skip', 'biniStart', 'biniTimer', 'biniWinner', 'biniCancel'].forEach(k => { const f = RayatGame.prototype[k]; RayatGame.prototype[k] = function (...a) { if (this.s.paused) { this.refused = (this.refused || 0) + 1; return; } return f.apply(this, a); }; });
   RayatGame.DUR = DUR; RayatGame.LEVELS = LEVELS; RayatGame.RES_AR = RES_AR; RayatGame.UNIT_AR = UNIT_AR;
   G.RayatGame = RayatGame;
   if (typeof module !== 'undefined') module.exports = RayatGame;

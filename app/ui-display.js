@@ -15,6 +15,7 @@ const Display = {
       setInterval(() => this.net.heartbeat(), 3000);
     }
     this.overlay(); setInterval(() => this.tickUI(), 200);
+    document.addEventListener('visibilitychange', () => this.onVisible());
     window.addEventListener('resize', () => { if (this.W) this.W.resize(innerWidth, innerHeight); this.fit(); });
     if (!this.local) setTimeout(() => { if (!this.P) this.askCode(); }, 4000);
   },
@@ -23,7 +24,7 @@ const Display = {
     o.innerHTML = '<div style="text-align:center"><div class="brand k" style="font-size:90px">رايـــات</div><div class="mut" style="margin-top:14px;font-size:20px">اضغط في أي مكان لتفعيل الصوت وملء الشاشة</div></div>';
     o.onclick = () => { SFX.unlock(); setTimeout(() => SFX.ambient(), 800); try { document.documentElement.requestFullscreen().catch(() => { }); } catch (e) { } o.remove(); }; this.root.appendChild(o);
     const sb = document.createElement('div'); sb.className = 'sndbox'; sb.innerHTML = `<button class="btn sm" id="sm">🔊</button><input type="range" id="sv" min="0" max="100" value="${Math.round(SFX.vol * 100)}">`; this.root.appendChild(sb);
-    $('#sm', this.root).onclick = () => { SFX.unlock(); SFX.on = !SFX.on; $('#sm').textContent = SFX.on ? '🔊' : '🔇'; }; $('#sv', this.root).oninput = e => { SFX.unlock(); SFX.setVol(+e.target.value / 100); }; },
+    $('#sm', this.root).onclick = () => { SFX.unlock(); SFX.setOn(!SFX.on); $('#sm', this.root).textContent = SFX.on ? '🔊' : '🔇'; }; $('#sv', this.root).oninput = e => { SFX.unlock(); SFX.setVol(+e.target.value / 100); }; },
   badge() { const b = $('#sbar'); if (b) { const l = this.net.label(); b.innerHTML = `<span class="dot ${l.cls}"></span> ${esc(l.t)}${this.code ? ' · ' + esc(this.code) : ''}`; } },
   askCode() { if ($('#askcode') || this.P) return; const d = document.createElement('div'); d.id = 'askcode'; d.className = 'modal-bg'; d.innerHTML = `<div class="modal col"><b>لم تصل حالة المسابقة بعد</b><div class="mut">إن كانت لوحة المشرف مفتوحة في المتصفح نفسه فستظهر تلقائيًا. على جهاز آخر أدخل رمز الغرفة:</div><div class="row"><input class="in" id="dcode" maxlength="4" inputmode="numeric" style="direction:ltr;text-align:center;letter-spacing:8px;font-size:24px"><button class="btn pri" id="dgo">ربط</button></div></div>`; document.body.appendChild(d); $('#dgo').onclick = () => { const c = $('#dcode').value.replace(/\D/g, ''); if (c.length === 4) { this.join(c); d.remove(); } }; },
   ensureWorld(P) {
@@ -53,18 +54,23 @@ const Display = {
     const ask = $('#askcode'); if (ask) ask.remove();
     this.P = P; this.ensureWorld(P);
     if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d || 1; } else this.endAt = 0;
-    if (P.skipSeq !== this.skipSeq) { this.skipSeq = P.skipSeq; if (this.playing) this.W.skip(); }
+    if (P.skipSeq !== this.skipSeq) { this.skipSeq = P.skipSeq; if (this.playing) this.skipScene(); }
     // الأحداث: مشهد جديد يُشغَّل مرة واحدة
-    if (P.ev && P.ev.id !== this.lastEv) { this.lastEv = P.ev.id; this.enqueue(P.ev); }
+    if (P.ev && P.ev.id !== this.lastEv) { this.lastEv = P.ev.id; this.enqueue(Object.assign({ _ack: P.ack }, P.ev)); }
     else if (!P.ev && !this.playing && P.vis) this.syncVis(P.vis);
     if (P.stage !== this.lastStage) { this.onStage(P.stage, this.lastStage); this.lastStage = P.stage; }
     if (P.phase !== this.lastPhase && P.phaseKey) { if (this.lastPhase < 0) this.W.setSky(P.phaseKey, 0); this.lastPhase = P.phase; }
     this.render();
   },
+  skipScene() { if (this.W) this.W.skip(); SFX.stopAll(); },
   syncVis(vis) { const k = JSON.stringify(vis); if (k === this.visKey) return; this.visKey = k; this.W.setState(vis); },
   // المشاهد تُعرض واحدًا بعد الآخر؛ إن تراكمت يُسرَّع الجاري ليلحق
-  enqueue(ev) { (this.evq = this.evq || []).push(ev); if (this.playing) { this.W.skip(); return; } this.pump(); },
-  async pump() { while (this.evq && this.evq.length) { const ev = this.evq.shift(); await this.playEvent(ev); if (this.evq.length) this.W.skip(); } },
+  // المشاهد تُعرض واحدًا بعد الآخر بسرعتها الطبيعية، والمشرف ينتظر إشارة انتهائها؛ لا تسريع إلا بطلب المشرف (تخطٍّ) أو لحاقًا هادئًا إن تأخرت الشاشة
+  enqueue(ev) { (this.evq = this.evq || []).push(ev); if (!this.pumping) this.pump(); },
+  async pump() { this.pumping = true; try { while (this.evq && this.evq.length) { const ev = this.evq.shift(); if (this.W) this.W.speed = this.evq.length ? 1.5 : 1; await this.playEvent(ev); this.ack(ev._ack); } } finally { this.pumping = false; if (this.W) this.W.speed = 1; } },
+  ack(key) { if (!key) return; if (this.local) { try { Host.g.sceneAck(key); } catch (e) { } return; } this.ackSeq = (this.ackSeq || 0) + 1; this.net.presence({ sd: { n: Date.now() * 10 + (this.ackSeq % 10), k: key } }); },
+  // العودة من تبويب مخفي: يُهمل المتراكم وتُعرض الحالة الحالية مباشرة بلا تسارع مرئي
+  onVisible() { if (document.hidden || !this.W) return; if (this.evq && this.evq.length) this.evq.length = 0; if (this.playing) this.skipScene(); },
   async playEvent(ev) { const W = this.W, tn = this.P.teams; this.playing++; this.curEv = ev;
     try {
       if (ev.k === 'phase') { SFX.play('phase'); await W.phase({ key: ev.key }); }
@@ -78,7 +84,7 @@ const Display = {
       else if (ev.k === 'supply') SFX.play('harvest');
     } catch (e) { console.error(e); }
     this.playing--; this.curEv = null; if (!this.playing && this.P && this.P.vis && !this.P.ev) this.syncVis(this.P.vis); this.render(); },
-  onStage(st, prev) { if (['question', 'orders', 'predict', 'buzz', 'harvest', 'bini', 'tie'].includes(st) && !this.playing && this.W) this.W.overview(1.6); if (st === 'question') SFX.play('question'); if (st === 'reveal') SFX.play('reveal'); if (st === 'harvest') { SFX.play('harvest'); if (this.W && !this.playing && this.W.harvest) { this.playing++; this.W.harvest().finally(() => { this.playing--; }); } } if (st === 'judge') SFX.play('buzz'); if (st === 'crown') { SFX.play('crown'); this.W && this.W.setSky('crown', 6); } },
+  onStage(st, prev) { if (['question', 'orders', 'predict', 'buzz', 'harvest', 'bini', 'tie'].includes(st) && !this.playing && this.W) this.W.overview(1.6); if (st === 'question') SFX.play('question'); if (st === 'reveal') SFX.play('reveal'); if (st === 'harvest') { SFX.play('harvest'); if (this.W && !this.playing && this.W.harvest) { this.playing++; const hk = this.P && this.P.ack; this.W.harvest().finally(() => { this.playing--; this.ack(hk); }); } else { const hk = this.P && this.P.ack; setTimeout(() => this.ack(hk), 3200); } } if (st === 'judge') SFX.play('buzz'); if (st === 'crown') { SFX.play('crown'); this.W && this.W.setSky('crown', 6); } },
   // مناطق الواجهة الظاهرة تُبلَّغ للخريطة فلا يظهر اسم إقليم تحتها
   reserve() { if (!this.W || !this.root) return; const R = []; const add = el => { if (!el || el.classList.contains('hide') || !el.offsetParent && getComputedStyle(el).position !== 'fixed') return; const b = el.getBoundingClientRect(); if (b.width > 2 && b.height > 2) R.push({ x0: b.left, y0: b.top, x1: b.right, y1: b.bottom }); };
     $$('.dsp .brand, #phase, #dom, #qcard, #banner, #mid, #lobby, .sidelog > div', this.root).forEach(add); const mc = document.getElementById('mapctl'); if (mc && mc.offsetParent) add(mc); const sb = $('.sndbox', this.root); if (sb) add(sb); this.W.reserved = R; },
@@ -86,7 +92,7 @@ const Display = {
   placeCtl() { const mc = document.getElementById('mapctl'); if (!mc || !mc.offsetWidth) return; if (innerWidth <= 900 || innerHeight <= 520) { mc.style.top = ''; return; }
     const d = $('#dom', this.root), ph = $('#phase', this.root), db = d ? d.getBoundingClientRect() : null, pb = ph ? ph.getBoundingClientRect() : null; let top = 84;
     if (db && db.height > 2 && db.left < 24 + mc.offsetWidth + 10) top = Math.max(top, db.bottom + 12); if (pb && pb.height > 2) top = Math.max(top, pb.bottom + 10); const v = top + 'px'; if (mc.style.top !== v) mc.style.top = v; },
-  tickUI() { this.placeCtl(); if (this.P && this.P.stage === 'crown' && this.P.ribbon && (Math.floor(performance.now() / 12000) % 2 === 1) !== !!this.crownFlip) this.render(); this.reserve(); const t = $('#tbar'); if (t && this.endAt) { const left = Math.max(0, this.endAt - performance.now()); t.style.transform = `scaleX(${left / this.dur})`; } const pl = $('#plft'); if (pl && this.P && this.P.phaseLeft != null) pl.textContent = this.P.stage === 'lobby' || this.P.stage === 'crown' ? '' : 'باقي ' + Math.ceil(Math.max(0, this.P.phaseLeft - 0) / 60000) + ' د'; },
+  tickUI() { this.placeCtl(); { const P0 = this.P, on = !!(P0 && P0.paused); let pt = $('.pausetag', this.root); if (on && !pt) { pt = document.createElement('div'); pt.className = 'pausetag'; pt.textContent = '⏸ متوقفة مؤقتًا'; $('#dsp', this.root).appendChild(pt); } else if (!on && pt) pt.remove(); if (this.W) this.W.paused = on; if (on) { if (P0.tm) this.endAt = performance.now() + P0.tm.r; SFX.suspend && SFX.suspend(true); } else SFX.suspend && SFX.suspend(false); } if (this.P && this.P.stage === 'crown' && this.P.ribbon && (Math.floor(performance.now() / 12000) % 2 === 1) !== !!this.crownFlip) this.render(); this.reserve(); const t = $('#tbar'); if (t && this.endAt) { const left = Math.max(0, this.endAt - performance.now()); t.style.transform = `scaleX(${left / this.dur})`; } const pl = $('#plft'); if (pl && this.P && this.P.phaseLeft != null) pl.textContent = this.P.stage === 'lobby' || this.P.stage === 'crown' ? '' : 'باقي ' + Math.ceil(Math.max(0, this.P.phaseLeft - 0) / 60000) + ' د'; },
   show(id, html) { let changed = false; ['qcard', 'banner', 'mid', 'lobby'].forEach(k => { const el = $('#' + k); if (k === id) { if (html != null && el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; changed = true; } if (el.classList.contains('hide')) changed = true; el.classList.remove('hide'); } else el.classList.add('hide'); }); if (changed) this.fit(); },
   // كل بطاقة تُضبط لتسع الشاشة تحت الشريط العلوي: تُختصر ثم تُصغَّر بقدر الحاجة فقط، فلا تفيض ولا تغطي الأعلى
   fit() { const vw = innerWidth, vh = innerHeight; let top = 0; $$('.dsp .brand, #phase, #dom', this.root).forEach(e => { const b = e.getBoundingClientRect(); if (b.height > 2 && b.width > 2) top = Math.max(top, b.bottom); }); const mc = document.getElementById('mapctl'); if (mc && mc.offsetWidth) top = Math.max(top, mc.getBoundingClientRect().bottom);

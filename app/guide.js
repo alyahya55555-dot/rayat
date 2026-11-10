@@ -1,5 +1,13 @@
 /* رايات — المرشد: شرح قصير لكل خيار (يظهر أول مرة على الجوال، وسطرًا مع كل حدث على شاشة العرض) */
 const RES_AR = { food: 'طعام', gold: 'ذهب', stone: 'حجر' };
+// قيمة القلعة الكبرى من مصدر واحد (قواعد اللعبة): «بأربع أراضٍ»
+const CASTLE_N = () => (typeof RayatRules !== 'undefined' ? RayatRules.CFG.CASTLE_POINTS : 4);
+const CASTLE_AR = () => { const n = CASTLE_N(); return ({ 2: 'بأرضين', 3: 'بثلاث أراضٍ', 4: 'بأربع أراضٍ', 5: 'بخمس أراضٍ', 6: 'بست أراضٍ' })[n] || `بـ${n} أراضٍ`; };
+// فحص خطة القائد بترتيب التنفيذ: الرصيد المتوقع بعد كل أمر، وأي أمر لن يكفيه الرصيد (فيتحول إلى تموين)
+function planCheck(picks, res) { const R = { ...res }, steps = [], total = {}; let bad = 0;
+  picks.forEach(o => { const c = RayatRules.costOf(o), short = Object.keys(c).filter(k => (R[k] || 0) < c[k]); if (short.length) { bad++; steps.push({ o, ok: false, short }); return; }
+    Object.keys(c).forEach(k => { R[k] -= c[k]; total[k] = (total[k] || 0) + c[k]; }); if (o.k === 'supply') R[o.res] = (R[o.res] || 0) + RayatRules.CFG.SUPPLY; steps.push({ o, ok: true }); });
+  return { steps, after: R, total, bad }; }
 const costText = c => Object.entries(c || {}).filter(([, v]) => v).map(([k, v]) => `${v} ${RES_AR[k]}`).join(' + ') || 'مجانًا';
 const GUIDE = {
   occupy: { t: 'احتلال', i: '🚩', what: 'تأخذ أرضًا محايدة مجاورة لك بلا قتال، فتزيد أرضك ودخلك.', stop: 'لا شيء، لكن الأرض المحايدة تنفد سريعًا.' },
@@ -16,7 +24,7 @@ const GUIDE = {
   betray: { t: 'نقض الحلف', i: '💥', what: 'تضرب حليفك ضربة تتجاوز أسواره، وينتهي الحلف فورًا.', stop: 'يأخذ المغدور «ثأرًا»: هجماته عليكم مجانية ثلاث جولات.' },
   ally: { t: 'التحالف', i: '🤝', what: 'حليف واحد فقط. تتبادلان الموارد وتهاجمان معًا. والتحالفات كلها تسقط في المعركة الأخيرة.', stop: '—' },
   capital: { t: 'العاصمة', i: '🏰', what: 'لا تسقط أبدًا، لكن الهجوم الناجح عليها ينهب جزءًا من مخزونها، ثم تستريح جولتين.', stop: '—' },
-  castle: { t: 'القلعة الكبرى', i: '👑', what: 'تُحسب بأربع أراضٍ، وصاحبها يأخذ خراجًا ذهبيًا كل جولة. تُحسم بأفضل من ثلاثة.', stop: 'الفرسان لا تهاجمها، ومن يفتحها يأمن فيها جولتين.' }
+  castle: { t: 'القلعة الكبرى', i: '👑', what: `تُحسب ${CASTLE_AR()}، وصاحبها يأخذ خراجًا ذهبيًا كل جولة. تُحسم بأفضل من ثلاثة.`, stop: 'الفرسان لا تهاجمها، ومن يفتحها يأمن فيها جولتين.' }
 };
 // سطر الشرح على شاشة العرض لكل حدث
 function guideLine(ev, teams) { const tn = i => i == null ? '' : (teams[i] ? teams[i].name : '');

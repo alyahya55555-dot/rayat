@@ -18,12 +18,15 @@ const Host = {
     this.render();
   },
   binis() { return (window.RAYAT_BINIS || []).concat(this.custom); },
-  newGame(code) { const c = this.cfg; this.g = new RayatGame({ bank: window.RAYAT_BANK, binis: this.binis(), level: c.level, binisOn: c.binisOn, mapSeed: c.seed, code, teams: c.teams.slice(0, c.n).map(t => ({ name: t.name, color: t.color, mark: t.name.replace(/^ال/, '')[0] })) }); this.g.onChange = () => this.changed(); this.handled = {}; },
+  newGame(code) { const c = this.cfg; this.g = new RayatGame({ bank: window.RAYAT_BANK, binis: this.binis(), level: c.level, binisOn: c.binisOn, mapSeed: c.seed, code, teams: c.teams.slice(0, c.n).map(t => ({ name: t.name, color: t.color, mark: t.name.replace(/^ال/, '')[0] })) }); this.g.onChange = () => this.changed(); this.g.hasDisplay = () => this.hasDisplay(); this.handled = {}; },
   askResume(saved) { modal(`<div class="col"><h2>مسابقة محفوظة</h2><div class="mut">وُجدت مسابقة غير منتهية (الرمز ${esc(saved.s.code)}). تستأنفها؟</div><div class="row"><button class="btn pri" data-r>استئناف</button><button class="btn" data-close>مسابقة جديدة</button></div></div>`, (m, close) => { $('[data-r]', m).onclick = () => { close(); this.g.load(JSON.stringify(saved)); Object.values(this.g.s.players).forEach(p => p.online = false); this.net.joinRoom(this.g.s.code); this.changed(); }; }); },
   async onCaps() { await this.net.joinRoom(this.g.s.code); this.net.presence({ r: 'h', c: this.g.s.code }); this.renderSide(); },
   // ---------- الجوالات ----------
-  onPeers(ch) { [...ch.joined, ...ch.updated].filter(p => !p.sameTab && p.kind === 'viewer').forEach(p => this.onPres(p.peer, p.presence || {}, p.by)); ch.left.forEach(p => this.onLeave(p.peer)); this.display = ch.peers.filter(p => p.presence && p.presence.r === 'd').length; if (ch.joined.length) this.broadcast(); this.renderSide(); },
-  onBc(peer, pr, fp) { const isNew = !this.bcPeers.has(peer); this.bcPeers.set(peer, Date.now()); if (isNew) setTimeout(() => this.broadcast(), 50); if (pr.r === 'd') { this.bcDisplay = Date.now(); return; } this.onPres(peer, pr, fp || null); },
+  // إشارة شاشة العرض «انتهى المشهد»
+  dispAck(peer, pr) { const m = pr && pr.sd; if (!m || typeof m.n !== 'number') return; this.ackN = this.ackN || {}; if (m.n <= (this.ackN[peer] || 0)) return; this.ackN[peer] = m.n; this.g.sceneAck(m.k); },
+  hasDisplay() { return !!this.mapLayer || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000); },
+  onPeers(ch) { ch.peers.forEach(p => { if (p.presence && p.presence.r === 'd' && !p.sameTab) this.dispAck(p.peer, p.presence); }); [...ch.joined, ...ch.updated].filter(p => !p.sameTab && p.kind === 'viewer').forEach(p => this.onPres(p.peer, p.presence || {}, p.by)); ch.left.forEach(p => this.onLeave(p.peer)); this.display = ch.peers.filter(p => p.presence && p.presence.r === 'd').length; if (ch.joined.length) this.broadcast(); this.renderSide(); },
+  onBc(peer, pr, fp) { const isNew = !this.bcPeers.has(peer); this.bcPeers.set(peer, Date.now()); if (isNew) setTimeout(() => this.broadcast(), 50); if (pr.r === 'd') { this.bcDisplay = Date.now(); this.dispAck(peer, pr); return; } this.onPres(peer, pr, fp || null); },
   checkBc() { const now = Date.now(); this.bcPeers.forEach((t, peer) => { if (now - t > 12000) { this.bcPeers.delete(peer); this.onLeave(peer); } }); },
   onLeave(peer) { const pid = this.peerPid[peer]; if (pid) this.g.offline(pid); },
   onPres(peer, pr, by) { const g = this.g; if (pr.r !== 's' || !pr.pid || pr.c !== g.s.code) return; const pid = String(pr.pid).slice(0, 16);
@@ -32,9 +35,9 @@ const Host = {
     const h = this.handled[pid] = this.handled[pid] || {}, fresh = f => { const m = pr[f]; if (!m || typeof m.n !== 'number' || m.n <= (h[f] || 0)) return null; h[f] = m.n; return m; };
     let m;
     if ((m = fresh('an'))) g.answer(pid, m.q, m.c);
-    if ((m = fresh('ord'))) g.setOrders(pid, m.l);
+    if ((m = fresh('ord'))) g.setOrders(pid, m.l, m.cy);
     if ((m = fresh('sug'))) g.suggest(pid, m.o);
-    if ((m = fresh('rdy'))) g.setReady(pid);
+    if ((m = fresh('rdy'))) g.setReady(pid, m.cy);
     if ((m = fresh('pr'))) g.predict(pid, m.d, m.s);
     if ((m = fresh('bz'))) g.buzz(pid, m.d);
     if ((m = fresh('tb'))) g.tieBuzz(pid);
@@ -76,7 +79,7 @@ const Host = {
       const f = document.createElement('div'); f.className = 'mapctl'; f.id = 'mapctl'; L.appendChild(f); this.mapLayer = L; this.broadcast(); }
     this.mapLayer.style.display = on ? 'block' : 'none'; this.mapOn = on; this.renderMapCtl();
     if (on && Display.W) Display.W.resize(innerWidth, innerHeight); },
-  renderMapCtl() { const f = $('#mapctl'); if (!f || !this.mapOn) return; const st = this.g.s.stage, judge = st === 'judge' || (st === 'tie' && this.g.s.tie && this.g.s.tie.buzz);
+  renderMapCtl() { if (this.mapLayer) SFX.setExt(!this.mapOn || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000)); const f = $('#mapctl'); if (!f || !this.mapOn) return; const st = this.g.s.stage, judge = st === 'judge' || (st === 'tie' && this.g.s.tie && this.g.s.tie.buzz);
     const html = `${judge ? `<span class="need">مطلوب حكمك</span><button class="btn ok" data-mj="1">✓<span class="lbl"> صحيحة</span></button><button class="btn no" data-mj="0">✗<span class="lbl"> خاطئة</span></button>` : ''}<button class="btn" data-mback>⚙️<span class="lbl"> لوحة المشرف</span></button>`;
     if (f.dataset.h === html) return; f.dataset.h = html; f.innerHTML = html; f.classList.toggle('alert', judge);
     $$('[data-mj]', f).forEach(b => b.onclick = () => { const ok = b.dataset.mj === '1'; if (this.g.s.stage === 'judge') this.g.judge(ok); else if (this.g.tieJudge) this.g.tieJudge(ok); this.changed(); });

@@ -773,7 +773,7 @@
     // ---------- الإطار ----------
     W.time = 0; let last = null; W.listeners = {};
     W.on = (k, f) => { (W.listeners[k] = W.listeners[k] || []).push(f); }; W.emit = (k, v) => (W.listeners[k] || []).forEach(f => { try { f(v); } catch (e) { } });
-    W.step = (dt, draw = true) => { W.time += dt * (W.skipping ? 12 : W.speed); U.uTime.value = W.time;
+    W.step = (dt, draw = true) => { if (W.paused) dt = 0; W.time += dt * (W.skipping ? 12 : W.speed); U.uTime.value = W.time;
       for (let i = actors.length - 1; i >= 0; i--) { const a = actors[i]; let done = false; try { done = a.fn(W.time); } catch (e) { console.error(e); done = true; } if (done) { actors.splice(i, 1); a.res(); } }
       updatePuffs(W.time); if (draw) { waveFlags(W.time); updateSky(); updateCam(); declutter(dt); renderer.render(scene, camera); } else updateSky(); };
     W.resize = (w, h) => { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); if (!actors.length) { const o = overview(); camNow.pos.copy(o.pos); camNow.look.copy(o.look); cam = { from: o, to: o, t0: 0, d: .01 }; } };

@@ -229,8 +229,11 @@
   // نقطة في المواجهة الفاصلة (حكم المشرف): أول فريق يصل إلى نقطتين يُتوَّج
   function tiePoint(S, team) { const T = S.tie; if (!T) throw new Error('لا تعادل'); const i = T.teams.indexOf(team); if (i < 0) throw new Error('ليس من المتعادلين');
     T.pts[i]++; log(S, { t: 'tiePoint', team, pts: T.pts.slice() });
-    if (T.pts[i] >= 2) { S.tie = null; S.done = true; S.winner = team; log(S, { t: 'end', ranking: ranking(S), winner: team, tieBreak: true }); return team; } return null; }
-  function ranking(S) { return S.teams.map(T => ({ team: T.id, score: score(S, T.id) })).sort((a, b) => b.score - a.score || a.team - b.team); }
+    if (T.pts[i] >= 2) { S.tiePts = {}; T.teams.forEach((t, k) => { S.tiePts[t] = T.pts[k]; }); S.tie = null; S.done = true; S.winner = team; log(S, { t: 'end', ranking: ranking(S), winner: team, tieBreak: true }); return team; } return null; }
+  // الترتيب النهائي (مصدر واحد لكل الواجهات): الأكثر أرضًا؛ وعند التعادل: الفائز بالفاصلة أولًا، ثم الأكثر نقاطًا في الفاصلة، ثم الأكثر موارد، ثم ترتيب الإعداد
+  function ranking(S) { const tp = S.tiePts || {}, resSum = t => RES.reduce((a, k) => a + (S.teams[t].res[k] || 0), 0), win = t => (S.done && S.winner === t ? 1 : 0);
+    return S.teams.map(T => ({ team: T.id, score: score(S, T.id), tb: tp[T.id] != null ? tp[T.id] : null, win: !!win(T.id) }))
+      .sort((a, b) => b.score - a.score || win(b.team) - win(a.team) || (b.tb || 0) - (a.tb || 0) || resSum(b.team) - resSum(a.team) || a.team - b.team); }
 
   // ---------- الثوابت: تُفحص بعد كل خطوة في الاختبارات والمحاكاة ----------
   function check(S) {
@@ -248,6 +251,8 @@
     return err;
   }
 
-  G.RayatRules = { CFG, RES, setup, legal, attackOptions, startCycle, act, skip, point, predict, bonusOrders, endCycle, offer, accept, gift, endQuiet, breakAlliance, setPhase, tiePoint, ranking, score, check, clone, hop, unlocked, phaseKey, towerCover, reachable };
+  // كلفة الأمر على صاحبه (مصدر واحد للواجهات): الثأر مجاني، والمشترك نصفه
+  function costOf(o) { const C = CFG.COST; if (!o) return {}; if (o.k === 'supply') return {}; if (o.k === 'attack') { if (o.revenge) return {}; const c = C[o.unit || 'inf'] || {}; return o.joint ? half(c, true) : c; } return C[o.k] || {}; }
+  G.RayatRules = { costOf, CFG, RES, setup, legal, attackOptions, startCycle, act, skip, point, predict, bonusOrders, endCycle, offer, accept, gift, endQuiet, breakAlliance, setPhase, tiePoint, ranking, score, check, clone, hop, unlocked, phaseKey, towerCover, reachable };
   if (typeof module !== 'undefined') module.exports = G.RayatRules;
 })(typeof window !== 'undefined' ? window : globalThis);

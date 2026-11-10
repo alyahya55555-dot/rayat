@@ -109,7 +109,7 @@
       spr += `<g filter="url(#sh)">${sprite[r.type](x, y + (r.type === 'castle' ? 0 : 6), col)}</g>`;
       if (st.forts && st.forts.has(r.id) && r.type !== 'capital') spr += `<g filter="url(#sh)"><path d="M${f1(x + 34)},${f1(y - 18)} h26 v20 q0,16 -13,22 q-13,-6 -13,-22z" fill="#cfc6b0" stroke="#4d4333" stroke-width="2"/><path d="M${f1(x + 41)},${f1(y - 10)} h12 v8 q0,7 -6,10 q-6,-3 -6,-10z" fill="${col}"/></g>`;
       if (o2 >= 0) fl += `<g filter="url(#sh)">${flag(x - (r.type === 'castle' ? 0 : 18), y - (r.type === 'castle' ? 92 : r.type === 'capital' ? 38 : 4), col, T[o2].emb, r.type === 'capital' || r.type === 'castle')}</g>`;
-      const ny = y + (r.type === 'castle' ? 82 : 44), nm = r.type === 'capital' ? '👑 عاصمة ' + (o2 >= 0 ? T[o2].name : '') : r.name + (r.type === 'castle' ? ' ×5' : '');
+      const ny = y + (r.type === 'castle' ? 82 : 44), nm = r.type === 'capital' ? '👑 عاصمة ' + (o2 >= 0 ? T[o2].name : '') : r.name + (r.type === 'castle' ? ' ×' + ((G.RayatRules && G.RayatRules.CFG.CASTLE_POINTS) || 4) : '');
       lb += `<text x="${f1(x)}" y="${f1(ny)}" text-anchor="middle" font-size="${r.type === 'castle' ? 28 : r.land ? 17 : r.type === 'capital' ? 21 : 19}" font-weight="800" fill="#fff" stroke="rgba(20,24,20,.82)" stroke-width="5" paint-order="stroke" stroke-linejoin="round">${nm}</text>`;
     });
     s += spr;

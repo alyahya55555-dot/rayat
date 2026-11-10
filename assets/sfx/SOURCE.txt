@@ -5,8 +5,8 @@ Audio, CC0 1.0
   (https://kenney.nl/assets/rpg-audio), Sci-fi Sounds
   (https://kenney.nl/assets/sci-fi-sounds), Digital Audio
   (https://kenney.nl/assets/digital-audio).
-- "Battle Theme A" by cynicmusic, https://opengameart.org/content/battle-theme-a
-  (the page lists License(s): CC0; verified 2026-10-16).
+- (ملاحظة 2026-11-10: كان هنا سطر عن مقطع موسيقي "Battle Theme A". لا يوجد أي ملف منه في المستودع،
+  ولا تُستعمل أي موسيقى في المنصة. أُبقيت هذه الملاحظة للتوضيح فقط.)
 
 Kenney Starter Kits (MIT, © 2025 Kenney) — https://github.com/KenneyNL/Starter-Kit-City-Builder و Starter-Kit-3D-Platformer:
 hammer-a..d (placement)، debris (removal-a)، nature (ambience، أول 45 ثانية)، break.
@@ -37,3 +37,11 @@ https://creativecommons.org/licenses/by-sa/3.0/ — © Wildfire Games, http://ww
   w-hooves1/2    = actor/mounted/movement/mstep110/112.ogg   (وقع حوافر الخيل)
   w-march1/2     = actor/human/movement/hstep_dirt_MN_11/13.ogg (مشي جماعي على التراب)
   w-steps-grass  = actor/human/movement/Footsteps/Footstep_Grass_Walking.ogg
+
+مراجعة 2026-11-10 (رايات):
+- الحصر الكامل: node test/rayat.sfx.audit.js (المدة، المستوى، مؤشر النغمية، وأين تُستعمل كل عينة).
+- العينات القديمة بلا اسم أصلي موثّق (hit, land, step, coin, impact, kill, big_kill, boss, break): من حِزم Kenney (CC0) المذكورة أعلى الملف،
+  ولم يُسجَّل اسم الملف الأصلي لكل واحدة حين أضيفت.
+- غير مضمّنة في ملف رايات المبني (لا تُستعمل): boss (نغمتان متناوبتان تشبهان الجرس)، big_kill (دويّ منخفض طويل)، fire.
+  أُخرجت big_kill من صوت التتويج، وأزيلت الدقّات المنتظمة منه كي لا تشبه الطبول.
+- المراجعة هنا برمجية (طيف ومدة ومستوى) لا سمعية: لم يُستمع إلى العينات بأذن بشرية في هذه المراجعة.

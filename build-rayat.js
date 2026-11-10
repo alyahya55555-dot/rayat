@@ -3,7 +3,9 @@ const fs = require('fs'), path = require('path'), R = p => fs.readFileSync(path.
 const url = process.argv[2] || '%%ARTIFACT_URL%%';
 const fonts = [['TDisplay', 'thmanyahserifdisplay', [['Bold', 700], ['Black', 900]]], ['TText', 'thmanyahseriftext', [['Regular', 400], ['Bold', 700]]], ['TSans', 'thmanyahsans', [['Regular', 400], ['Medium', 500], ['Bold', 700], ['Black', 900]]]]
   .flatMap(([fam, dir, ws]) => ws.map(([w, n]) => `@font-face{font-family:'${fam}';src:url(data:font/woff2;base64,${fs.readFileSync(path.join(__dirname, 'fonts', dir, 'woff2', dir + '-' + w + '.woff2')).toString('base64')}) format('woff2');font-weight:${n};font-display:block}`)).join('\n');
-const sfx = {}; fs.readdirSync(path.join(__dirname, 'assets/sfx')).filter(f => f.endsWith('.mp3')).forEach(f => { sfx[f.replace('.mp3', '')] = fs.readFileSync(path.join(__dirname, 'assets/sfx', f)).toString('base64'); });
+// تُضمَّن العينات المستعملة فعلًا في sfx.js فقط (غير المستعملة تبقى في المستودع ولا تُحمَّل)
+const sfxUsed = new Set((fs.readFileSync(path.join(__dirname, 'app/sfx.js'), 'utf8').match(/'[\w-]+'/g) || []).map(x => x.slice(1, -1)));
+const sfx = {}; fs.readdirSync(path.join(__dirname, 'assets/sfx')).filter(f => f.endsWith('.mp3') && sfxUsed.has(f.replace('.mp3', ''))).forEach(f => { sfx[f.replace('.mp3', '')] = fs.readFileSync(path.join(__dirname, 'assets/sfx', f)).toString('base64'); });
 const libs = [R('vendor/package/qrcode.js'), R('vendor/paho/package/paho-mqtt-min.js'), R('proto/rayat-map.js'), R('game/rules.js'), R('app/bank-more.js'), R('app/data.js'), R('app/game.js'), R('app/world.js')].join('\n;\n');
 let app = ['app/net.js', 'app/sfx.js', 'app/guide.js', 'app/ui-display.js', 'app/ui-phone.js', 'app/ui-host.js', 'app/main.js'].map(R).join('\n;\n');
 app = app.replace("'%%ARTIFACT_URL%%'", JSON.stringify(url)).replace("'%%SFX%%'", JSON.stringify(sfx));

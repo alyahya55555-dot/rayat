@@ -15,8 +15,8 @@ const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURICom
     const p = await b.newPage({ viewport: { width: Wd, height: Hd } }); p.on('pageerror', e => console.log('ERR', e.message));
     await p.goto('http://localhost:8563/app/explainer.html'); await p.waitForFunction(() => window.READY, null, { timeout: 120000 }); await p.evaluate(() => READY);
     const t0 = await p.evaluate(() => { const t = W.time; SEQ(); return t; }); let i = 0;
-    while (i < 160 * FPS) { const done = await p.evaluate(() => { W.step(1 / 30); tick(); return !!window.SEQ_DONE; }); await p.waitForTimeout(0);
-      if (!PRE || PRE.includes(i)) await p.screenshot({ path: path.join(FR, String(i).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92 }); i++; if (i % 150 === 0) console.log('frame', i); if (done) break; }
+    while (i < 160 * FPS) { const draw = !PRE || PRE.includes(i), done = await p.evaluate(d => { W.step(1 / 30, d); tick(); return !!window.SEQ_DONE; }, draw); await p.waitForTimeout(0);
+      if (!PRE || PRE.includes(i)) await p.screenshot({ path: path.join(FR, String(i).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92, timeout: 180000 }); i++; if (i % 150 === 0) console.log('frame', i); if (done) break; }
     log = (await p.evaluate(() => SFX_LOG)).map(e => ({ ...e, t: e.t - t0 })); dur = i / FPS; fs.writeFileSync(path.join(OUT, 'explainer.json'), JSON.stringify({ log, dur }));
     await b.close(); if (PRE) { console.log('preview done', dur); process.exit(0); }
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', path.join(FR, '%05d.jpg'), '-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', path.join(OUT, 'explainer.video.tmp.mp4')]);

@@ -3,5 +3,15 @@
   "1024x768": [
    "تراكب: dom × mapctl"
   ]
+ },
+ "judge": {
+  "1024x768": [
+   "تراكب: dom × mapctl"
+  ]
+ },
+ "scene-occupy": {
+  "1024x768": [
+   "تراكب: dom × mapctl"
+  ]
  }
 }

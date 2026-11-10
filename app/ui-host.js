@@ -27,7 +27,7 @@ const Host = {
   hasDisplay() { return !!this.mapLayer || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000); },
   onPeers(ch) { ch.peers.forEach(p => { if (p.presence && p.presence.r === 'd' && !p.sameTab) this.dispAck(p.peer, p.presence); }); [...ch.joined, ...ch.updated].filter(p => !p.sameTab && p.kind === 'viewer').forEach(p => this.onPres(p.peer, p.presence || {}, p.by)); ch.left.forEach(p => this.onLeave(p.peer)); this.display = ch.peers.filter(p => p.presence && p.presence.r === 'd').length; if (ch.joined.length) this.broadcast(); this.renderSide(); },
   onBc(peer, pr, fp) { const isNew = !this.bcPeers.has(peer); this.bcPeers.set(peer, Date.now()); if (isNew) setTimeout(() => this.broadcast(), 50); if (pr.r === 'd') { this.bcDisplay = Date.now(); this.dispAck(peer, pr); return; } this.onPres(peer, pr, fp || null); },
-  checkBc() { const now = Date.now(); this.bcPeers.forEach((t, peer) => { if (now - t > 12000) { this.bcPeers.delete(peer); this.onLeave(peer); } }); },
+  checkBc() { this.renderSide(); const now = Date.now(); this.bcPeers.forEach((t, peer) => { if (now - t > 12000) { this.bcPeers.delete(peer); this.onLeave(peer); } }); },
   onLeave(peer) { const pid = this.peerPid[peer]; if (pid) this.g.offline(pid); },
   onPres(peer, pr, by) { const g = this.g; if (pr.r !== 's' || !pr.pid || pr.c !== g.s.code) return; const pid = String(pr.pid).slice(0, 16);
     if (this.byPid[pid] && by && this.byPid[pid] !== by) return; if (by) this.byPid[pid] = by; this.peerPid[peer] = pid;

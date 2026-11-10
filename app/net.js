@@ -110,7 +110,7 @@ class Net {
     
   }
   label() {
-    if (this.mq) { const l = this.mq.label(); if (l.cls !== 'on' && this.bc) l.t += ' — القناة المحلية تعمل'; return l; }
+    if (this.mq) { const l = this.mq.label(); if (l.cls !== 'on' && this.bc) l.t += ' — نوافذ هذا المتصفح فقط متصلة ببعضها'; return l; }
     if (this.named && this.connected) return { cls: 'on', t: 'متصل لحظيًا عبر غرفة Claude' };
     if (this.named && !this.connected) return { cls: 'warn', t: 'جارٍ الاتصال بغرفة Claude…' };
     if (this.room && this.err) return { cls: 'off', t: 'تعذّر الاتصال بالغرفة (' + this.err + ')' + (this.bc ? ' — القناة المحلية تعمل' : '') };
@@ -260,7 +260,12 @@ class Mq {
   label() {
     const up = this.upCount();
     if (this.failed === 'no-lib') return { cls: 'off', t: 'مكتبة البث لم تُحمَّل' };
-    if (this.multi) return up ? { cls: 'on', t: `متصل بالإنترنت عبر ${up} من ${BROKERS.length} خوادم بث` } : { cls: 'warn', t: 'جارٍ الاتصال بخوادم البث…' };
+    // حالة صادقة: متصل / يعيد المحاولة منذ كذا / متعذر (مع السبب المرجّح)
+    if (this.multi) { if (up) { this.downAt = 0; this.everUp = true; return { cls: 'on', t: `متصل بالإنترنت عبر ${up} من ${BROKERS.length} خوادم بث` }; }
+      if (!this.downAt) this.downAt = Date.now(); const sec = Math.round((Date.now() - this.downAt) / 1000);
+      if (typeof IN_CLAUDE !== 'undefined' && IN_CLAUDE && sec > 8) return { cls: 'off', t: 'لا اتصال بأجهزة أخرى من صفحة Claude هذه (استعمل الرابط الثابت)' };
+      if (sec > 20) return { cls: 'off', t: this.everUp ? `انقطع الاتصال بخوادم البث منذ ${sec} ث، وتُعاد المحاولة` : 'تعذّر الاتصال بخوادم البث (تحقق من الإنترنت)، وتُعاد المحاولة' };
+      return { cls: 'warn', t: this.everUp ? 'انقطع الاتصال، جارٍ إعادة المحاولة…' : 'جارٍ الاتصال بخوادم البث…' }; }
     return up ? { cls: 'on', t: 'متصل عبر ' + (this.active ? this.active.b.n : 'الإنترنت') } : { cls: 'warn', t: 'جارٍ الاتصال…' };
   }
 }

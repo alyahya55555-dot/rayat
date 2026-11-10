@@ -15,7 +15,7 @@ const Phone = {
   pres() { this.net.presence({ r: 's', c: this.code, pid: this.pid, nm: this.me.nm || null, tw: this.me.tw ?? null }); },
   send(f, d) { this.n++; this.SS.set('rayat.n', this.n); this.net.presence({ [f]: Object.assign({ n: this.n }, d) }); },
   onState(P) { if (!P || (this.code && P.code !== this.code)) return; if (!this.code) this.code = P.code; if (this.P && P.v < this.P.v) return;
-    const prev = this.P; this.P = P; if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d; } else this.endAt = 0;
+    const prev = this.P; this.P = P; this.lastState = performance.now(); if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d; } else this.endAt = 0;
     if (P.mapSeed != null && (!this.M || this.mkey !== P.teams.length + ':' + P.mapSeed)) { this.mkey = P.teams.length + ':' + P.mapSeed; this.M = RayatMap.build(P.teams.length, P.mapSeed); }
     const t = this.myTeam(); if (prev && prev.stage !== P.stage) { this.local = {}; if (P.stage === 'orders') this.picks = []; this.tab = null;
       if (P.stage === 'predict' && P.duel && (P.duel.d === t || P.duel.a === t)) this.buzzV([120, 60, 120]);
@@ -27,7 +27,9 @@ const Phone = {
   myTeam() { const p = this.P && this.P.players[this.pid]; return p ? p.t : null; },
   isCap() { const t = this.myTeam(); return t != null && this.P.teams[t].cap === this.pid; },
   rn(r) { return this.M ? this.M.regions[r].name : 'إقليم ' + r; },
-  tick() { const el = $('#ptm'); if (el && this.P && this.P.paused) { el.textContent = this.P.tm ? '⏸ ' + Math.ceil(this.P.tm.r / 1000) + ' ث' : '⏸'; return; } if (el && this.endAt) { const s = Math.ceil(Math.max(0, this.endAt - performance.now()) / 1000); el.textContent = s + ' ث'; } },
+  tick() { // انقطاع الاتصال بالمشرف: المشرف يبث كل 2.5 ثانية، فغياب البث 9 ثوانٍ يعني انقطاعًا
+    { const off = !!(this.P && this.lastState && performance.now() - this.lastState > 9000); let ob = document.getElementById('offbar'); if (off && !ob) { ob = document.createElement('div'); ob.id = 'offbar'; ob.className = 'offbar'; ob.textContent = 'انقطع الاتصال بالمشرف… تُعاد المحاولة تلقائيًا'; document.body.appendChild(ob); } else if (!off && ob) ob.remove(); }
+    const el = $('#ptm'); if (el && this.P && this.P.paused) { el.textContent = this.P.tm ? '⏸ ' + Math.ceil(this.P.tm.r / 1000) + ' ث' : '⏸'; return; } if (el && this.endAt) { const s = Math.ceil(Math.max(0, this.endAt - performance.now()) / 1000); el.textContent = s + ' ث'; } },
   header() { const P = this.P, t = this.myTeam(), T = P && t != null ? P.teams[t] : null;
     return `<div class="hd"><div class="nm k">رايـات</div>${T ? `<span class="badge" style="--tc:${T.color}">${esc(T.name)}${this.isCap() ? ' · القائد 👑' : ''}</span>` : ''}<span class="tm" id="ptm"></span></div>`; },
   resBox() { const P = this.P, t = this.myTeam(); if (!P || !P.res || t == null) return ''; const R = P.res[t];

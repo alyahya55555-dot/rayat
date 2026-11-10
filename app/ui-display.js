@@ -46,7 +46,7 @@ const Display = {
     W.setState = vis => { W.owner = vis.regions.map(r => r.owner); W.forts = vis.regions.filter(r => r.walls).map(r => r.id); draw(); };
     W.attack = async e => { await later(1800); if (e.result === 'taken') W.owner[e.r] = e.a; draw(); await later(1500); };
     W.occupy = async e => { await later(800); W.owner[e.r] = e.team; draw(); await later(1200); };
-    W.build = W.capital = W.ally = W.unally = W.phase = W.harvest = async () => later(1500); W.batch = async list => { list.forEach(e => { if (e.k === 'occupy') W.owner[e.r] = e.team; }); draw(); await later(2000); };
+    W.build = W.capital = W.ally = W.unally = W.harvest = async () => later(1500); W.phase = async () => later(4200); W.batch = async list => { list.forEach(e => { if (e.k === 'occupy') W.owner[e.r] = e.team; }); draw(); await later(2000); };
     draw(); return W; },
   onState(P) {
     if (!P || !P.teams) return; if (this.code && P.code !== this.code && this.P) return; if (!this.code && P.code) this.join(P.code);
@@ -58,6 +58,9 @@ const Display = {
     // الأحداث: مشهد جديد يُشغَّل مرة واحدة
     if (P.ev && P.ev.id !== this.lastEv) { this.lastEv = P.ev.id; this.enqueue(Object.assign({ _ack: P.ack }, P.ev)); }
     else if (!P.ev && !this.playing && P.vis) this.syncVis(P.vis);
+    // نتيجة التحكيم: صوت الصواب أو الخطأ عند خروجنا من مرحلة التحكيم
+    if (this.lastStage === 'judge' && P.stage !== 'judge') { const b = this.judgeBuzz, D = P.duel || P.lastDuel, pts = D && D.pts ? D.pts : null; if (b && pts && this.judgePts) SFX.play(pts[b.side] > this.judgePts[b.side] ? 'right' : 'wrong'); }
+    if (P.stage === 'judge' && P.duel && P.duel.buzz) { this.judgeBuzz = P.duel.buzz; this.judgePts = { ...P.duel.pts }; }
     if (P.stage !== this.lastStage) { this.onStage(P.stage, this.lastStage); this.lastStage = P.stage; }
     if (P.phase !== this.lastPhase && P.phaseKey) { if (this.lastPhase < 0) this.W.setSky(P.phaseKey, 0); this.lastPhase = P.phase; }
     this.render();

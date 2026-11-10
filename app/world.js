@@ -636,7 +636,7 @@
       // منجنيق: قذيفة على الأسوار قبل الالتحام
       const catU = units.find(u => u.userData.kind === 'cat'), shot = catU ? { t: T.clash[0] - .9, from: null, to: V(cross[0] + dir[0] * .25, groundY(cross[0] + dir[0] * .25, cross[1] + dir[1] * .25) + .05, cross[1] + dir[1] * .25) } : null;
       let stone = null; if (shot) { stone = new THREE.Mesh(sph(.012, 10, 8), mat('#8d8574')); stone.visible = false; scene.add(stone); W.emit('sfx', { k: 'catapult', at: shot.t }); }
-      let flagNew = null, looted = false, camMoved = false, oldFlag = I.flag, carry = null; const SPa = spreadSlot();
+      let flagNew = null, looted = false, camMoved = false, oldFlag = I.flag, carry = null; if (!won) W.emit('sfx', { k: 'hold', at: T.res[0] }); else if (taken && I.fort) W.emit('sfx', { k: 'fall', at: T.res[0] + .6 }); const SPa = spreadSlot();
       await run((t) => { const lt = t - tw;
         const k = ease(seg(lt, ...T.march)), retreat = !won && lt > T.res[0], rk = ease(seg(lt, T.res[0], T.res[1] + .4));
         const s = retreat ? lerp(s1, s1 - .55, rk) : lerp(nav ? 0 : s0, s1, k);
@@ -692,7 +692,7 @@
       const units = [soldier(team), cart(team), soldier(team)]; const colLen = .2;
       const o2 = nav ? nav.t1 - .2 : 0, tw = W.time, T = { walk: [.8 + o2, 3.6 + o2], plant: [3.6 + o2, 4.6 + o2], spread: [4.4 + o2, 6.2 + o2], end: 7.2 + o2 };
       let ship = null; if (nav) { ship = warship(team, 2); const p0 = nav.route.getPointAt(0); ship.position.set(p0.x, .02, p0.z); W.emit('sfx', { k: 'sail', at: nav.t0, dur: nav.t1 - nav.t0 }); }
-      if (!wide) { labelsOpacity(0, r); if (nav) { const mp = nav.route.getPointAt(.6); camTo(nearView(V((mp.x + goal[0]) / 2, 0, (mp.z + goal[1]) / 2), 3.6, 2.8), 1.2); } else camTo(sideView(V(goal[0], groundY(...goal), goal[1]).lerp(V(cross[0], 0, cross[1]), .4), dir, 2.6, 2.6), 1.2); } W.emit('sfx', { k: 'settle', at: T.walk[0] });
+      if (!wide) { labelsOpacity(0, r); if (nav) { const mp = nav.route.getPointAt(.6); camTo(nearView(V((mp.x + goal[0]) / 2, 0, (mp.z + goal[1]) / 2), 3.6, 2.8), 1.2); } else camTo(sideView(V(goal[0], groundY(...goal), goal[1]).lerp(V(cross[0], 0, cross[1]), .4), dir, 2.6, 2.6), 1.2); } W.emit('sfx', { k: 'settle', at: T.walk[0] }); W.emit('sfx', { k: 'raise', at: T.plant[0] + .2 });
       const f = placeFlag(r, team, 0); f.pole = .001;
       await run(t => { const lt = t - tw, k = ease(seg(lt, ...T.walk)); placeColumn(units, crv, len, lerp(nav ? 0 : colLen + .01, len - .04, k), k > 0 && k < 1, lt, false, !!nav);
         if (ship) { const q = ease(seg(lt, nav.t0, nav.t1)), p = nav.route.getPointAt(q), tg = nav.route.getTangentAt(clamp(q, .001, .999)); ship.position.set(p.x, .02 + Math.sin(lt * 3) * .004, p.z); if (q < 1) ship.rotation.y = -Math.atan2(tg.z, tg.x); ship.userData.crew.forEach((m, i) => { m.visible = lt < T.walk[0] + .1 + i * .25; }); }

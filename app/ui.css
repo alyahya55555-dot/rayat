@@ -183,3 +183,4 @@ input,select,textarea{font-family:var(--fs)}
 .ph.paused .box button,.ph.paused .buzz{opacity:.45;pointer-events:none}
 .plan{border-radius:14px;padding:10px 12px;font-size:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)}.plan.bad{border-color:var(--gold);background:rgba(242,193,78,.1)}.plan .w{margin-top:6px;color:var(--gold);font-weight:700;line-height:1.5}
 .dsp .pausetag{position:absolute;top:96px;left:50%;transform:translateX(-50%);background:rgba(242,193,78,.92);color:#21180a;border-radius:14px;padding:8px 20px;font-weight:700;font-size:18px;z-index:5}
+.offbar{position:fixed;top:0;left:0;right:0;z-index:950;background:#b83b3b;color:#fff;text-align:center;padding:8px 12px;font-size:14px;font-weight:700}

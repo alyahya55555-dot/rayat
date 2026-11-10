@@ -8,7 +8,7 @@ http.createServer((q, r) => { const f = path.join(ROOT, decodeURIComponent(q.url
 const URL = `http://localhost:${PORT}/dist/rayat.html`;
 const PHONE = [[320, 568], [360, 740], [390, 844], [430, 932], [844, 390], [768, 1024]], HOST = [[390, 844], [768, 1024], [1024, 768], [1280, 720], [1920, 1080]];
 const AUDIT = () => { const out = [], vw = innerWidth;
-  const vis = el => { const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < .2) return false; const b = el.getBoundingClientRect(); return b.width > 1 && b.height > 1; };
+  const vis = el => { const dt = el.closest('details:not([open])'); if (dt && !el.closest('summary')) return false; const cs = getComputedStyle(el); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < .2) return false; const b = el.getBoundingClientRect(); return b.width > 1 && b.height > 1; };
   if (document.documentElement.scrollWidth > vw + 1) out.push(`تمرير أفقي (${document.documentElement.scrollWidth} > ${vw})`);
   document.querySelectorAll('#app *, .modal *').forEach(el => { if (!vis(el) || ['INPUT', 'TEXTAREA', 'SELECT', 'svg', 'path', 'rect', 'g', 'I', 'CANVAS'].includes(el.tagName) || el.closest('svg')) return; const cs = getComputedStyle(el);
     if (el.scrollWidth > el.clientWidth + 2 && el.clientWidth > 0 && !['auto', 'scroll'].includes(cs.overflowX)) out.push(`يفيض عرضًا: ${el.className || el.tagName} «${(el.textContent || '').trim().slice(0, 22)}»`);

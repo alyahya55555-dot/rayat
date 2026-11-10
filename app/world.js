@@ -733,8 +733,8 @@
       const gate = (id, toward) => { const t2 = M.regions[id].type; if (t2 !== 'capital' && t2 !== 'castle') return null; const wf = wallFront(id, toward); return wf ? wf.p : null; }; if (wp.length > 2) { const g0 = gate(fromId, wp[1]), g1 = gate(toId, wp[wp.length - 2]); if (g0) wp[0] = g0; if (g1) wp[wp.length - 1] = g1; }
       let out = []; for (let i = 0; i + 1 < wp.length; i++) { const seg2 = findPath(wp[i], wp[i + 1], .06) || [wp[i], wp[i + 1]]; out = out.concat(i ? seg2.slice(1) : seg2); } return out; }
     // لقطة تجمع عاصمتين في الإطار (للتحالف ونقضه)
-    function pairView(a, b) { const A = R[M.caps[a]], B = R[M.caps[b]]; if (!A || !B) return overview(); const mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2, sep = Math.hypot(A.x - B.x, A.z - B.z), d = Math.max(2.6, sep * 1.45 + 1.2), asp = camera.aspect || 1.6, k = asp < 1 ? 1.6 / asp : 1;
-      return { pos: V(mx - .2, d * .95 * k, mz + d * .8 * k), look: V(mx, .3, mz) }; }
+    function pairView(a, b) { const A = R[M.caps[a]], B = R[M.caps[b]]; if (!A || !B) return overview(); const mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2, sep = Math.hypot(A.x - B.x, A.z - B.z), d = Math.max(2.8, sep * 1.6 + 1.4), asp = camera.aspect || 1.6, k = asp < 1 ? 1.6 / asp : 1;
+      return { pos: V(mx - .2, d * .95 * k, mz + d * .8 * k), look: V(mx, .3, mz - .35) }; }
     // الحصاد: من كل فريق عربة صغيرة تحمل موارد أقرب أرض له إلى عاصمته
     const RESC = { food: '#e3c45c', gold: C.gold, stone: '#b9b4a6' }, typeRes = { farm: 'food', mine: 'gold', quarry: 'stone', village: 'food', port: 'gold', rich: 'gold' };
     W.harvest = async () => { if (W.busy) return; W.busy = true; const tw = W.time, conv = []; { const o = overview(); camTo({ pos: o.look.clone().lerp(o.pos, .78), look: o.look.clone() }, 1); }

@@ -19,7 +19,7 @@ const Display = {
     if (!this.local) setTimeout(() => { if (!this.P) this.askCode(); }, 4000);
   },
   async join(code) { this.code = code; LS.set('rayat.displayCode', code); await this.net.joinRoom(code); this.net.presence({ r: 'd', c: code }); this.badge(); },
-  overlay() { const o = document.createElement('div'); o.id = 'tapov'; o.style.cssText = 'position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(4,14,20,.7);cursor:pointer';
+  overlay() { const o = document.createElement('div'); o.id = 'tapov'; o.style.cssText = 'position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(4,14,20,.94);cursor:pointer';
     o.innerHTML = '<div style="text-align:center"><div class="brand k" style="font-size:90px">رايـــات</div><div class="mut" style="margin-top:14px;font-size:20px">اضغط في أي مكان لتفعيل الصوت وملء الشاشة</div></div>';
     o.onclick = () => { SFX.unlock(); setTimeout(() => SFX.ambient(), 800); try { document.documentElement.requestFullscreen().catch(() => { }); } catch (e) { } o.remove(); }; this.root.appendChild(o);
     const sb = document.createElement('div'); sb.className = 'sndbox'; sb.innerHTML = `<button class="btn sm" id="sm">🔊</button><input type="range" id="sv" min="0" max="100" value="${Math.round(SFX.vol * 100)}">`; this.root.appendChild(sb);

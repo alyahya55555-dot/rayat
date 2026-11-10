@@ -1,5 +1,6 @@
 /* رايات — أدوات عامة والاتصال (منقول من «ميدان بناء» ومكيّف): غرفة Claude، خوادم MQTT عامة برسائل موقّعة، وBroadcastChannel محليًا */
 const ARTIFACT_URL = '%%ARTIFACT_URL%%';
+const STABLE_URL = 'https://alyahya55555-dot.github.io/rayat/'; // الرابط الثابت: الاتصال فيه يعمل للجميع بلا حسابات
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

@@ -4,24 +4,26 @@ const { chromium } = require('/opt/npm-tools/node_modules/playwright');
 const http = require('http'), fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const ROOT = path.join(__dirname, '..'), OUT = path.join(__dirname, 'out'), FR = path.join(OUT, 'xframes'), FPS = 30;
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.woff2': 'font/woff2' };
-const PRE = process.env.PREVIEW ? process.env.PREVIEW.split(',').map(x => Math.round(+x * 30)) : null;
+const PRE = process.env.PREVIEW ? process.env.PREVIEW.split(',').map(x => Math.round(+x * 30)) : null, START = +process.env.START || 0, END = process.env.END ? +process.env.END : 1e9, MODE = process.env.MODE || 'all'; // MODE: log | chunk | encode | all
 const [Wd, Hd] = (process.env.SIZE || '1280x720').split('x').map(Number);
-const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURIComponent(q.url.split('?')[0])); fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': MIME[path.extname(f)] || 'application/octet-stream' }); r.end(d); }); }).listen(8563);
+const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURIComponent(q.url.split('?')[0])); fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': MIME[path.extname(f)] || 'application/octet-stream' }); r.end(d); }); }).listen(+process.env.PORT || 8563);
 (async () => {
   let log, dur;
-  if (!process.env.AUDIO_ONLY) {
-    fs.rmSync(FR, { recursive: true, force: true }); fs.mkdirSync(FR, { recursive: true });
+  if (MODE !== 'encode' && !process.env.AUDIO_ONLY) {
+    if (MODE === 'all' || PRE) fs.rmSync(FR, { recursive: true, force: true }); fs.mkdirSync(FR, { recursive: true });
     const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
     const p = await b.newPage({ viewport: { width: Wd, height: Hd } }); p.on('pageerror', e => console.log('ERR', e.message));
-    await p.goto('http://localhost:8563/app/explainer.html'); await p.waitForFunction(() => window.READY, null, { timeout: 120000 }); await p.evaluate(() => READY);
+    await p.goto('http://localhost:' + (+process.env.PORT || 8563) + '/app/explainer.html'); await p.waitForFunction(() => window.READY, null, { timeout: 120000 }); await p.evaluate(() => READY);
     const t0 = await p.evaluate(() => { const t = W.time; SEQ(); return t; }); let i = 0;
-    while (i < 160 * FPS) { const draw = !PRE || PRE.includes(i), done = await p.evaluate(d => { W.step(1 / 30, d); tick(); return !!window.SEQ_DONE; }, draw); await p.waitForTimeout(0);
-      if (!PRE || PRE.includes(i)) await p.screenshot({ path: path.join(FR, String(i).padStart(5, '0') + '.jpg'), type: 'jpeg', quality: 92, timeout: 180000 }); i++; if (i % 150 === 0) console.log('frame', i); if (done) break; }
+    while (i < 160 * FPS) { const draw = MODE === 'log' ? false : PRE ? PRE.includes(i) : (i >= START && i < END), done = await p.evaluate(d => { W.step(1 / 30, d); tick(); return !!window.SEQ_DONE; }, draw); await p.waitForTimeout(0);
+      if (draw) fs.writeFileSync(path.join(FR, String(i).padStart(5, '0') + '.jpg'), Buffer.from(await p.evaluate(() => frame()), 'base64')); i++; if (i % 150 === 0) console.log('frame', i); if (done || i >= END) break; }
     log = (await p.evaluate(() => SFX_LOG)).map(e => ({ ...e, t: e.t - t0 })); dur = i / FPS; fs.writeFileSync(path.join(OUT, 'explainer.json'), JSON.stringify({ log, dur }));
-    await b.close(); if (PRE) { console.log('preview done', dur); process.exit(0); }
+    await b.close(); if (PRE) { console.log('preview done', dur); process.exit(0); } if (MODE === 'chunk') { console.log('chunk done', START, i); process.exit(0); }
+    if (MODE === 'log') { console.log('log done', dur); process.exit(0); }
     execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', path.join(FR, '%05d.jpg'), '-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', path.join(OUT, 'explainer.video.tmp.mp4')]);
     fs.renameSync(path.join(OUT, 'explainer.video.tmp.mp4'), path.join(OUT, 'explainer.video.mp4'));
-  } else ({ log, dur } = JSON.parse(fs.readFileSync(path.join(OUT, 'explainer.json'))));
+  } else { ({ log, dur } = JSON.parse(fs.readFileSync(path.join(OUT, 'explainer.json'))));
+    if (MODE === 'encode') { execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-framerate', String(FPS), '-i', path.join(FR, '%05d.jpg'), '-frames:v', String(Math.round(dur * FPS)), '-c:v', 'libx264', '-crf', '18', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', path.join(OUT, 'explainer.video.tmp.mp4')]); fs.renameSync(path.join(OUT, 'explainer.video.tmp.mp4'), path.join(OUT, 'explainer.video.mp4')); } }
   srv.close();
   // الأصوات: نشغّل منطق sfx.js نفسه لكن بتسجيل الاستدعاءات، ثم نمزجها بدقة العينات
   const calls = []; const src = fs.readFileSync(path.join(ROOT, 'app/sfx.js'), 'utf8').replace("'%%SFX%%'", 'null');

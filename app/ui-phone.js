@@ -9,7 +9,7 @@ const Phone = {
     this.net.on('state', P => this.onState(P)); this.net.on('status', () => this.render());
     this.net.on('caps', () => { if (this.code) this.join(); });
     this.net.init(); setInterval(() => this.net.heartbeat(), 3000); setInterval(() => this.tick(), 250);
-    this.root = $('#app'); this.render();
+    this.root = $('#app'); this.render(); setTimeout(() => { if (!this.P) this.render(); }, 9600);
   },
   async join() { this.net.code = this.code; await this.net.joinRoom(this.code); this.pres(); },
   pres() { this.net.presence({ r: 's', c: this.code, pid: this.pid, nm: this.me.nm || null, tw: this.me.tw ?? null }); },
@@ -34,7 +34,7 @@ const Phone = {
     return `<div class="res"><div>أرضكم<b>${P.score[t]}</b></div><div>🌾 طعام<b>${R.food}</b></div><div>💰 ذهب<b>${R.gold}</b></div><div>🪨 حجر<b>${R.stone}</b></div></div>`; },
   render() {
     const r = this.root; if (!r) return; const P = this.P;
-    if (!this.code || !P) { r.innerHTML = `<div class="ph">${this.header()}<div class="box col"><div class="big k">انضم إلى رايات</div>${this.code ? `<div class="mut" style="text-align:center">جارٍ الاتصال بالغرفة ${esc(this.code)}…</div>` : `<input class="in" id="jc" placeholder="رمز الغرفة" inputmode="numeric" maxlength="4" style="text-align:center;font-size:26px;letter-spacing:8px;direction:ltr"><button class="btn pri big" id="jgo">دخول</button>`}</div><div class="mut" style="text-align:center;font-size:13px">${esc(this.net.label().t)}</div></div>`;
+    if (!this.code || !P) { r.innerHTML = `<div class="ph">${this.header()}<div class="box col"><div class="big k">انضم إلى رايات</div>${this.code ? `<div class="mut" style="text-align:center">جارٍ الاتصال بالغرفة ${esc(this.code)}…</div>${IN_CLAUDE && !this.net.room && performance.now() > 9000 ? `<div class="mut" style="text-align:center;margin-top:8px">إن طال الانتظار فافتح الرابط الثابت:</div><a class="btn pri" href="${STABLE_URL}#join-${esc(this.code)}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">الرابط الثابت</a>` : ''}` : `<input class="in" id="jc" placeholder="رمز الغرفة" inputmode="numeric" maxlength="4" style="text-align:center;font-size:26px;letter-spacing:8px;direction:ltr"><button class="btn pri big" id="jgo">دخول</button>`}</div><div class="mut" style="text-align:center;font-size:13px">${esc(this.net.label().t)}</div></div>`;
       const b = $('#jgo'); if (b) b.onclick = () => { const c = $('#jc').value.replace(/\D/g, ''); if (c.length === 4) { this.code = c; this.join(); this.render(); } }; return; }
     const me = P.players[this.pid];
     if (!this.me.nm) { if ($('#nm') && document.activeElement === $('#nm')) return; return this.joinForm(); }

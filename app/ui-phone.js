@@ -18,7 +18,10 @@ const Phone = {
     const prev = this.P; this.P = P; if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d; } else this.endAt = 0;
     if (P.mapSeed != null && (!this.M || this.mkey !== P.teams.length + ':' + P.mapSeed)) { this.mkey = P.teams.length + ':' + P.mapSeed; this.M = RayatMap.build(P.teams.length, P.mapSeed); }
     const t = this.myTeam(); if (prev && prev.stage !== P.stage) { this.local = {}; if (P.stage === 'orders') this.picks = []; this.tab = null;
-      if (P.stage === 'predict' && P.duel && (P.duel.d === t || P.duel.a === t)) this.buzzV([120, 60, 120]); }
+      if (P.stage === 'predict' && P.duel && (P.duel.d === t || P.duel.a === t)) this.buzzV([120, 60, 120]);
+      if (P.stage === 'buzz' && P.duel && (P.duel.d === t || P.duel.a === t || P.duel.ally === t)) this.buzzV([60]); }
+    // اهتزاز لحظات الفريق: هجوم على أرضه، غدر حليفه، بداية مرحلة
+    if (P.ev && P.ev.id !== this.lastEvV) { this.lastEvV = P.ev.id; const e = P.ev; if (e.k === 'attack' && e.d === t) this.buzzV([300, 120, 300]); else if (e.k === 'attack' && e.a === t && e.result === 'taken') this.buzzV([80, 60, 80]); else if (e.k === 'unally' && e.betray && (e.b === t || e.a === t)) this.buzzV([400]); else if (e.k === 'phase') this.buzzV([60]); }
     this.render(); },
   buzzV(p) { try { navigator.vibrate && navigator.vibrate(p); } catch (e) { } },
   myTeam() { const p = this.P && this.P.players[this.pid]; return p ? p.t : null; },
@@ -56,6 +59,7 @@ const Phone = {
       if (st === 'judge' && D.buzz) return `<div class="box"><div class="mut" style="text-align:center">يجيب الآن</div><div class="big k" style="color:${tc(D.buzz.team)}">${tn(D.buzz.team)} · ${esc(D.buzz.name)}</div></div>`;
       return `<div class="box"><div class="big k" style="font-size:24px">${tn(D.a)} ${D.pts.a} – ${D.pts.d} ${tn(D.d)}</div><div class="mut" style="text-align:center;margin-top:6px">${side ? (D.tried.includes(side) ? 'أخطأ فريقكم، الفرصة للفريق الآخر' : 'تابعوا') : 'تابع المواجهة على الشاشة'}</div></div>`; }
     if (st === 'tie' && P.tie) { const can = P.tie.teams.includes(t) && !P.tie.buzz && !P.tie.tried.includes(t); return `<div class="box col"><div class="big k" style="font-size:24px">المواجهة الفاصلة</div>${P.tie.q ? `<div class="q">${esc(P.tie.q.text)}</div>` : ''}${can ? '<button class="buzz k" data-tbuzz>اضغط!</button>' : P.tie.buzz ? `<div class="big k" style="color:${tc(P.tie.buzz.team)}">${tn(P.tie.buzz.team)} يجيب</div>` : ''}</div>`; }
+    if (st === 'crown' && P.winner == null && P.rank && P.rank[0]) P.winner = P.rank[0].team;
     if (st === 'crown') { const won = P.winner === t; return `<div class="box"><div class="big k" style="font-size:36px;color:${tc(P.winner)}">${won ? '🏆 أنتم أبطال الجزيرة' : 'الأبطال: ' + tn(P.winner)}</div><div class="col" style="margin-top:14px">${(P.rank || []).map((x, k) => `<div class="row" style="justify-content:space-between;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.05);border-inline-start:5px solid ${tc(x.team)}"><b>${k + 1}. ${tn(x.team)}</b><span>${x.score} أرض</span></div>`).join('')}</div></div>`; }
     if (st === 'bini' && P.bini) return `<div class="box"><div class="mut" style="text-align:center">بيني ${P.bini.mult > 1 ? '×' + P.bini.mult : ''}</div><div class="big k">${esc(P.bini.name)}</div><div class="q" style="font-weight:400;font-size:17px;margin-top:8px">${esc(P.bini.desc)}</div></div>`;
     const cap = st === 'scene' && P.ev ? this.evText(P.ev) : st === 'harvest' ? 'الحصاد: أراضيكم تنتج' : st === 'phase' ? 'مرحلة جديدة: ' + esc(P.phaseName || '') : 'تابع الشاشة';

@@ -1,0 +1,63 @@
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>رايات — فيديو الشرح</title>
+<style>
+@font-face{font-family:'TDisplay';src:url(../fonts/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Bold.woff2) format('woff2');font-weight:700}
+@font-face{font-family:'TDisplay';src:url(../fonts/thmanyahserifdisplay/woff2/thmanyahserifdisplay-Black.woff2) format('woff2');font-weight:900}
+@font-face{font-family:'TText';src:url(../fonts/thmanyahseriftext/woff2/thmanyahseriftext-Bold.woff2) format('woff2');font-weight:700}
+@font-face{font-family:'TSans';src:url(../fonts/thmanyahsans/woff2/thmanyahsans-Medium.woff2) format('woff2');font-weight:500}
+@font-face{font-family:'TSans';src:url(../fonts/thmanyahsans/woff2/thmanyahsans-Bold.woff2) format('woff2');font-weight:700}
+html,body{margin:0;height:100%;overflow:hidden;background:#0d2a36;color:#f5f1e8;direction:rtl}#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+.cap{position:fixed;left:50%;bottom:5.5vh;transform:translateX(-50%);background:rgba(10,26,36,.8);border:1px solid rgba(255,255,255,.12);border-radius:24px;padding:2.2vh 3.4vw;text-align:center;max-width:78vw;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.cap small{display:block;font-family:'TSans';font-weight:700;font-size:2.1vh;color:#f2c14e;margin-bottom:.6vh}
+.cap b{display:block;font-family:'TText';font-weight:700;font-size:3.6vh;line-height:1.55}
+.title{position:fixed;inset:0;display:grid;place-items:center;text-align:center;background:radial-gradient(ellipse at center,rgba(6,18,26,.15),rgba(6,18,26,.6))}
+.title h1{font-family:'TDisplay';font-weight:900;font-size:16vh;margin:0;line-height:1.1;font-feature-settings:"salt" 1,"swsh" 1;text-shadow:0 10px 40px rgba(0,0,0,.5)}
+.title p{font-family:'TSans';font-weight:500;font-size:3.2vh;margin:1.4vh 0 0;opacity:.85}
+</style></head><body><canvas id="c"></canvas><div class="title" id="title" style="opacity:0"><div><h1>رايـــات</h1><p id="tsub">حرب السيطرة على الجزيرة</p></div></div><div class="cap" id="cap" style="opacity:0"><small id="ck"></small><b id="ct"></b></div>
+<script src="vendor.min.js"></script><script src="../proto/rayat-map.js"></script><script src="../game/rules.js"></script><script src="world.js"></script>
+<script>
+const TEAMS = [{ name: 'الصقور', color: '#2f6fdb', mark: 'ص' }, { name: 'السهم', color: '#1f9d55', mark: 'س' }, { name: 'الرواد', color: '#e07a2e', mark: 'ر' }, { name: 'الهمّة', color: '#8e4fb8', mark: 'هـ' }];
+const M = RayatMap.build(4, 7), S = RayatRules.setup(M, TEAMS);
+const W = RayatWorld(document.getElementById('c'), M, TEAMS, { seed: 91, capture: true });
+const snap = () => ({ regions: S.regions.map(r => ({ id: r.id, owner: r.owner, walls: r.walls, tower: r.tower, garrison: r.garrison })), teams: S.teams.map(t => ({ capLevel: t.capLevel })) });
+const own = (id, t) => { S.regions[id].owner = t; };
+// زمن حتمي: كل شيء يتبع W.time
+let waits = [], cap = null, ttl = null; const sfx = [];
+W.on('sfx', e => sfx.push({ k: e.k, t: W.time + (e.at || 0), dur: e.dur || 0 }));
+const hold = s => new Promise(r => waits.push({ t: W.time + s, r }));
+const say = (k, t, d) => { cap = { k, t, t0: W.time, t1: W.time + d }; document.getElementById('ck').textContent = k; document.getElementById('ct').textContent = t; };
+const title = (sub, d) => { ttl = { t0: W.time, t1: W.time + d }; document.getElementById('tsub').textContent = sub; };
+const fade = (o, t) => !o ? 0 : Math.max(0, Math.min(1, (t - o.t0) / .5, (o.t1 - t) / .5));
+window.tick = () => { const t = W.time; waits = waits.filter(w => t >= w.t ? (w.r(), false) : true); const c = document.getElementById('cap'), a = fade(cap, t); c.style.opacity = a; c.style.transform = `translate(-50%,${(1 - a) * 18}px)`; document.getElementById('title').style.opacity = fade(ttl, t); };
+window.SFX_LOG = sfx;
+window.SEQ = async () => {
+  const caps = M.caps, castle = M.regions.find(r => r.type === 'castle').id, nb = (id, f) => M.regions[id].nb.find(f);
+  const free = id => nb(id, j => S.regions[j].owner == null && M.regions[j].type !== 'castle' && !M.regions[j].land);
+  W.setSky('opening', 0); W.overview(.01); sfx.push({ k: 'phase', t: W.time + .3 });
+  title('حرب السيطرة على الجزيرة', 6); await hold(6.5);
+  say('الفكرة', 'أربعة فرق أو أكثر، لكل فريق عاصمة على الجزيرة، والفائز من يملك أكثر الأراضي في النهاية', 8); await hold(8.5);
+  say('كل جولة', 'سؤال لكل الطلاب ٢٠ ثانية من جوالاتهم، والإجابة الصحيحة تمنح الفريق أوامر', 8); await hold(4); W.focusRegion(caps[0], 2); await hold(4.5);
+  say('القائد', 'قائد كل فريق يختار الأمر بعد مشورة فريقه: احتلال، أو بناء، أو هجوم', 7.5);
+  const o1 = free(caps[0]); own(o1, 0); await W.occupy({ team: 0, r: o1 }); await hold(.3);
+  say('الحصاد', 'كل أرض تنتج كل جولة: ذهبًا أو طعامًا أو حجرًا، وتصل القوافل إلى العاصمة', 5.5); [1, 2, 3].forEach(t => { const x = free(caps[t]); if (x != null) own(x, t); }); W.setState(snap()); await W.harvest(); await hold(.6);
+  W.setSky('expansion', 4);
+  say('الأسوار', 'السور يجعل المهاجم يحتاج فوزين بدل فوز واحد', 6); S.regions[o1].walls = true; await W.build({ r: o1, k: 'walls', team: 0 }); await hold(.3);
+  say('الهجوم', 'الهجوم مواجهة استباق: يضغط الطلاب، والأسرع يجيب بصوت عالٍ، والمشرف يحكم', 9.5);
+  const t1 = nb(caps[0], j => S.regions[j].owner == null && M.regions[j].type !== 'castle' && j !== o1) ?? free(caps[0]); own(t1, 1); W.setState(snap()); await hold(.4);
+  own(t1, 0); await W.attack({ a: 0, d: 1, r: t1, unit: 'inf', result: 'taken' }); await hold(.3);
+  W.setSky('friction', 4);
+  say('الفرسان والبرج', 'الفرسان يهاجمون أرضًا تبعد إقليمين، ويوقفهم برج المراقبة', 7);
+  const t2 = nb(caps[2], j => S.regions[j].owner == null && M.regions[j].type !== 'castle'); if (t2 != null) { own(t2, 3); W.setState(snap()); own(t2, 2); await W.attack({ a: 2, d: 3, r: t2, unit: 'cav', result: 'taken' }); } await hold(.3);
+  say('التحالف', 'رسول على حصان يحمل عرض الحلف، وإذا قُبل امتد بينهما خيط الحلف', 6); await W.ally({ a: 0, b: 1 }); await hold(.3);
+  W.setSky('war', 4);
+  say('البحر', 'من يملك الميناء ينزل جنوده بحرًا على أي شاطئ', 8);
+  const rt = M.routes[1]; own(rt.from, 0); own(rt.to, 3); W.setState(snap()); own(rt.to, 0); await W.attack({ a: 0, d: 3, r: rt.to, unit: 'inf', result: 'taken', naval: true }); await hold(.3);
+  say('نقض الحلف', 'نقض الحلف حركة لها ثمن: ينقطع الخيط وتنطلق الضربة', 4); await W.unally({ a: 1, b: 0, betray: true }); await hold(.3);
+  W.setSky('siege', 4);
+  say('القلعة الكبرى', 'القلعة تُحسب بأربع أراضٍ، ويُحسم حصارها بأفضل من ثلاث مواجهات', 9);
+  const cn = M.regions[castle].nb.find(j => !M.regions[j].land); own(cn, 1); own(castle, 2); W.setState(snap()); await W.attack({ a: 1, d: 2, r: castle, unit: 'cat', result: 'hold' }); await hold(.3);
+  W.setSky('crown', 4); W.overview(2);
+  say('التتويج', 'الأكثر أرضًا عند النهاية يتوَّج بطلًا للجزيرة', 6); sfx.push({ k: 'crown', t: W.time + .5 }); await hold(6.4);
+  title('فريق بناء', 5); await hold(5.5);
+  window.SEQ_DONE = true; };
+window.READY = (async () => { await W.fontsReady(); await document.fonts.ready; W.setState(snap()); W.resize(innerWidth, innerHeight); return true; })();
+</script></body></html>

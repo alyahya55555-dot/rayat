@@ -32,6 +32,8 @@ const SFX = {
       case 'wrong': this.rec('kill', .9, at); break;
       case 'tick': this.rec('hammer-d', .3, at, 1.6); break;
       case 'harvest': this.rec('coins2', .55, at); break;
+      case 'sail': for (let t = 0; t < dur; t += 1.1) this.rec('splash', .28, at + t, .85 + (t % 2) * .1); break;
+      case 'arrows': for (let t = 0; t < dur; t += .38) this.rec('bow', .32, at + t, .9 + (t * 7 % 3) * .06); break;
       case 'join': this.rec('step', .35, at); break;
       case 'crown': this.rec('big_kill', .7, at); [.4, .8, 1.2, 1.6].forEach(t => this.rec('impact', .6, at + t, 1.2)); for (let i = 0; i < 8; i++) this.rec('coin', .4, at + 1.8 + i * .1, .9 + i * .03); break;
     } } catch (e) { } }

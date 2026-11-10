@@ -1,7 +1,7 @@
 // اختبار تدفق المسابقة كاملًا عند المشرف: لاعبون آليون بساعة افتراضية، من اللوبي حتى التتويج
 const path = require('path');
 global.d3 = require(path.join(__dirname, '../r3d/node_modules/d3-delaunay'));
-require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/data.js');
+require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/data.js');
 const RayatGame = require('../app/game.js'), RR = globalThis.RayatRules;
 const rng = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const COLORS = ['#2f6fdb', '#1f9d55', '#e07a2e', '#8e4fb8', '#c43d5a', '#1aa3a3'], NAMES = ['الصقور', 'السهم', 'الرواد', 'الهمّة', 'النخبة', 'الأفق'];
@@ -9,7 +9,7 @@ let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; con
 
 function play(seed, nTeams, perTeam, opts = {}) {
   const r = rng(seed); let clock = 1e12; const now = () => clock;
-  const g = new RayatGame({ now, bank: globalThis.RAYAT_BANK, binis: globalThis.RAYAT_BINIS, level: ['mid', 'sec', 'uni'][seed % 3], teams: NAMES.slice(0, nTeams).map((n, i) => ({ name: n, color: COLORS[i], mark: n[0] })), mapSeed: seed });
+  const g = new RayatGame({ now, bank: globalThis.RAYAT_BANK, binis: globalThis.RAYAT_BINIS, level: ['easy', 'med', 'hard'][seed % 3], teams: NAMES.slice(0, nTeams).map((n, i) => ({ name: n, color: COLORS[i], mark: n[0] })), mapSeed: seed });
   const pids = []; for (let t = 0; t < nTeams; t++) for (let k = 0; k < perTeam; k++) { const pid = 'p' + t + '-' + k; pids.push(pid); g.join(pid, 'لاعب ' + k, t); }
   ok(Object.keys(g.s.captains).length === nTeams, 'لكل فريق قائد');
   g.start(); const stages = {}, errs = []; let steps = 0, binis = 0, lastStage = '', stuck = 0;
@@ -24,7 +24,7 @@ function play(seed, nTeams, perTeam, opts = {}) {
     if (s.stage === 'judge' && r() < .3) g.judge(r() < .55);
     if (s.stage === 'gq') pids.forEach(pid => { if (g.s.duel && r() < .3) g.answer(pid, g.s.duel.q.id, r() < .5 ? g.s.duel.q.a : 0); });
     if (s.stage === 'tie') { if (!s.tie.buzz) { const c = pids.filter(pid => s.tie.teams.includes(g.s.players[pid].team) && !s.tie.tried.includes(g.s.players[pid].team)); if (c.length && r() < .5) g.tieBuzz(c[Math.floor(r() * c.length)]); } else if (r() < .5) g.tieJudge(r() < .6); }
-    if (opts.binis && s.stage === 'harvest' && r() < .08) { g.biniStart(Math.floor(r() * 10), 1 + Math.floor(r() * 5)); binis++; }
+    if (opts.binis && s.stage === 'harvest' && lastStage !== 'harvest' && r() < .3) { g.biniStart(Math.floor(r() * 10), 1 + Math.floor(r() * 5)); binis++; }
     if (s.stage === 'bini') { if (!s.bini.running && r() < .5) g.biniTimer(30); else if (r() < .2) g.biniWinner(Math.floor(r() * nTeams)); }
     if (opts.dip && g.S && s.stage === 'orders' && r() < .1) { const t = Math.floor(r() * nTeams), cap = g.captain(t); const k = ['offer', 'accept', 'gift', 'end'][Math.floor(r() * 4)]; g.dip(cap, { k, b: Math.floor(r() * nTeams), yes: r() < .7, res: 'gold', n: 2 }); }
     if (opts.skip && r() < .05) g.skip();

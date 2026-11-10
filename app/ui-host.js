@@ -4,7 +4,7 @@ const STAGE_AR = { lobby: 'الانتظار', phase: 'مشهد المرحلة', 
 const Host = {
   init() {
     this.handled = {}; this.byPid = {}; this.peerPid = {}; this.bcPeers = new Map(); this.multSel = 2;
-    this.cfg = LS.get('rayat.cfg', { n: 4, teams: TEAM_DEF.map(t => ({ name: t[0], color: t[1] })), level: 'sec', binisOn: true, seed: 7 });
+    this.cfg = LS.get('rayat.cfg', { n: 4, teams: TEAM_DEF.map(t => ({ name: t[0], color: t[1] })), level: 'med', binisOn: true, seed: 7 }); this.cfg.level = { mid: 'easy', sec: 'med', uni: 'hard' }[this.cfg.level] || this.cfg.level;
     this.custom = LS.get('rayat.binis.custom', []);
     this.newGame(); const saved = LS.get('rayat.save', null);
     this.net = new Net('host');
@@ -41,7 +41,23 @@ const Host = {
     if ((m = fresh('dip'))) g.dip(pid, m);
   },
   // ---------- البث ----------
-  changed() { if (!this.bq) this.bq = setTimeout(() => { this.bq = null; this.broadcast(); }, 40); if (!this.rq) this.rq = requestAnimationFrame(() => { this.rq = null; this.render(); }); if (!this.sq) this.sq = setTimeout(() => { this.sq = null; this.save(); }, 800); },
+  // ---------- الأرشيف: كل مسابقة تُحفظ بنتيجتها وخريطتها الأخيرة (صورة الذكرى) وشريط الحرب ----------
+  archive() { return LS.get('rayat.archive', []); },
+  saveArchive() { const g = this.g, s = g.s; if (s.stage !== 'crown' || s.winner == null || !g.S) return; const key = s.code + '-' + (s.startedAt || s.v); if (this.archivedKey === key) return; this.archivedKey = key;
+    const A = this.archive(); if (A.some(x => x.key === key)) return; const P = g.pub();
+    A.unshift({ key, date: new Date().toISOString(), level: s.level, seed: s.mapSeed, teams: s.teams.map(t => ({ name: t.name, color: t.color, mark: t.mark })), winner: s.winner, rank: P.rank, ribbon: P.ribbon, owner: g.S.regions.map(r => r.owner), cycles: s.cycle });
+    try { LS.set('rayat.archive', A.slice(0, 30)); } catch (e) { } },
+  showArchive() { const A = this.archive(), d = iso => { try { return new Date(iso).toLocaleDateString('ar-SA-u-nu-latn', { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return iso.slice(0, 10); } };
+    if (!A.length) return modal('<div class="col"><h2>الأرشيف</h2><div class="mut">لا توجد مسابقات منتهية بعد. تُحفظ كل مسابقة هنا تلقائيًا عند التتويج.</div><button class="btn" data-close>إغلاق</button></div>');
+    modal(`<div class="col"><h2>المسابقات السابقة</h2>${A.map((x, i) => `<button class="btn" data-ar="${i}" style="text-align:start;display:flex;justify-content:space-between;gap:10px"><span>${esc(d(x.date))}</span><span style="color:${x.teams[x.winner].color}">🏆 ${esc(x.teams[x.winner].name)}</span></button>`).join('')}<button class="btn" data-close>إغلاق</button></div>`, m => {
+      $$('[data-ar]', m).forEach(b => b.onclick = () => { const x = A[+b.dataset.ar]; m.remove(); this.showMemorial(x); }); }); },
+  showMemorial(x) { const M = RayatMap.build(x.teams.length, x.seed), map = RayatMap.svg(M, { teams: x.teams.map(t => ({ ...t, emb: t.mark })), owner: x.owner, forts: new Set() }).replace('<svg ', '<svg style="width:100%;height:auto;display:block;border-radius:14px" ');
+    const txt = `رايات — ${x.teams[x.winner].name} أبطال الجزيرة\n` + (x.rank || []).map((r, k) => `${k + 1}. ${x.teams[r.team].name}: ${r.score} أرض`).join('\n');
+    modal(`<div class="col"><div class="kind" style="color:var(--gold)">صورة الذكرى</div><h2 class="k" style="font-size:34px;color:${x.teams[x.winner].color}">${esc(x.teams[x.winner].name)}</h2>${map}
+      <div class="tlist">${(x.rank || []).map((r, k) => `<div style="--tc:${x.teams[r.team].color}"><b>${k + 1}. ${esc(x.teams[r.team].name)}</b><span>${r.score} أرض</span></div>`).join('')}</div>
+      ${x.ribbon && x.ribbon.length ? `<b>شريط الحرب</b>${x.ribbon.map(r => `<div style="font-size:14px"><b style="color:var(--gold)">${esc(r.name)}</b>: <span class="mut">${r.ev.map(esc).join(' · ')}</span></div>`).join('')}` : ''}
+      <div class="row"><button class="btn pri" id="arcopy">نسخ النتيجة</button><button class="btn" data-close>إغلاق</button></div></div>`, m => { $('#arcopy', m).onclick = () => { try { navigator.clipboard.writeText(txt).then(() => toast('نُسخت النتيجة')).catch(() => toast('تعذّر النسخ')); } catch (e) { toast('تعذّر النسخ'); } }; }); },
+  changed() { if (this.g.s.stage === 'crown') this.saveArchive(); if (!this.bq) this.bq = setTimeout(() => { this.bq = null; this.broadcast(); }, 40); if (!this.rq) this.rq = requestAnimationFrame(() => { this.rq = null; this.render(); }); if (!this.sq) this.sq = setTimeout(() => { this.sq = null; this.save(); }, 800); },
   broadcast() { const P = this.g.pub(); if (this.fp) P.fp = this.fp; this.net.emit('state', P); if (this.mapLayer) { try { Display.onState(JSON.parse(JSON.stringify(P))); } catch (e) { console.error(e); } this.renderMapCtl(); } },
   save() { try { LS.set('rayat.save', JSON.parse(this.g.save())); } catch (e) { } },
   // ---------- الواجهة ----------
@@ -61,7 +77,7 @@ const Host = {
     this.mapLayer.style.display = on ? 'block' : 'none'; this.mapOn = on; this.renderMapCtl();
     if (on && Display.W) Display.W.resize(innerWidth, innerHeight); },
   renderMapCtl() { const f = $('#mapctl'); if (!f || !this.mapOn) return; const st = this.g.s.stage, judge = st === 'judge' || (st === 'tie' && this.g.s.tie && this.g.s.tie.buzz);
-    const html = `${judge ? `<span class="need">مطلوب حكمك</span><button class="btn ok" data-mj="1">✓ صحيحة</button><button class="btn no" data-mj="0">✗ خاطئة</button>` : ''}<button class="btn" data-mback>⚙️ لوحة المشرف</button>`;
+    const html = `${judge ? `<span class="need">مطلوب حكمك</span><button class="btn ok" data-mj="1">✓<span class="lbl"> صحيحة</span></button><button class="btn no" data-mj="0">✗<span class="lbl"> خاطئة</span></button>` : ''}<button class="btn" data-mback>⚙️<span class="lbl"> لوحة المشرف</span></button>`;
     if (f.dataset.h === html) return; f.dataset.h = html; f.innerHTML = html; f.classList.toggle('alert', judge);
     $$('[data-mj]', f).forEach(b => b.onclick = () => { const ok = b.dataset.mj === '1'; if (this.g.s.stage === 'judge') this.g.judge(ok); else if (this.g.tieJudge) this.g.tieJudge(ok); this.changed(); });
     $('[data-mback]', f).onclick = () => this.showMap(false); },
@@ -72,7 +88,8 @@ const Host = {
       <div class="grid2">${c.teams.slice(0, c.n).map((t, i) => `<div class="tcfg"><input type="color" data-tc="${i}" value="${t.color}"><input class="in" data-tname="${i}" value="${esc(t.name)}" maxlength="14"></div>`).join('')}</div>
       <div class="row"><span style="width:110px">المستوى</span><div class="mults grow">${Object.entries(RayatGame.LEVELS).map(([k, v]) => `<button data-lv="${k}" class="${c.level === k ? 'sel' : ''}">${v}</button>`).join('')}</div></div>
       <div class="row"><span style="width:110px">البينيات</span><div class="mults grow"><button data-bo="1" class="${c.binisOn ? 'sel' : ''}">مع بينيات</button><button data-bo="0" class="${!c.binisOn ? 'sel' : ''}">بدون</button></div></div>
-      <div class="row"><span style="width:110px">الخريطة</span><button class="btn sm" id="reseed">🎲 جزيرة أخرى</button><span class="mut">رقم ${c.seed}</span></div></div>
+      <div class="row"><span style="width:110px">الخريطة</span><button class="btn sm" id="reseed">🎲 جزيرة أخرى</button><span class="mut">رقم ${c.seed}</span></div>
+      <div class="row"><span style="width:110px">الأرشيف</span><button class="btn sm" id="archive">📜 المسابقات السابقة (${this.archive().length})</button></div></div>
       ${c.binisOn ? `<div class="panel col"><b>أضف بينيًّا خاصًا</b><div class="grid2"><input class="in" id="bname" placeholder="اسم البيني" maxlength="30"><input class="in" id="bn" placeholder="عدد المشاركين من كل فريق (اختياري)" inputmode="numeric"></div><input class="in" id="bdesc" placeholder="شرح بسيط" maxlength="140"><button class="btn sm" id="badd">إضافة</button>${this.custom.length ? `<div class="mut">بينياتك: ${this.custom.map((b, i) => `${esc(b.name)} <button class="btn sm" data-bdel="${i}">✕</button>`).join(' · ')}</div>` : ''}</div>` : ''}
       <div class="panel row" style="gap:22px;align-items:flex-start"><div style="width:200px;background:#fff;border-radius:16px;padding:8px">${url ? qrSvg(url) : ''}</div><div class="col grow"><b>المتسابقون (${Object.keys(s.players).length})</b><div class="plist">${P.teams.map((t, i) => `<div class="t" style="--tc:${t.color}"><b>${esc(t.name)}</b>${Object.entries(s.players).filter(([, p]) => p.team === i).map(([pid, p]) => `<div><button class="btn sm" data-pl="${pid}" style="width:100%;text-align:start;background:none;border:0;padding:4px 0">${t.cap === pid ? '👑 ' : ''}${esc(p.name)}</button></div>`).join('') || '<div class="mut">—</div>'}</div>`).join('')}</div>
       <div class="mut" style="font-size:13px;word-break:break-all">${url ? esc(url) : 'الرابط يظهر بعد النشر'}</div></div></div>
@@ -98,6 +115,7 @@ const Host = {
     $$('[data-tc]').forEach(b => b.onchange = () => { c.teams[+b.dataset.tc].color = b.value; rebuild(); });
     $$('[data-lv]').forEach(b => b.onclick = () => { c.level = b.dataset.lv; rebuild(); });
     $$('[data-bo]').forEach(b => b.onclick = () => { c.binisOn = b.dataset.bo === '1'; rebuild(); });
+    const ar = $('#archive'); if (ar) ar.onclick = () => this.showArchive();
     const rs = $('#reseed'); if (rs) rs.onclick = () => { c.seed = 1 + Math.floor(Math.random() * 999); rebuild(); };
     const ba = $('#badd'); if (ba) ba.onclick = () => { const name = $('#bname').value.trim(), desc = $('#bdesc').value.trim(), n = parseInt($('#bn').value, 10); if (!name) return toast('اكتب اسم البيني'); this.custom.push({ name, desc, n: n > 0 ? n : null, mine: true }); LS.set('rayat.binis.custom', this.custom); rebuild(); };
     $$('[data-bdel]').forEach(b => b.onclick = () => { this.custom.splice(+b.dataset.bdel, 1); LS.set('rayat.binis.custom', this.custom); rebuild(); });

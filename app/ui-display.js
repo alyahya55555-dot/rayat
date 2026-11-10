@@ -15,11 +15,11 @@ const Display = {
       setInterval(() => this.net.heartbeat(), 3000);
     }
     this.overlay(); setInterval(() => this.tickUI(), 200);
-    window.addEventListener('resize', () => this.W && this.W.resize(innerWidth, innerHeight));
+    window.addEventListener('resize', () => { if (this.W) this.W.resize(innerWidth, innerHeight); this.fit(); });
     if (!this.local) setTimeout(() => { if (!this.P) this.askCode(); }, 4000);
   },
   async join(code) { this.code = code; LS.set('rayat.displayCode', code); await this.net.joinRoom(code); this.net.presence({ r: 'd', c: code }); this.badge(); },
-  overlay() { const o = document.createElement('div'); o.style.cssText = 'position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(4,14,20,.7);cursor:pointer';
+  overlay() { const o = document.createElement('div'); o.id = 'tapov'; o.style.cssText = 'position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(4,14,20,.7);cursor:pointer';
     o.innerHTML = '<div style="text-align:center"><div class="brand k" style="font-size:90px">رايـــات</div><div class="mut" style="margin-top:14px;font-size:20px">اضغط في أي مكان لتفعيل الصوت وملء الشاشة</div></div>';
     o.onclick = () => { SFX.unlock(); setTimeout(() => SFX.ambient(), 800); try { document.documentElement.requestFullscreen().catch(() => { }); } catch (e) { } o.remove(); }; this.root.appendChild(o);
     const sb = document.createElement('div'); sb.className = 'sndbox'; sb.innerHTML = `<button class="btn sm" id="sm">🔊</button><input type="range" id="sv" min="0" max="100" value="${Math.round(SFX.vol * 100)}">`; this.root.appendChild(sb);
@@ -31,10 +31,22 @@ const Display = {
     if (this.W && this.worldKey === key) return;
     if (this.W) { try { this.W.renderer.dispose(); } catch (e) { } const c = $('#world'), n = c.cloneNode(); c.replaceWith(n); }
     this.worldKey = key; const M = RayatMap.build(P.teams.length, P.mapSeed);
-    this.W = RayatWorld($('#world'), M, P.teams.map(t => ({ name: t.name, color: t.color, mark: t.mark || t.name[0] })), { seed: 91, lite: innerWidth < 900 });
+    const TT = P.teams.map(t => ({ name: t.name, color: t.color, mark: t.mark || t.name[0] })), gl = (() => { try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; } })();
+    try { if (!gl) throw new Error('no webgl'); this.W = RayatWorld($('#world'), M, TT, { seed: 91, lite: Math.min(innerWidth, innerHeight) < 600 || (navigator.hardwareConcurrency || 8) <= 4 }); }
+    catch (e) { console.warn('العرض ثنائي الأبعاد', e && e.message); this.W = this.flatWorld(M, TT); }
     this.W.on('sfx', e => SFX.play(e.k, e.at || 0, e.dur || 0));
     this.W.fontsReady(); this.W.resize(innerWidth, innerHeight); this.W.start(); this.visKey = '';
   },
+  // بديل بلا WebGL: خريطة ثنائية الأبعاد بالألوان نفسها، والأحداث تظهر بتلوّن الأقاليم
+  flatWorld(M, teams) { const c = $('#world'); if (c) c.style.display = 'none'; const host = document.createElement('div'); host.className = 'flat2d'; this.root.prepend(host);
+    const W = { M, reserved: [], owner: [], forts: [], busy: false, labelRects: () => [], on() { }, fontsReady() { }, resize() { }, start() { }, step() { }, skip() { }, overview() { }, setSky() { }, renderer: { dispose() { } } };
+    const draw = () => { host.innerHTML = RayatMap.svg(M, { teams: teams.map(t => ({ ...t, emb: t.mark })), owner: W.owner, forts: new Set(W.forts) }); };
+    const later = ms => new Promise(res => setTimeout(res, ms));
+    W.setState = vis => { W.owner = vis.regions.map(r => r.owner); W.forts = vis.regions.filter(r => r.walls).map(r => r.id); draw(); };
+    W.attack = async e => { await later(1800); if (e.result === 'taken') W.owner[e.r] = e.a; draw(); await later(1500); };
+    W.occupy = async e => { await later(800); W.owner[e.r] = e.team; draw(); await later(1200); };
+    W.build = W.capital = W.ally = W.unally = W.phase = W.harvest = async () => later(1500); W.batch = async list => { list.forEach(e => { if (e.k === 'occupy') W.owner[e.r] = e.team; }); draw(); await later(2000); };
+    draw(); return W; },
   onState(P) {
     if (!P || !P.teams) return; if (this.code && P.code !== this.code && this.P) return; if (!this.code && P.code) this.join(P.code);
     if (this.P && P.v < this.P.v && P.code === this.P.code) return;
@@ -66,9 +78,18 @@ const Display = {
       else if (ev.k === 'supply') SFX.play('harvest');
     } catch (e) { console.error(e); }
     this.playing--; this.curEv = null; if (!this.playing && this.P && this.P.vis && !this.P.ev) this.syncVis(this.P.vis); this.render(); },
-  onStage(st, prev) { if (['question', 'orders', 'predict', 'buzz', 'harvest', 'bini', 'tie'].includes(st) && !this.playing && this.W) this.W.overview(1.6); if (st === 'question') SFX.play('question'); if (st === 'reveal') SFX.play('reveal'); if (st === 'harvest') SFX.play('harvest'); if (st === 'judge') SFX.play('buzz'); if (st === 'crown') { SFX.play('crown'); this.W && this.W.setSky('crown', 6); } },
-  tickUI() { const t = $('#tbar'); if (t && this.endAt) { const left = Math.max(0, this.endAt - performance.now()); t.style.transform = `scaleX(${left / this.dur})`; } const pl = $('#plft'); if (pl && this.P && this.P.phaseLeft != null) pl.textContent = this.P.stage === 'lobby' || this.P.stage === 'crown' ? '' : 'باقي ' + Math.ceil(Math.max(0, this.P.phaseLeft - 0) / 60000) + ' د'; },
-  show(id, html) { ['qcard', 'banner', 'mid', 'lobby'].forEach(k => { const el = $('#' + k); if (k === id) { if (html != null && el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; } el.classList.remove('hide'); } else el.classList.add('hide'); }); },
+  onStage(st, prev) { if (['question', 'orders', 'predict', 'buzz', 'harvest', 'bini', 'tie'].includes(st) && !this.playing && this.W) this.W.overview(1.6); if (st === 'question') SFX.play('question'); if (st === 'reveal') SFX.play('reveal'); if (st === 'harvest') { SFX.play('harvest'); if (this.W && !this.playing && this.W.harvest) { this.playing++; this.W.harvest().finally(() => { this.playing--; }); } } if (st === 'judge') SFX.play('buzz'); if (st === 'crown') { SFX.play('crown'); this.W && this.W.setSky('crown', 6); } },
+  // مناطق الواجهة الظاهرة تُبلَّغ للخريطة فلا يظهر اسم إقليم تحتها
+  reserve() { if (!this.W || !this.root) return; const R = []; const add = el => { if (!el || el.classList.contains('hide') || !el.offsetParent && getComputedStyle(el).position !== 'fixed') return; const b = el.getBoundingClientRect(); if (b.width > 2 && b.height > 2) R.push({ x0: b.left, y0: b.top, x1: b.right, y1: b.bottom }); };
+    $$('.dsp .brand, #phase, #dom, #qcard, #banner, #mid, #lobby, .sidelog > div', this.root).forEach(add); const mc = document.getElementById('mapctl'); if (mc && mc.offsetParent) add(mc); const sb = $('.sndbox', this.root); if (sb) add(sb); this.W.reserved = R; },
+  tickUI() { if (this.P && this.P.stage === 'crown' && this.P.ribbon && (Math.floor(performance.now() / 12000) % 2 === 1) !== !!this.crownFlip) this.render(); this.reserve(); const t = $('#tbar'); if (t && this.endAt) { const left = Math.max(0, this.endAt - performance.now()); t.style.transform = `scaleX(${left / this.dur})`; } const pl = $('#plft'); if (pl && this.P && this.P.phaseLeft != null) pl.textContent = this.P.stage === 'lobby' || this.P.stage === 'crown' ? '' : 'باقي ' + Math.ceil(Math.max(0, this.P.phaseLeft - 0) / 60000) + ' د'; },
+  show(id, html) { let changed = false; ['qcard', 'banner', 'mid', 'lobby'].forEach(k => { const el = $('#' + k); if (k === id) { if (html != null && el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; changed = true; } if (el.classList.contains('hide')) changed = true; el.classList.remove('hide'); } else el.classList.add('hide'); }); if (changed) this.fit(); },
+  // كل بطاقة تُضبط لتسع الشاشة تحت الشريط العلوي: تُختصر ثم تُصغَّر بقدر الحاجة فقط، فلا تفيض ولا تغطي الأعلى
+  fit() { const vw = innerWidth, vh = innerHeight; let top = 0; $$('.dsp .brand, #phase, #dom', this.root).forEach(e => { const b = e.getBoundingClientRect(); if (b.height > 2 && b.width > 2) top = Math.max(top, b.bottom); }); const mc = document.getElementById('mapctl'); if (mc && mc.offsetWidth) top = Math.max(top, mc.getBoundingClientRect().bottom);
+    $$('#qcard, #banner, #mid, #lobby', this.root).forEach(el => { if (el.classList.contains('hide')) return; el.style.zoom = ''; el.style.maxHeight = 'none'; el.classList.remove('compact');
+      const mid = el.id === 'mid', room = mid ? vh - 2 * (top + 8) : vh - top - 18 - (parseFloat(getComputedStyle(el).bottom) || 0);
+      const ok = () => { const b = el.getBoundingClientRect(); return el.scrollWidth <= el.clientWidth + 2 && b.height <= room && b.width <= vw - 12; };
+      if (ok()) return; el.classList.add('compact'); if (ok()) return; for (let z = .92; z >= .5; z -= .06) { el.style.zoom = z.toFixed(2); if (ok()) return; } }); },
   render() {
     const P = this.P; if (!P) return; const T = P.teams, tn = i => i == null ? 'محايد' : esc(T[i].name), tc = i => i == null ? '#999' : T[i].color;
     // الشريط العلوي: المرحلة والسيطرة
@@ -77,7 +98,7 @@ const Display = {
     else $('#dom').innerHTML = '';
     const tbar = `<div class="timer"><i id="tbar"></i></div>`, st = P.stage;
     const slog = $('#slog'); slog.innerHTML = '';
-    if (st === 'lobby') { const url = joinUrl(P.code, P.fp); return this.show('lobby', `<div><div class="qr">${url ? qrSvg(url) : ''}</div><div class="code">رمز الغرفة<b>${esc(P.code)}</b></div></div><div><div class="ptitle k" style="font-size:64px;text-align:start">امسح الرمز وانضم</div><div class="mut" style="font-size:20px;margin:6px 0 20px">اختر فريقك من جوالك، وأول من ينضم يكون القائد</div><div class="teams">${T.map((t, i) => `<div class="team" style="--tc:${t.color}"><h3>${esc(t.name)}</h3>${Object.entries(P.players).filter(([, p]) => p.t === i).map(([pid, p]) => `<div class="p ${t.cap === pid ? 'cap' : ''}">${t.cap === pid ? '👑 ' : ''}${esc(p.n)}</div>`).join('') || '<div class="p">بانتظار المتسابقين…</div>'}</div>`).join('')}</div></div>`); }
+    if (st === 'lobby') { const url = joinUrl(P.code, P.fp); return this.show('lobby', `<div><div class="qr">${url ? qrSvg(url) : ''}</div><div class="code">رمز الغرفة<b>${esc(P.code)}</b></div></div><div><div class="ptitle k" style="font-size:64px;text-align:start">امسح الرمز وانضم</div><div class="mut" style="font-size:20px;margin:6px 0 20px">اختر فريقك من جوالك، وأول من ينضم يكون القائد</div><div class="teams">${T.map((t, i) => { const pl = Object.entries(P.players).filter(([, p]) => p.t === i).sort(([a], [b]) => (b === t.cap) - (a === t.cap)), n = pl.length; return `<div class="team" style="--tc:${t.color}"><h3>${esc(t.name)}</h3>${pl.slice(0, 4).map(([pid, p]) => `<div class="p ${t.cap === pid ? 'cap' : ''}">${t.cap === pid ? '👑 ' : ''}${esc(p.n)}</div>`).join('')}${n > 4 ? `<div class="p">و${n - 4} آخرون</div>` : ''}${n ? '' : '<div class="p">بانتظار المتسابقين…</div>'}<div class="cnt">${n ? (n === 1 ? 'لاعب واحد' : n === 2 ? 'لاعبان' : n + (n <= 10 ? ' لاعبين' : ' لاعبًا')) : 'بانتظار المتسابقين'}</div></div>`; }).join('')}</div></div>`); }
     if (st === 'phase' && P.ev && P.ev.k === 'phase') { const U = { occupy: 'الاحتلال', supply: 'التموين', inf: 'المشاة', walls: 'الأسوار', cav: 'الفرسان', tower: 'برج المراقبة', garInf: 'الحامية', alliance: 'التحالفات', cat: 'المنجنيق', cap2: 'تطوير العاصمة', castle: 'القلعة الكبرى' };
       const un = (P.ev.unlock || []).filter(k => U[k] && k !== 'garCav' && k !== 'cap3').map(k => U[k]);
       return this.show('mid', `<div class="kind">المرحلة</div><div class="ptitle k">${esc(P.ev.name)}</div>${un.length ? `<div class="punlock">ينفتح الآن: ${un.join('، ')}</div>` : P.ev.key === 'final' ? '<div class="punlock">سقطت التحالفات كلها، وكل فريق لنفسه</div>' : ''}`); }
@@ -99,7 +120,10 @@ const Display = {
     if (st === 'harvest' && P.harvest) return this.show('banner', `<small>الحصاد: أراضيكم تنتج كل جولة</small><div class="row" style="gap:22px;justify-content:center;margin-top:6px">${T.map((t, i) => { const h = P.harvest[i] || {}; return `<div style="text-align:center"><b style="color:${t.color};font-family:var(--fd);font-size:20px">${esc(t.name)}</b><div class="mut" style="font-size:14px">🌾${h.food || 0} · 💰${h.gold || 0} · 🪨${h.stone || 0}</div></div>`; }).join('')}</div>`);
     if (st === 'bini' && P.bini) { const b = P.bini; return this.show('mid', `<div class="kind">بيني ${b.mult > 1 ? `مضاعف ×${b.mult}` : ''}</div><div class="ptitle k" style="font-size:72px">${esc(b.name)}</div><div class="punlock" style="font-family:var(--ft);max-width:820px;margin-inline:auto">${esc(b.desc)}</div>${b.n ? `<div class="punlock">من كل فريق: ${b.n}</div>` : ''}<div class="punlock gold">الجائزة: ${b.mult} ${b.mult === 1 ? 'أمر' : b.mult === 2 ? 'أمران' : 'أوامر'}</div>${b.running ? tbar : ''}`); }
     if (st === 'tie' && P.tie) { const t = P.tie; return this.show('qcard', `<div class="qtop"><span>المواجهة الفاصلة: تعادل في الصدارة · الفائز أول من يصل نقطتين</span><span>${t.teams.map((x, i) => `<span style="color:${tc(x)}">${tn(x)} ${t.pts[i]}</span>`).join(' · ')}</span></div><div class="qtext">${t.q ? esc(t.q.text) : ''}</div>${t.buzz ? `<div class="who" style="text-align:center;color:${tc(t.buzz.team)}">${tn(t.buzz.team)} · ${esc(t.buzz.name)}</div>` : (t.q ? `<div class="opts">${t.q.c.map((c, i) => `<div class="opt"><span class="L">${LET[i]}</span>${esc(c)}</div>`).join('')}</div>` : '')}${tbar}`); }
-    if (st === 'crown') { return this.show('mid', `<div class="kind">التتويج</div><div class="ptitle k" style="color:${tc(P.winner)}">${tn(P.winner)}</div><div class="punlock">أبطال الجزيرة</div><div class="rank">${(P.rank || []).map((r, k) => `<div style="--tc:${tc(r.team)}"><b>${k + 1}. ${tn(r.team)}</b><span>${r.score} أرض</span></div>`).join('')}</div>`); }
+    if (st === 'crown' && P.winner == null && P.rank && P.rank[0]) P.winner = P.rank[0].team;
+    if (st === 'crown') { const rib = P.ribbon && P.ribbon.length && Math.floor(performance.now() / 12000) % 2 === 1; this.crownFlip = rib;
+      if (rib) return this.show('mid', `<div class="kind">شريط الحرب</div><div class="ribbon">${P.ribbon.map(r => `<div><b class="k">${esc(r.name)}</b>${r.ev.map(t => `<span>${esc(t)}</span>`).join('')}</div>`).join('')}</div>`);
+      return this.show('mid', `<div class="kind">التتويج</div><div class="ptitle k" style="color:${tc(P.winner)}">${tn(P.winner)}</div><div class="punlock">أبطال الجزيرة</div><div class="rank">${(P.rank || []).map((r, k) => `<div style="--tc:${tc(r.team)}"><b>${k + 1}. ${tn(r.team)}</b><span>${r.score} أرض</span></div>`).join('')}</div>`); }
     if (st === 'scene' || st === 'phase') return this.show(null);
     this.show(null);
   },

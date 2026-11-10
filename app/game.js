@@ -4,10 +4,10 @@
   'use strict';
   const RR = () => G.RayatRules;
   const SEC = 1000;
-  const DUR = { phase: 6, question: 20, reveal: 5, orders: 20, harvest: 3.5, predict: 7, buzz: 15, buzz2: 10, judgeMax: 25, duelRes: 2.5, gq: 20,
+  const DUR = { phase: 6, question: 20, reveal: 5, orders: 20, harvest: 4.6, predict: 7, buzz: 15, buzz2: 10, judgeMax: 25, duelRes: 2.5, gq: 20,
     // مدد المشاهد على شاشة العرض (ثوانٍ) — المشرف يتخطاها بضغطة
-    scene: { occupy: 8.6, attack: 11.2, walls: 6.8, tower: 6.8, garInf: 6.8, garCav: 6.8, capital: 5.6, supply: 2.2, ally: 3.6, unally: 2.8, batch: 8, phase: 5.2 } };
-  const LEVELS = { mid: 'متوسط', sec: 'ثانوي', uni: 'جامعي' };
+    scene: { occupy: 8.6, attack: 11.2, walls: 6.8, tower: 6.8, garInf: 6.8, garCav: 6.8, capital: 5.6, supply: 2.2, ally: 5.8, unally: 3.4, sail: 2.9, batch: 8, phase: 5.2 } };
+  const LEVELS = { easy: 'سهل', med: 'متوسط', hard: 'صعب' }, LV_OLD = { mid: 'easy', sec: 'med', uni: 'hard' }, lv = k => LV_OLD[k] || (LEVELS[k] ? k : 'med');
   const PH_DIFF = { opening: 1, expansion: 1, friction: 2, war: 2, siege: 3, final: 3, crown: 3 };
   const clone = o => JSON.parse(JSON.stringify(o));
   const RES_AR = { food: 'طعام', gold: 'ذهب', stone: 'حجر' };
@@ -17,7 +17,7 @@
     constructor(o = {}) {
       this.now = o.now || (() => Date.now());
       this.bank = o.bank || []; this.binis = o.binis || [];
-      this.s = { v: 0, code: o.code || String(1000 + Math.floor(Math.random() * 9000)), stage: 'lobby', level: o.level || 'sec', nTeams: o.teams ? o.teams.length : 4,
+      this.s = { v: 0, code: o.code || String(1000 + Math.floor(Math.random() * 9000)), stage: 'lobby', level: lv(o.level), nTeams: o.teams ? o.teams.length : 4,
         teams: (o.teams || []).map((t, i) => ({ id: i, name: t.name, color: t.color, mark: t.mark })), players: {}, captains: {}, mapSeed: o.mapSeed || 7,
         cycle: 0, phase: 0, phaseStart: 0, paused: null, used: [], q: null, answers: {}, ans: null, orders: {}, sug: {}, ready: {}, queue: [], ev: null, evSeq: 0, duel: null, log: [], vis: null, bini: null, binisOn: o.binisOn !== false, tie: null, winner: null, deadline: 0, dur: 0, startedAt: 0 };
       this.S = null; this.M = null; this.onChange = () => { };
@@ -27,7 +27,9 @@
     t() { return this.now(); }
     setTimer(sec) { this.s.dur = sec * SEC; this.s.deadline = this.t() + sec * SEC; }
     left() { return Math.max(0, this.s.deadline - this.t()); }
-    say(text, kind = 'info') { this.s.log.push({ t: this.t(), text, kind }); if (this.s.log.length > 60) this.s.log.shift(); }
+    say(text, kind = 'info') { const s = this.s; s.log.push({ t: this.t(), text, kind }); if (s.log.length > 60) s.log.shift(); if (kind === 'big') { (s.chron = s.chron || []).push({ p: s.phase || 0, c: s.cycle || 0, text }); if (s.chron.length > 300) s.chron.shift(); } }
+    // شريط الحرب: لكل مرحلة أبرز حدثين
+    ribbon() { const P = RR().CFG.PHASES, ch = this.s.chron || []; return P.map((ph, i) => { const ev = ch.filter(x => x.p === i && !/^بدأت/.test(x.text)), key = ev.filter(x => /القلعة|ينقضون|ينهبون|عاصمة|يتوَّجون/.test(x.text)), pick = (key.length ? key : ev); return { name: ph.name, ev: [pick[0], pick.length > 1 ? pick[pick.length - 1] : null].filter(Boolean).map(x => x.text) }; }).filter(x => x.ev.length); }
     team(i) { return this.s.teams[i]; }
     tn(i) { return i == null ? 'محايد' : this.s.teams[i].name; }
     rn(r) { return this.S.regions[r].name; }
@@ -66,9 +68,14 @@
     pushEv(e) { this.s.queue.push(e); }
 
     // ---------- السؤال ----------
+    // يُختار السؤال من مستوى المسابقة؛ فإن نفد يُستعار من أقرب مستوى آخر قبل أي تكرار (450 سؤالًا تكفي مسابقة كاملة بلا تكرار)
     pickQuestion(diffWant, forDuel) {
-      const s = this.s, pool = this.bank.filter(q => q.level === s.level && !s.used.includes(q.id));
-      let c = pool.filter(q => q.d === diffWant); if (!c.length) c = pool.filter(q => Math.abs(q.d - diffWant) <= 1); if (!c.length) c = pool; if (!c.length) { s.used = []; c = this.bank.filter(q => q.level === s.level); }
+      const s = this.s, near = { easy: ['easy', 'med', 'hard'], med: ['med', 'easy', 'hard'], hard: ['hard', 'med', 'easy'] }[s.level] || [s.level];
+      let c = [];
+      for (const lv of near) { const pool = this.bank.filter(q => q.level === lv && !s.used.includes(q.id)); if (!pool.length) continue;
+        const shift = lv === s.level ? 0 : (near.indexOf(lv) && ['easy', 'med', 'hard'].indexOf(lv) < ['easy', 'med', 'hard'].indexOf(s.level) ? 2 : -1), want = Math.max(1, Math.min(3, diffWant + (lv === s.level ? 0 : shift)));
+        c = pool.filter(q => q.d === want); if (!c.length) c = pool.filter(q => Math.abs(q.d - want) <= 1); if (!c.length) c = pool; break; }
+      if (!c.length) { s.used = []; c = this.bank.filter(q => q.level === s.level); }
       if (!c.length) c = this.bank; const q = c[Math.floor(Math.random() * c.length)]; s.used.push(q.id); return q;
     }
     nextQuestion() { const s = this.s, q = this.pickQuestion(PH_DIFF[this.phaseKey()]);
@@ -117,14 +124,16 @@
       this.harvest(); }
     calmEvent(t, o) { const S = this.S; switch (o.k) {
       case 'supply': this.say(`${this.tn(t)}: تموين +${RR().CFG.SUPPLY} ${RES_AR[o.res]}`); return { k: 'supply', team: t, res: o.res, n: RR().CFG.SUPPLY };
-      case 'occupy': this.say(`${this.tn(t)} يحتلون ${this.rn(o.r)}`); return { k: 'occupy', team: t, r: o.r };
+      case 'occupy': this.say(`${this.tn(t)} يحتلون ${this.rn(o.r)}`); return { k: 'occupy', team: t, r: o.r, naval: this.seaTo(t, o.r) };
       case 'walls': this.say(`${this.tn(t)} يبنون سورًا في ${this.rn(o.r)}`); return { k: 'walls', team: t, r: o.r };
       case 'tower': this.say(`${this.tn(t)} يرفعون برج مراقبة في ${this.rn(o.r)}`); return { k: 'tower', team: t, r: o.r };
       case 'garInf': case 'garCav': this.say(`${this.tn(t)} ينشرون حامية ${o.k === 'garCav' ? 'فرسان' : 'مشاة'} في ${this.rn(o.r)}`); return { k: o.k, team: t, r: o.r };
       case 'cap2': case 'cap3': this.say(`${this.tn(t)} يطوّرون عاصمتهم إلى ${o.k === 'cap2' ? 'مدينة' : 'حاضرة'}`, 'big'); return { k: 'capital', team: t, level: S.teams[t].capLevel };
     } return { k: 'supply', team: t, res: 'gold', n: 0 }; }
+    // هل يصل الفريق إلى الإقليم بحرًا؟ (لا أرض له ولا لحليفه مجاورة على اليابسة نفسها)
+    seaTo(team, r, ally) { const M = this.M, S = this.S; if (!M || !M.regions[r]) return false; const L = M.regions[r].land || 0; return !M.regions[r].nb.some(j => (M.regions[j].land || 0) === L && (S.regions[j].owner === team || (ally != null && S.regions[j].owner === ally))); }
     showCalm(list) { const s = this.s; const vis = list.filter(e => e.k !== 'supply');
-      let d = DUR.scene.supply; if (vis.length === 1) d = DUR.scene[vis[0].k] || 6; else if (vis.length > 1) d = DUR.scene.batch;
+      let d = DUR.scene.supply; if (vis.length === 1) d = DUR.scene[vis[0].k] || 6; else if (vis.length > 1) d = DUR.scene.batch; if (vis.some(e => e.naval)) d += DUR.scene.sail;
       s.ev = vis.length === 1 ? { id: ++s.evSeq, ...vis[0], list, one: vis[0] } : vis.length === 0 && list.length === 1 ? { id: ++s.evSeq, ...list[0], list } : { id: ++s.evSeq, k: 'batch', list, one: null };
       if (s.ev.k === 'batch' && !vis.length) d = 3; s.stage = 'scene'; s.afterScene = 'next'; this.setTimer(d); this.changed(); }
     sceneDone() { const s = this.s; s.vis = this.snapshot();
@@ -160,8 +169,8 @@
       if (D.d != null) { const per = {}; Object.entries(D.preds).forEach(([pid, side]) => { const p = s.players[pid]; if (p && side === res.winner) per[p.team] = (per[p.team] || 0) + 1; }); Object.entries(per).forEach(([t, n]) => { const g = RR().predict(S, +t, n); if (g) this.say(`${this.tn(+t)}: توقعات صحيحة +${g} ذهب`); }); D.predWin = per; }
       const r = D.r, result = res.taken ? 'taken' : res.loot ? 'loot' : res.garrisonFell ? 'garrisonFell' : 'hold';
       this.say(result === 'taken' ? `${this.tn(D.a)} يفتحون ${this.rn(r)}` : result === 'loot' ? `${this.tn(D.a)} ينهبون عاصمة ${this.tn(D.d)}` : result === 'garrisonFell' ? `سقطت حامية ${this.rn(r)} وصمدت الأرض` : `${this.tn(D.d != null ? D.d : null)} يصدّون الهجوم على ${this.rn(r)}`, 'big');
-      s.stage = 'scene'; s.ev = { id: ++s.evSeq, k: 'attack', a: D.a, d: D.d, ally: D.ally, r, unit: D.unit, result, from: D.from, loot: res.loot || null, cavLoot: res.cavLoot || 0 };
-      s.lastDuel = { a: D.a, d: D.d, r, result, pts: D.pts, kindAr: D.kindAr }; s.duel = null; s.afterScene = 'next'; this.setTimer(DUR.scene.attack);
+      s.stage = 'scene'; const naval = this.seaTo(D.a, r, D.ally); s.ev = { id: ++s.evSeq, k: 'attack', a: D.a, d: D.d, ally: D.ally, r, unit: D.unit, result, from: D.from, loot: res.loot || null, cavLoot: res.cavLoot || 0, naval };
+      s.lastDuel = { a: D.a, d: D.d, r, result, pts: D.pts, kindAr: D.kindAr }; s.duel = null; s.afterScene = 'next'; this.setTimer(DUR.scene.attack + (naval ? DUR.scene.sail : 0));
       // أحداث مؤجلة (خيط الحلف ينقطع) تُعرض بعد المشهد
       this.changed(); }
 
@@ -237,13 +246,13 @@
       if (st === 'harvest') P.harvest = s.harvest;
       if (s.bini) P.bini = s.bini;
       if (s.tie) P.tie = { teams: s.tie.teams, pts: s.tie.pts, buzz: s.tie.buzz, tried: s.tie.tried, q: s.tie.q ? { id: s.tie.q.id, text: s.tie.q.text, c: s.tie.q.c } : null };
-      if (st === 'crown') { P.winner = s.winner; P.rank = s.rank; }
+      if (st === 'crown') { P.winner = s.winner; P.rank = s.rank; P.ribbon = this.ribbon(); }
       return P; }
     // ما يراه المشرف فقط (مفتاح الإجابة)
     hostView() { const s = this.s; return { key: s.stage === 'judge' || s.stage === 'buzz' ? (s.duel && s.duel.q ? s.duel.q.a : null) : s.stage === 'tie' && s.tie && s.tie.q ? s.tie.q.a : s.q ? s.q.a : null }; }
     // حفظ واسترجاع
     save() { return JSON.stringify({ s: this.s, S: this.S }); }
-    load(json) { const o = JSON.parse(json); this.s = o.s; this.S = o.S; if (this.S) this.M = G.RayatMap.build(this.s.teams.length, this.s.mapSeed); this.changed(); }
+    load(json) { const o = JSON.parse(json); this.s = o.s; this.s.level = lv(this.s.level); this.S = o.S; if (this.S) this.M = G.RayatMap.build(this.s.teams.length, this.s.mapSeed); this.changed(); }
   }
   RayatGame.DUR = DUR; RayatGame.LEVELS = LEVELS; RayatGame.RES_AR = RES_AR; RayatGame.UNIT_AR = UNIT_AR;
   G.RayatGame = RayatGame;

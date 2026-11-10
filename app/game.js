@@ -4,14 +4,19 @@
   'use strict';
   const RR = () => G.RayatRules;
   const SEC = 1000;
-  const DUR = { phase: 6, question: 20, reveal: 5, orders: 20, harvest: 4.6, predict: 7, buzz: 15, buzz2: 10, judgeMax: 25, duelRes: 2.5, gq: 20,
+  const DUR = { phase: 6, question: 20, reveal: 5, orders: 20, harvest: 4.6, predict: 7, buzz: 15, buzz2: 10, judgeMax: 25, pick: 12, duelRes: 2.5, gq: 20,
     // مدد المشاهد على شاشة العرض (ثوانٍ) — المشرف يتخطاها بضغطة
-    scene: { occupy: 8.6, attack: 11.2, walls: 6.8, tower: 6.8, garInf: 6.8, garCav: 6.8, capital: 5.6, supply: 2.2, ally: 5.8, unally: 3.4, sail: 2.9, batch: 8, phase: 5.2 } };
+    scene: { occupy: 8.6, attack: 11.2, walls: 6.8, tower: 6.8, garInf: 6.8, garCav: 6.8, capital: 5.6, supply: 2.2, ally: 5.8, unally: 3.4, sail: 6.4, batch: 8, phase: 5.2 } };
   const LEVELS = { easy: 'سهل', med: 'متوسط', hard: 'صعب' }, LV_OLD = { mid: 'easy', sec: 'med', uni: 'hard' }, lv = k => LV_OLD[k] || (LEVELS[k] ? k : 'med');
   const PH_DIFF = { opening: 1, expansion: 1, friction: 2, war: 2, siege: 3, final: 3, crown: 3 };
   const clone = o => JSON.parse(JSON.stringify(o));
   const RES_AR = { food: 'طعام', gold: 'ذهب', stone: 'حجر' };
   const UNIT_AR = { inf: 'مشاة', cav: 'فرسان', cat: 'منجنيق' };
+
+  // خطط المدة (دقائق لكل مرحلة: افتتاح، توسع، احتكاك، حرب، حصار، معركة أخيرة، ثم الختام: التتويج ومعه احتياط الفاصل).
+  // المدة تبدأ عند «ابدأ المسابقة» وتشمل الأسئلة والأوامر والمشاهد والبينيات والتتويج؛ التسجيل والشرح قبل البدء خارجها.
+  const PLANS = { 40: [3, 5, 8, 9, 7, 5, 3], 50: [3, 6, 10, 12, 9, 6, 4], 60: [4, 7, 12, 15, 11, 7, 4], 90: [5, 10, 18, 25, 17, 10, 5] };
+  const BINI_HINT = { 40: 1, 50: 2, 60: 2, 90: 4 }, MINUTE = 60000;
 
   class RayatGame {
     constructor(o = {}) {
@@ -19,7 +24,7 @@
       this.bank = o.bank || []; this.binis = o.binis || [];
       this.s = { v: 0, code: o.code || String(1000 + Math.floor(Math.random() * 9000)), stage: 'lobby', level: lv(o.level), nTeams: o.teams ? o.teams.length : 4,
         teams: (o.teams || []).map((t, i) => ({ id: i, name: t.name, color: t.color, mark: t.mark })), players: {}, captains: {}, mapSeed: o.mapSeed || 7,
-        cycle: 0, phase: 0, phaseStart: 0, paused: null, used: [], q: null, answers: {}, ans: null, orders: {}, sug: {}, ready: {}, queue: [], ev: null, evSeq: 0, duel: null, log: [], vis: null, bini: null, binisOn: o.binisOn !== false, tie: null, winner: null, deadline: 0, dur: 0, startedAt: 0 };
+        cycle: 0, phase: 0, phaseStart: 0, paused: null, used: [], q: null, answers: {}, ans: null, orders: {}, sug: {}, ready: {}, queue: [], ev: null, evSeq: 0, duel: null, log: [], vis: null, bini: null, binisOn: o.binisOn !== false, tie: null, winner: null, deadline: 0, dur: 0, startedAt: 0, total: PLANS[o.total] ? +o.total : 60, tplan: null, extra: 0, endAfter: false, cyc: [] };
       this.S = null; this.M = null; this.onChange = () => { };
     }
     // ---------- مساعدات ----------
@@ -61,10 +66,24 @@
     start() {
       const s = this.s; if (s.stage !== 'lobby') return;
       this.M = G.RayatMap.build(s.teams.length, s.mapSeed); this.S = RR().setup(this.M, s.teams);
-      s.vis = this.snapshot(); s.startedAt = this.t(); s.phaseStart = this.t(); s.cycle = 0;
+      s.vis = this.snapshot(); s.startedAt = this.t(); s.phaseStart = this.t(); s.cycle = 0; s.tplan = PLANS[s.total].slice(); s.extra = 0; s.endAfter = false; s.cyc = []; s.cycAt = this.t();
       s.teams.forEach(T => { if (s.captains[T.id] == null) { const m = this.members(T.id); if (m.length) s.captains[T.id] = m[0]; } });
       this.say('بدأت المسابقة', 'big'); this.enterPhase(0);
     }
+    // ---------- ساعة المسابقة ----------
+    setTotal(m) { const s = this.s; if (s.stage !== 'lobby' || !PLANS[m]) return; s.total = +m; this.changed(); }
+    plan() { return this.s.tplan || PLANS[this.s.total] || PLANS[60]; }
+    // نهاية المرحلة i بالدقائق منذ البداية (حدود تراكمية: تأخّر مرحلة لا يؤخّر النهاية)
+    bound(i) { const p = this.plan(); let m = 0; for (let k = 0; k <= i; k++) m += p[k]; return this.s.startedAt + m * MINUTE; }
+    playEnd() { return this.bound(this.plan().length - 2); }           // نهاية اللعب (قبل الختام)
+    gameEnd() { return this.bound(this.plan().length - 1); }           // النهاية الكاملة مع التتويج والفاصل
+    avgCycle() { const c = this.s.cyc || []; if (!c.length) return 80000; const a = c.slice(-6); return Math.max(RR().CFG.MIN_CYCLE_LEFT_S * SEC, a.reduce((x, y) => x + y, 0) / a.length); }
+    timeInfo() { const s = this.s; if (!s.startedAt || !s.tplan) return { total: s.total, el: 0, rem: s.total * MINUTE, started: false, biniHint: BINI_HINT[s.total] || 2, plan: this.plan() }; const done = s.stage === 'crown';
+      const t = done && s.endedAt ? s.endedAt : this.t(); return { total: s.total, extra: s.extra, el: t - s.startedAt, rem: Math.max(0, this.gameEnd() - t), playRem: Math.max(0, this.playEnd() - t), over: Math.max(0, t - this.gameEnd()), started: true, done, endAfter: !!s.endAfter, biniHint: BINI_HINT[s.total] || 2, plan: this.plan(), cyc: Math.round(this.avgCycle() / 1000) }; }
+    // تمديد: الدقائق الإضافية توزَّع على المراحل الباقية (الحالية وما بعدها) بنسبة مددها
+    extend(min = 5) { const s = this.s; if (!s.tplan || s.stage === 'crown' || s.stage === 'lobby') return; const last = s.tplan.length - 2, from = Math.min(s.phase, last), rest = s.tplan.slice(from, last + 1), sum = rest.reduce((a, b) => a + b, 0) || 1;
+      rest.forEach((v, k) => { s.tplan[from + k] = +(v + min * v / sum).toFixed(3); }); s.extra += min; s.endAfter = false; this.say(`مُدّدت المسابقة ${min} دقائق`); this.changed(); }
+    endAfterRound(on = true) { const s = this.s; if (s.stage === 'lobby' || s.stage === 'crown') return; s.endAfter = !!on; this.say(on ? 'تنتهي المسابقة بعد هذه الجولة' : 'أُلغي الإنهاء بعد الجولة'); this.changed(); }
     enterPhase(i) { const s = this.s, P = RR().CFG.PHASES[i]; if (i > 0) RR().setPhase(this.S, i); s.phase = i; s.phaseStart = this.t();
       this.S.events.filter(e => e.t === 'unally' && e.phase === i).forEach(e => this.pushEv({ k: 'unally', a: e.a, b: e.b, betray: false }));
       s.stage = 'phase'; s.ev = { id: ++s.evSeq, k: 'phase', key: P.key, name: P.name, unlock: P.unlock }; this.sceneTimer(DUR.scene.phase); this.say('بدأت مرحلة ' + P.name, 'big');
@@ -156,16 +175,21 @@
       if (D.kind === 'garrisonQ') { const q = this.pickQuestion(3, true); s.duel.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.q = s.duel.q; s.stage = 'gq'; this.setTimer(DUR.gq); this.changed(); return; }
       s.stage = 'predict'; this.setTimer(DUR.predict); this.changed(); }
     predict(pid, duelId, side) { const s = this.s, p = s.players[pid], D = s.duel; if (!D || D.id !== duelId || s.stage !== 'predict' || !p || [D.a, D.d, D.ally].includes(p.team) || !['a', 'd'].includes(side)) return; D.preds[pid] = side; this.changed(); }
-    duelQuestion() { const s = this.s, D = s.duel, q = this.pickQuestion(PH_DIFF[this.phaseKey()], true); D.q = { id: q.id, text: q.q, c: q.c, a: q.a }; D.buzz = null; D.tried = []; s.stage = 'buzz'; this.setTimer(DUR.buzz); this.changed(); }
+    duelQuestion() { const s = this.s, D = s.duel, q = this.pickQuestion(PH_DIFF[this.phaseKey()], true); D.q = { id: q.id, text: q.q, c: q.c, a: q.a }; D.buzz = null; D.tried = []; D.wrong = []; s.stage = 'buzz'; this.setTimer(DUR.buzz); this.changed(); }
     sideOf(team) { const D = this.s.duel; if (!D) return null; if (team === D.a || (D.ally != null && team === D.ally)) return 'a'; if (team === D.d) return 'd'; return null; }
     buzz(pid, duelId) { const s = this.s, D = s.duel, p = s.players[pid]; if (!D || D.id !== duelId || s.stage !== 'buzz' || !p) return; const side = this.sideOf(p.team); if (!side || D.tried.includes(side) || D.buzz) return;
-      D.buzz = { pid, team: p.team, side, name: p.name, t: this.t() }; s.stage = 'judge'; this.setTimer(DUR.judgeMax); this.changed(); }
-    // حكم المشرف على الإجابة الشفهية
-    judge(ok) { const s = this.s, D = s.duel; if (!D || s.stage !== 'judge' || !D.buzz) return; const side = D.buzz.side;
+      D.buzz = { pid, team: p.team, side, name: p.name, t: this.t() }; s.stage = 'judge'; this.setTimer(DUR.pick); this.changed(); }
+    // المواجهة بالخيارات (طلب المستخدم 10 نوفمبر): من ضغط الجرس يختار من جواله ويُصحَّح آليًا، فلا يحكم المشرف.
+    //  - صحيحة: نقطة لفريقه.  - خاطئة: ينتقل السؤال فورًا للفريق الآخر، وأول عضو فيه يختار.
+    //  - أخطأ المهاجم ثم المدافع: ينفذ الهجوم (نقطة للمهاجم).  - أخطأ المدافع ثم المهاجم: سؤال جديد.  - انتهى الوقت بلا اختيار = خطأ.
+    pick(pid, duelId, idx) { const s = this.s, D = s.duel, p = s.players[pid]; if (!D || D.id !== duelId || s.stage !== 'judge' || !D.buzz || !p || !D.q) return; if (this.sideOf(p.team) !== D.buzz.side) return; if (!D.buzz.pass && D.buzz.pid !== pid) return;
+      idx = +idx; if (!(idx >= 0 && idx < D.q.c.length) || (D.wrong || []).includes(idx)) return; if (D.buzz.pass) { D.buzz.pid = pid; D.buzz.name = p.name; D.buzz.team = p.team; } this.answerDuel(idx === D.q.a, idx); }
+    judge(ok) { const s = this.s, D = s.duel; if (!D || s.stage !== 'judge' || !D.buzz) return; this.answerDuel(!!ok, null); }
+    answerDuel(ok, idx) { const s = this.s, D = s.duel, side = D.buzz.side, team = D.buzz.team;
       if (ok) return this.duelPoint(side);
-      D.tried.push(side); this.say(`${this.tn(D.buzz.team)}: إجابة خاطئة`); D.buzz = null;
-      if (D.tried.length >= 2) return this.duelPoint('d');
-      s.stage = 'buzz'; this.setTimer(DUR.buzz2); this.changed(); }
+      D.tried.push(side); if (idx != null) (D.wrong = D.wrong || []).push(idx); this.say(`${this.tn(team)}: ${idx == null && !D.buzz.name ? 'لم يجيبوا في الوقت' : 'إجابة خاطئة'}`);
+      if (D.tried.length >= 2) { if (D.tried[0] === 'a') return this.duelPoint('a'); D.reask = (D.reask || 0) + 1; if (D.reask > 4) return this.duelPoint('d'); this.say('أخطأ الفريقان: سؤال جديد'); return this.duelQuestion(); }
+      const other = side === 'a' ? 'd' : 'a'; D.buzz = { side: other, team: other === 'a' ? D.a : D.d, pass: true, pid: null, name: null, t: this.t() }; s.stage = 'judge'; this.setTimer(DUR.pick); this.changed(); }
     duelPoint(side) { const s = this.s, D = s.duel; const res = RR().point(this.S, side); D.pts = res ? D.pts : { ...this.S.duel.pts }; if (!res) { D.pts = { ...this.S.duel.pts }; D.last = side; s.stage = 'point'; this.setTimer(DUR.duelRes); this.changed(); return; }
       D.pts[side]++; D.result = res; this.finishDuel(res); }
     gqEnd() { const s = this.s, D = s.duel; if (!D || s.stage !== 'gq') return; const ids = Object.keys(D.gqAns), ok = ids.filter(pid => D.gqAns[pid] === D.q.a).length, all = this.online(D.a).concat(D.ally != null ? this.online(D.ally) : []).length || 1;
@@ -182,8 +206,16 @@
 
     // ---------- الحصاد والمراحل ----------
     harvest() { const s = this.s; const h = RR().endCycle(this.S); s.harvest = h; s.vis = this.snapshot(); s.stage = 'harvest'; s.ev = null; this.sceneTimer(DUR.harvest); this.changed(); }
-    afterHarvest() { const s = this.s, P = RR().CFG.PHASES, i = s.phase, el = (this.t() - s.phaseStart) / 60000;
-      if (s.forcePhase || (el >= P[i].min && i < P.length - 1)) { s.forcePhase = false; this.enterPhase(i + 1); return; }
+    afterHarvest() { const s = this.s, P = RR().CFG.PHASES, i = s.phase, now = this.t(), last = P.length - 2;
+      if (s.cycAt) { (s.cyc = s.cyc || []).push(now - s.cycAt); if (s.cyc.length > 12) s.cyc.shift(); } s.cycAt = now;
+      // إنهاء بعد الجولة، أو انتهى وقت اللعب، أو لا يتسع الباقي لجولة كاملة مع بقاء مخصص الختام
+      if (s.endAfter || (i >= last && this.playEnd() - now < this.avgCycle())) { s.endAfter = false; s.forcePhase = false; this.enterPhase(P.length - 1); return; }
+      if (s.forcePhase && i < last) { // انتقال مبكر بطلب المشرف: الوقت الموفَّر يذهب للمراحل التالية فتبقى النهاية كما هي
+        const saved = (this.bound(i) - now) / MINUTE; if (saved > 0) { const rest = s.tplan.slice(i + 1, last + 1), sum = rest.reduce((a, b) => a + b, 0) || 1; s.tplan[i] = +(s.tplan[i] - saved).toFixed(3); rest.forEach((v, k) => { s.tplan[i + 1 + k] = +(v + saved * v / sum).toFixed(3); }); }
+        s.forcePhase = false; this.enterPhase(i + 1); return; }
+      s.forcePhase = false;
+      // حدود تراكمية: نتخطى أي مرحلة فات وقتها كله (لحاقًا بعد بينيات طويلة) لكن لا نتخطى أكثر من مرحلة في المرة
+      if (i < last && now >= this.bound(i) - this.avgCycle() * .35) { this.enterPhase(i + 1); return; }
       this.nextQuestion(); }
     nextPhaseNow() { this.s.forcePhase = true; if (this.s.stage === 'question' || this.s.stage === 'reveal') { /* تُطبَّق بعد الجولة */ } this.changed(); }
 
@@ -203,11 +235,12 @@
 
     // ---------- التتويج ----------
     crown() { const s = this.s, S = this.S; if (S.tie) { s.stage = 'tie'; s.tie = { teams: S.tie.teams.slice(), pts: S.tie.pts.slice(), buzz: null, tried: [], q: null }; this.tieQuestion(); return; }
-      s.winner = S.winner; s.stage = 'crown'; s.rank = RR().ranking(S); this.say(`${this.tn(s.winner)} يتوَّجون أبطالًا للجزيرة`, 'big'); s.deadline = 0; this.changed(); }
-    tieQuestion() { const s = this.s, q = this.pickQuestion(3, true); s.tie.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.tie.buzz = null; s.tie.tried = []; this.setTimer(DUR.buzz); this.changed(); }
-    tieBuzz(pid) { const s = this.s, T = s.tie, p = s.players[pid]; if (s.stage !== 'tie' || !T || T.buzz || !p || !T.teams.includes(p.team) || T.tried.includes(p.team)) return; T.buzz = { pid, team: p.team, name: p.name }; this.setTimer(DUR.judgeMax); this.changed(); }
+      s.winner = S.winner; s.stage = 'crown'; s.endedAt = this.t(); s.rank = RR().ranking(S); this.say(`${this.tn(s.winner)} يتوَّجون أبطالًا للجزيرة`, 'big'); s.deadline = 0; this.changed(); }
+    tieQuestion() { const s = this.s, q = this.pickQuestion(3, true); s.tie.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.tie.buzz = null; s.tie.tried = []; s.tie.wrong = []; this.setTimer(DUR.buzz); this.changed(); }
+    tieBuzz(pid) { const s = this.s, T = s.tie, p = s.players[pid]; if (s.stage !== 'tie' || !T || T.buzz || !p || !T.teams.includes(p.team) || T.tried.includes(p.team)) return; T.buzz = { pid, team: p.team, name: p.name }; this.setTimer(DUR.pick); this.changed(); }
+    tiePick(pid, idx) { const s = this.s, T = s.tie; if (s.stage !== 'tie' || !T || !T.buzz || T.buzz.pid !== pid || !T.q) return; idx = +idx; if (!(idx >= 0 && idx < T.q.c.length) || (T.wrong || []).includes(idx)) return; if (idx !== T.q.a) (T.wrong = T.wrong || []).push(idx); this.tieJudge(idx === T.q.a); }
     tieJudge(ok) { const s = this.s, T = s.tie; if (!T || !T.buzz) return; const team = T.buzz.team;
-      if (ok) { const w = RR().tiePoint(this.S, team); T.pts = this.S.tie ? this.S.tie.pts.slice() : T.pts.map((v, i) => T.teams[i] === team ? v + 1 : v); if (w != null) { s.tie = null; s.winner = w; s.stage = 'crown'; s.rank = RR().ranking(this.S); this.say(`${this.tn(w)} يحسمون المواجهة الفاصلة ويتوَّجون`, 'big'); this.changed(); return; } this.tieQuestion(); return; }
+      if (ok) { const w = RR().tiePoint(this.S, team); T.pts = this.S.tie ? this.S.tie.pts.slice() : T.pts.map((v, i) => T.teams[i] === team ? v + 1 : v); if (w != null) { s.tie = null; s.winner = w; s.stage = 'crown'; s.endedAt = this.t(); s.rank = RR().ranking(this.S); this.say(`${this.tn(w)} يحسمون المواجهة الفاصلة ويتوَّجون`, 'big'); this.changed(); return; } this.tieQuestion(); return; }
       T.tried.push(team); T.buzz = null; if (T.tried.length >= T.teams.length) this.tieQuestion(); else { this.setTimer(DUR.buzz2); this.changed(); } }
 
     // ---------- المؤقت ----------
@@ -239,29 +272,29 @@
         log: s.log.slice(-8), mapSeed: s.mapSeed, skipSeq: s.skipSeq || 0 };
       if (S) { P.vis = s.vis; P.score = S.teams.map(T => RR().score(S, T.id)); P.res = S.teams.map(T => ({ ...T.res })); P.capLevel = S.teams.map(T => T.capLevel);
         P.ally = S.teams.map(T => T.ally); P.offer = S.teams.map(T => T.offerFrom); P.revenge = S.teams.map(T => T.revenge && T.revenge.until >= S.cycle ? T.revenge.on : null); P.phaseKey = this.phaseKey(); P.phaseName = RR().CFG.PHASES[S.phase].name;
-        P.phaseLeft = Math.max(0, RR().CFG.PHASES[S.phase].min * 60000 - (this.t() - s.phaseStart)); P.left = S.turn ? S.turn.left.slice() : null; P.nRegions = S.regions.length; }
+        P.phaseLeft = Math.max(0, this.bound(Math.min(S.phase, this.plan().length - 1)) - this.t()); P.clock = (c => ({ total: c.total, extra: c.extra, el: c.el, rem: c.rem, playRem: c.playRem }))(this.timeInfo()); P.left = S.turn ? S.turn.left.slice() : null; P.nRegions = S.regions.length; }
       if (s.q && (st === 'question' || st === 'reveal')) P.q = { id: s.q.id, text: s.q.text, c: s.q.c, a: st === 'reveal' ? s.q.a : undefined, topic: s.q.topic, answered: Object.keys(s.answers).length, mine: null };
       if (st === 'question' || st === 'reveal') P.answered = Object.keys(s.answers);
       if (st === 'reveal' && s.ans) P.ans = { ...s.ans, by: Object.fromEntries(Object.entries(s.answers).map(([pid, a]) => [pid, a.c])) };
       if (st === 'orders') { P.orderTeams = s.orderTeams; P.opts = {}; s.orderTeams.forEach(t => { P.opts[t] = this.options(t); }); P.ready = s.ready; P.chosen = Object.fromEntries(Object.entries(s.orders).map(([t, l]) => [t, l.length])); P.sug = s.sug; P.ans = s.ans; }
-      if (s.duel) { const D = s.duel; P.duel = { id: D.id, a: D.a, d: D.d, ally: D.ally, r: D.r, rn: S.regions[D.r].name, unit: D.unit, kind: D.kind, kindAr: D.kindAr, need: D.need, pts: D.pts, betray: D.betray, revenge: D.revenge, joint: D.joint, buzz: D.buzz, tried: D.tried, preds: Object.keys(D.preds).length, last: D.last,
+      if (s.duel) { const D = s.duel; P.duel = { id: D.id, a: D.a, d: D.d, ally: D.ally, r: D.r, rn: S.regions[D.r].name, unit: D.unit, kind: D.kind, kindAr: D.kindAr, need: D.need, pts: D.pts, betray: D.betray, revenge: D.revenge, joint: D.joint, buzz: D.buzz, tried: D.tried, wrong: D.wrong || [], ans: st === 'point' && D.q ? D.q.a : undefined, preds: Object.keys(D.preds).length, last: D.last,
         q: D.q ? { id: D.q.id, text: D.q.text, c: D.q.c } : null, gqN: Object.keys(D.gqAns).length };
         if (st === 'gq') P.q = { id: D.q.id, text: D.q.text, c: D.q.c, gq: true }; }
       if (s.lastDuel) P.lastDuel = s.lastDuel;
       if (s.ev) P.ev = s.ev; P.ack = this.ackKey();
       if (st === 'harvest') P.harvest = s.harvest;
       if (s.bini) P.bini = s.bini;
-      if (s.tie) P.tie = { teams: s.tie.teams, pts: s.tie.pts, buzz: s.tie.buzz, tried: s.tie.tried, q: s.tie.q ? { id: s.tie.q.id, text: s.tie.q.text, c: s.tie.q.c } : null };
+      if (s.tie) P.tie = { teams: s.tie.teams, pts: s.tie.pts, buzz: s.tie.buzz, tried: s.tie.tried, wrong: s.tie.wrong || [], q: s.tie.q ? { id: s.tie.q.id, text: s.tie.q.text, c: s.tie.q.c } : null };
       if (st === 'crown') { P.winner = s.winner; P.rank = s.rank; P.ribbon = this.ribbon(); }
       return P; }
     // ما يراه المشرف فقط (مفتاح الإجابة)
     hostView() { const s = this.s; return { key: s.stage === 'judge' || s.stage === 'buzz' ? (s.duel && s.duel.q ? s.duel.q.a : null) : s.stage === 'tie' && s.tie && s.tie.q ? s.tie.q.a : s.q ? s.q.a : null }; }
     // حفظ واسترجاع
     save() { return JSON.stringify({ s: this.s, S: this.S }); }
-    load(json) { const o = JSON.parse(json); this.s = o.s; this.s.level = lv(this.s.level); this.S = o.S; if (this.S) this.M = G.RayatMap.build(this.s.teams.length, this.s.mapSeed); this.changed(); }
+    load(json) { const o = JSON.parse(json); this.s = o.s; this.s.level = lv(this.s.level); if (!PLANS[this.s.total]) this.s.total = 90; if (this.s.startedAt && !this.s.tplan) this.s.tplan = PLANS[this.s.total].slice(); this.s.extra = this.s.extra || 0; this.s.cyc = this.s.cyc || []; this.S = o.S; if (this.S) this.M = G.RayatMap.build(this.s.teams.length, this.s.mapSeed); this.changed(); }
   }
   // أثناء الإيقاف المؤقت لا يُقبل أي إجراء يغيّر مجرى اللعب (يُرفض في منطق اللعبة نفسه، لا في الأزرار فقط)
-  ['answer', 'setOrders', 'setReady', 'suggest', 'predict', 'buzz', 'judge', 'dip', 'tieBuzz', 'tieJudge', 'skip', 'biniStart', 'biniTimer', 'biniWinner', 'biniCancel'].forEach(k => { const f = RayatGame.prototype[k]; RayatGame.prototype[k] = function (...a) { if (this.s.paused) { this.refused = (this.refused || 0) + 1; return; } return f.apply(this, a); }; });
+  ['answer', 'setOrders', 'setReady', 'suggest', 'predict', 'buzz', 'judge', 'pick', 'tiePick', 'dip', 'tieBuzz', 'tieJudge', 'skip', 'biniStart', 'biniTimer', 'biniWinner', 'biniCancel'].forEach(k => { const f = RayatGame.prototype[k]; RayatGame.prototype[k] = function (...a) { if (this.s.paused) { this.refused = (this.refused || 0) + 1; return; } return f.apply(this, a); }; });
   RayatGame.DUR = DUR; RayatGame.LEVELS = LEVELS; RayatGame.RES_AR = RES_AR; RayatGame.UNIT_AR = UNIT_AR;
   G.RayatGame = RayatGame;
   if (typeof module !== 'undefined') module.exports = RayatGame;

@@ -8,6 +8,10 @@
   const P = (x, y) => [(x - CX) * S, (y - CY) * S];
   const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
   const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2, seg = (t, a, b) => clamp((t - a) / (b - a));
+  // حركة بسرعة ثابتة مع انطلاق وتوقف ناعمين (15٪ تسارع، 70٪ سرعة ثابتة، 15٪ تهدئة)
+  const glide = k => { const a = .15; k = clamp(k); return k < a ? k * k / (2 * a * (1 - a)) : k > 1 - a ? 1 - (1 - k) * (1 - k) / (2 * a * (1 - a)) : (k - a / 2) / (1 - a); };
+  // سرعات الوحدات (وحدة عالم في الثانية): المدة تُحسب من طول المسار
+  const SPEED = { inf: .36, cav: .56, cat: .3, cart: .34, ship: 1.05, msg: .95 };
   const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
   const mkRnd = s => () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
   const hash = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -470,6 +474,13 @@
       for (let k = 0; k < 11; k++) { const aa = a0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .14; for (const o of [.24, .3, .2, .36]) { const x = I.x + Math.cos(aa) * (rx + o), z = I.z + Math.sin(aa) * (rz + o); if (!hitObst(x, z, .07) && coastDist(x, z) > .15 && !TREES.some(t => t.s > .5 && Math.hypot(t.x - x, t.z - z) < t.r + .06)) { const dd = Math.hypot(I.x - x, I.z - z) || 1; return { p: [x, z], dir: [(I.x - x) / dd, (I.z - z) / dd] }; } } }
       return null; }
     function freeNear(x, z, rid, c = .05) { for (let k = 0; k < 24; k++) { const a2 = k * 2.4, rr = .06 + k * .012, px = x + Math.cos(a2) * rr, pz = z + Math.sin(a2) * rr; if ((rid == null || regionAtW(px, pz) === rid) && !hitObst(px, pz, c) && !TREES.some(t => t.s > .5 && Math.hypot(t.x - px, t.z - pz) < t.r + c)) return [px, pz]; } return [x, z]; }
+    // إبحار السفينة: سرعة ثابتة على طول المسار، دوران ناعم مع الانعطاف، وأثر ماء خلفها
+    function sailShip(ship, nav, lt, t) { const q = glide(seg(lt, nav.t0, nav.t1)), p = nav.route.getPointAt(q), tg = nav.route.getTangentAt(clamp(q, .001, .999)); ship.position.set(p.x, .02 + Math.sin(lt * 3) * .004, p.z);
+      if (q < 1) { const want = -Math.atan2(tg.z, tg.x); let d = want - ship.rotation.y; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; ship.rotation.y += ship.userData.aimed ? d * .18 : d; ship.userData.aimed = true; ship.rotation.z = Math.sin(lt * 2.2) * .025;
+        if (q > 0 && t - (ship.userData.wake || 0) > .11) { ship.userData.wake = t; puff(p.x - tg.x * .09, .03, p.z - tg.z * .09, t, { col: '#ffffff', size: .09, life: 1.2, vy: .01, spread: .07, op: .55 }); } } else ship.rotation.z *= .9; }
+    // الكاميرا تتابع السفينة بإزاحة ثابتة، وتنظر قليلًا أمامها نحو وجهتها، فتبقى السفينة والشاطئ في الإطار طوال الرحلة
+    function shipCam(ship, nav) { const mp = nav.route.getPointAt(.5), base = nearView(V(mp.x, 0, mp.z), 3.4 + Math.min(1.6, nav.len * .12), 2.7 + Math.min(1.2, nav.len * .1)), off = base.pos.clone().sub(base.look);
+      const pose = () => { const look = ship.position.clone().lerp(V(nav.seaB[0], 0, nav.seaB[1]), .22); look.y = 0; return { pos: look.clone().add(off), look }; }; camTo(pose(), 1.1); camFollow(pose); }
     // خطة الإنزال البحري: من ميناء الفريق (أو أقرب ساحل له) إلى شاطئ الإقليم المستهدف
     function navalPlan(a, ally, r) { const tgt = M.regions[r], [tx, tz] = at(tgt), mine = j => W.owner[j] === a || (ally != null && W.owner[j] === ally);
       const own = M.regions.filter(q => mine(q.id) && q.type !== 'castle'); if (!own.length) { W._why = 'own'; return null; } const ports = own.filter(q => R[q.id].port), srcs = ports.length ? ports : own;
@@ -478,10 +489,10 @@
       srcs.forEach(q => { const I = R[q.id]; let sea = null; if (I.port) { const ux = Math.cos(I.port.dir), uz = Math.sin(I.port.dir); let q = 0; while (q < 1.5 && onLand(I.port.x + ux * q, I.port.z + uz * q)) q += .03; sea = [I.port.x + ux * (q + .15), I.port.z + uz * (q + .15)]; } else { let bb = null; for (let k = 0; k < 24; k++) { const e2 = exitRay(I.x, I.z, q.id, k / 24 * 6.283); if (e2) { const d = Math.hypot(e2.sea[0] - tx, e2.sea[1] - tz); if (!bb || d < bb.d) bb = { d, sea: e2.sea }; } } if (bb) sea = bb.sea; }
         if (!sea) return; for (let k = 0; k < 36; k++) { const e2 = exitRay(tx, tz, r, k / 36 * 6.283); if (!e2) continue; const d = Math.hypot(e2.sea[0] - sea[0], e2.sea[1] - sea[1]); if (!best || d < best.d) best = { d, seaA: sea, land: e2 }; } });
       if (!best) { W._why = 'best'; return null; } const route = seaRoute(best.seaA, best.land.sea); if (!route) { W._why = ['route', best.seaA, best.land.sea]; return null; }
-      const sail = clamp(route.getLength() / 1.1, 1.8, 3.0), u = best.land.u, dir = [-u[0], -u[1]], shore = best.land.shore; let cross = null;
+      const rl = route.getLength(), sail = clamp(rl / SPEED.ship, 1.1, 6.2), u = best.land.u, dir = [-u[0], -u[1]], shore = best.land.shore; let cross = null;
       for (const k of [.34, .28, .22, .4, .17]) { const c = [shore[0] + dir[0] * k, shore[1] + dir[1] * k]; if (regionAtW(...c) === r && onLand(...c) && !hitObst(c[0], c[1], .08)) { cross = c; break; } }
       if (!cross) cross = [shore[0] + dir[0] * .2, shore[1] + dir[1] * .2];
-      return { route, t0: .6, t1: .6 + sail, shore, cross, dir, seaB: best.land.sea }; }
+      return { route, len: rl, t0: .6, t1: .6 + sail, shore, cross, dir, seaB: best.land.sea }; }
     // سفينة حربية بشراع بلون الفريق وجنود على سطحها
     function warship(o, n = 3) { const g = boat(0, 0, 0); g.scale.setScalar(1.35); const sl = g.children[2]; if (sl) sl.material = mat(TEAMS[o].color, { side: THREE.DoubleSide, flatShading: false });
       const crew = []; for (let i = 0; i < n; i++) { const m = soldier(o); scene.remove(m); m.scale.setScalar(.75); m.position.set(-.07 + i * .06, .045, (i % 2 ? .015 : -.015)); m.rotation.y = Math.PI / 2; g.add(m); crew.push(m); } g.userData.crew = crew; return g; }
@@ -500,12 +511,45 @@
     const overview = () => { const a = camera.aspect || 16 / 9, k = clamp(1.78 / a, .8, 3.6); return { pos: V(-.25, 15.6 * k, 11.8 * k), look: V(-.25, 0, -.45) }; };
     let cam = { from: overview(), to: overview(), t0: 0, d: 0, follow: null };
     const camNow = { pos: overview().pos.clone(), look: overview().look.clone() };
-    function camTo(pose, d = 1.4) { cam = { from: { pos: camNow.pos.clone(), look: camNow.look.clone() }, to: pose, t0: W.time, d: Math.max(.01, d), follow: null }; }
+    // مدة الانتقال تطول مع المسافة (فلا تندفع الكاميرا في لقطة بعيدة)، والتسارع والتهدئة ناعمان
+    const camDur = (pose, d) => Math.min(2.6, Math.max(d, camNow.pos.distanceTo(pose.pos) / 7)), camEase = t => t * t * t * (t * (6 * t - 15) + 10);
+    function camTo(pose, d = 1.4) { cam = { from: { pos: camNow.pos.clone(), look: camNow.look.clone() }, to: pose, t0: W.time, d: d < .05 ? .01 : camDur(pose, d), follow: null }; }
     function camFollow(fn) { cam.follow = fn; }
-    function updateCam() { if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); return; }
+    // ---------- وضعان للكاميرا لا يتصارعان: «متابعة» (المشاهد تحرّكها) و«استكشاف» (المستخدم يحرّكها) ----------
+    const man = { on: false, tgt: V(0, 0, 0), az: 1, el: .9, dist: 12 }, LB = (() => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; lands.forEach(L => L.forEach(([x, z]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); })); return { x0, x1, z0, z1 }; })();
+    const maxDist = () => overview().pos.distanceTo(overview().look) * 1.12;
+    function manClamp() { man.dist = clamp(man.dist, 1.8, maxDist()); man.el = clamp(man.el, .38, 1.45); man.tgt.x = clamp(man.tgt.x, LB.x0, LB.x1); man.tgt.z = clamp(man.tgt.z, LB.z0, LB.z1); man.tgt.y = 0; }
+    function manPose() { const ce = Math.cos(man.el), pos = V(man.tgt.x + Math.cos(man.az) * ce * man.dist, Math.sin(man.el) * man.dist, man.tgt.z + Math.sin(man.az) * ce * man.dist), gy = groundY(pos.x, pos.z); if (pos.y < gy + .4) pos.y = gy + .4; return { pos, look: man.tgt.clone() }; }
+    function manFrom(pose) { const d = pose.pos.clone().sub(pose.look); man.dist = d.length() || 1; man.el = Math.asin(clamp(d.y / man.dist, .1, .999)); man.az = Math.atan2(d.z, d.x); man.tgt.copy(pose.look); manClamp(); }
+    W.camMode = () => man.on ? 'manual' : 'follow';
+    W.manual = v => { v = !!v; if (v === man.on) return; if (!v) { camVel.pos.set(0, 0, 0); camVel.look.set(0, 0, 0); camT = W.time; } if (v) manFrom(camNow); else cam = { from: { pos: camNow.pos.clone(), look: camNow.look.clone() }, to: cam.to, t0: W.time, d: camDur(cam.follow ? cam.follow() : cam.to, .9), follow: cam.follow }; man.on = v; W.emit('cam', W.camMode()); };
+    W.zoomBy = f => { W.manual(true); man.dist *= f; manClamp(); };
+    W.orbitBy = (dAz, dEl = 0) => { W.manual(true); man.az += dAz; man.el += dEl; manClamp(); };
+    W.panBy = (dx, dy) => { W.manual(true); const k = man.dist * .0016, rx = -Math.sin(man.az), rz = Math.cos(man.az), fx = Math.cos(man.az), fz = Math.sin(man.az); man.tgt.x += (dx * rx + dy * fx) * k; man.tgt.z += (dx * rz + dy * fz) * k; manClamp(); };
+    W.viewAll = () => { W.manual(true); manFrom(overview()); };
+    W.followEvent = () => W.manual(false);
+    W.focus = r => { const I = R[r]; if (!I) return; W.manual(true); man.tgt.set(I.x, 0, I.z); man.dist = Math.min(man.dist, 4.4); man.el = clamp(man.el, .6, 1.0); manClamp(); };
+    // النقطة تحت المؤشر → الإقليم (أو null في البحر)
+    const _ray = new THREE.Raycaster(), _pl = new THREE.Plane(V(0, 1, 0), -.1), _hit = V(0, 0, 0);
+    W.pick = (cx, cy) => { const b = renderer.domElement.getBoundingClientRect(); _ray.setFromCamera(new THREE.Vector2((cx - b.left) / b.width * 2 - 1, -((cy - b.top) / b.height * 2 - 1)), camera); if (!_ray.ray.intersectPlane(_pl, _hit)) return null; if (!onLand(_hit.x, _hit.z)) return null; const id = regionAtW(_hit.x, _hit.z); return id != null && id >= 0 && M.regions[id] ? id : null; };
+    // إيماءات الفأرة واللمس: عجلة أو إصبعان للتقريب، سحب للتحريك، زر أيمن أو Shift أو لفّ إصبعين للتدوير، ونقرة لاختيار أرض
+    W.attachControls = (el, opt = {}) => { el.style.touchAction = 'none'; const pts = new Map(); let moved = 0, t0 = 0, last2 = null;
+      const two = () => { const [a, b] = [...pts.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; };
+      const down = e => { if (e.pointerType === 'mouse' && e.button > 2) return; pts.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, shift: e.shiftKey || e.ctrlKey }); if (pts.size === 1) { moved = 0; t0 = performance.now(); } if (pts.size === 2) last2 = two(); try { el.setPointerCapture(e.pointerId); } catch (er) { } };
+      const move = e => { const p = pts.get(e.pointerId); if (!p) return; const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
+        if (pts.size === 1) { if (moved < 6) return; if (p.btn === 2 || p.shift) W.orbitBy(dx * .006, dy * .004); else W.panBy(-dx, -dy); }
+        else if (pts.size === 2 && last2) { const n = two(); if (n.d > 10 && last2.d > 10) W.zoomBy(last2.d / n.d); let da = n.ang - last2.ang; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; if (Math.abs(da) < .5) W.orbitBy(da); W.panBy(-(n.mx - last2.mx), -(n.my - last2.my)); last2 = n; moved += 10; } };
+      const up = e => { const p = pts.get(e.pointerId); pts.delete(e.pointerId); if (pts.size < 2) last2 = null; if (p && !pts.size && moved < 6 && performance.now() - t0 < 500 && opt.onPick) opt.onPick(W.pick(e.clientX, e.clientY), e); };
+      const wheel = e => { e.preventDefault(); W.zoomBy(Math.exp(clamp(e.deltaY, -120, 120) * .0016)); }, ctx = e => e.preventDefault();
+      el.addEventListener('pointerdown', down); el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('wheel', wheel, { passive: false }); el.addEventListener('contextmenu', ctx);
+      return () => { el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); el.removeEventListener('wheel', wheel); el.removeEventListener('contextmenu', ctx); }; };
+    function updateCam(rdt = .016) { if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); return; }
+      if (man.on) { const to = manPose(), k = 1 - Math.exp(-Math.min(.1, rdt) * 11); camNow.pos.lerp(to.pos, k); camNow.look.lerp(to.look, k); camera.position.copy(camNow.pos); camera.lookAt(camNow.look); return; }
       let to = cam.to; if (cam.follow) to = cam.follow();
-      const k = ease(seg(W.time, cam.t0, cam.t0 + cam.d)); camNow.pos.lerpVectors(cam.from.pos, to.pos, k); camNow.look.lerpVectors(cam.from.look, to.look, k);
+      const k = camEase(seg(W.time, cam.t0, cam.t0 + cam.d)); camNow.pos.lerpVectors(cam.from.pos, to.pos, k); camNow.look.lerpVectors(cam.from.look, to.look, k);
       camera.position.copy(camNow.pos); camera.lookAt(camNow.look); }
+    let camT = 0; const camVel = { pos: V(0, 0, 0), look: V(0, 0, 0) }, _ch = V(0, 0, 0), _tp = V(0, 0, 0), _g1 = V(0, 0, 0), _g2 = V(0, 0, 0);
+    function sdamp(cur, tgt, vel, st, dt) { const om = 2 / st, x = om * dt, ex = 1 / (1 + x + .48 * x * x + .235 * x * x * x); _ch.copy(cur).sub(tgt); _tp.copy(vel).addScaledVector(_ch, om).multiplyScalar(dt); vel.sub(_tp.clone().multiplyScalar(om)).multiplyScalar(ex); cur.copy(tgt).add(_ch.add(_tp).multiplyScalar(ex)); }
     // لقطة بلا حجب: نجرّب زوايا حول الهدف ونختار الأقرب للمفضّلة التي لا يحجبها جبل
     function clearView(focus, prefAz, dist, h) { let best = null;
       for (let k = 0; k < 24; k++) { const da = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12, az = prefAz + da, pos = focus.clone().add(V(Math.cos(az) * dist, h, Math.sin(az) * dist));
@@ -567,7 +611,7 @@
     const actors = [];  // دوال تُنادى كل إطار حتى تنتهي
     function run(fn) { return new Promise(res => actors.push({ fn, res, t0: W.time })); }
     W.skip = () => { W.skipping = true; };
-    function sceneDone() { W.skipping = false; }
+    function sceneDone() { W.skipping = false; W.snapping = false; }
     // نقطة عبور الحد بين إقليمين ومكان التجمع ونقطة الالتحام، مع خلوّ المسار
     function crossing(fromId, toId) {
       const pts = sharedEdge(fromId, toId), [ax, az] = at(M.regions[fromId]), [bx, bz] = at(M.regions[toId]);
@@ -614,12 +658,12 @@
       if (dO != null && tgt.type !== 'castle' && tgt.type !== 'capital') { for (let i = 0; i < 6; i++) { const off = (i - 2.5) * .07, row = i % 2 ? .07 : 0; const px = cross[0] + dir[0] * (.08 + row) - dir[1] * off, pz = cross[1] + dir[1] * (.08 + row) + dir[0] * off; if (hitObst(px, pz, .03) || coastDist(px, pz) < .15) continue; const u = soldier(dO); u.position.set(px, groundY(px, pz), pz); u.rotation.y = Math.atan2(-dir[0], -dir[1]); defs.push(u); } }
       if (tgt.type === 'castle' || tgt.type === 'capital') { const rx = tgt.type === 'castle' ? .5 : .24; for (let i = 0; i < 4; i++) { if (dO == null) break; const a2 = Math.atan2(cross[1] - I.z, cross[0] - I.x) + (i - 1.5) * .18; const px = I.x + Math.cos(a2) * (rx - .02), pz = I.z + Math.sin(a2) * (rx * (tgt.type === 'castle' ? .8 : .79) - .02); const u = soldier(dO); u.position.set(px, groundY(px, pz) + (tgt.type === 'castle' ? .2 : .1), pz); u.rotation.y = a2 + Math.PI / 2 - Math.PI / 2; defs.push(u); } }
       // لقطات
-      const mT = nav ? [nav.t1 + .7, nav.t1 + 1.9] : [1.2, 4.6], T = { march: mT, clash: [mT[1], mT[1] + 1.6], res: [mT[1] + 1.6, mT[1] + 3.8], end: mT[1] + 5 };
+      const mv = SPEED[unit] || SPEED.inf, mdur = nav ? clamp(len / mv, 1.3, 2.6) : clamp((s1 - s0) / mv, 2.4, 5.2), mT = nav ? [nav.t1 + .5, nav.t1 + .5 + mdur] : [1.2, 1.2 + mdur], T = { march: mT, clash: [mT[1], mT[1] + 1.6], res: [mT[1] + 1.6, mT[1] + 3.8], end: mT[1] + 5 };
       const focus = V(cross[0], groundY(...cross), cross[1]);
       const firstCam = () => camTo(sideView(focus.clone().add(V(-dir[0] * .4, 0, -dir[1] * .4)), dir, 3.0, 3.0), 1.2);
+      W.track = { ship: null, units, nav: null, T };
       labelsOpacity(0); let ship = null, navCam = false;
-      if (nav) { const mp = nav.route.getPointAt(.5); camTo(nearView(V(mp.x, 0, mp.z), 3.4, 2.6), 1.2); ship = warship(a, 3); const p0 = nav.route.getPointAt(0); ship.position.set(p0.x, .02, p0.z); W.emit('sfx', { k: 'sail', at: nav.t0, dur: nav.t1 - nav.t0 });
-        for (let i = 0; i < 16; i++) { const k = i / 16, p = nav.route.getPointAt(k); puff(p.x, .03, p.z, W.time + nav.t0 + k * (nav.t1 - nav.t0) + .15, { col: '#ffffff', size: .1, life: 1.1, vy: .01, spread: .08, op: .55 }); } }
+      if (nav) { ship = warship(a, 3); const p0 = nav.route.getPointAt(0); ship.position.set(p0.x, .02, p0.z); if (nav.t1 - nav.t0 < 2.6) { navCam = true; firstCam(); } else shipCam(ship, nav); W.track = { ship, units, nav, T }; W.emit('sfx', { k: 'sail', at: nav.t0, dur: nav.t1 - nav.t0 }); }
       else firstCam();
       // الحصار: سلالم على السور، ورماة يتبادلون السهام
       const siege = (tgt.type === 'castle' || tgt.type === 'capital') && d != null, ladders = [], arrows = []; let nextArrow = 0;
@@ -638,12 +682,11 @@
       let stone = null; if (shot) { stone = new THREE.Mesh(sph(.012, 10, 8), mat('#8d8574')); stone.visible = false; scene.add(stone); W.emit('sfx', { k: 'catapult', at: shot.t }); }
       let flagNew = null, looted = false, camMoved = false, oldFlag = I.flag, carry = null; if (!won) W.emit('sfx', { k: 'hold', at: T.res[0] }); else if (taken && I.fort) W.emit('sfx', { k: 'fall', at: T.res[0] + .6 }); const SPa = spreadSlot();
       await run((t) => { const lt = t - tw;
-        const k = ease(seg(lt, ...T.march)), retreat = !won && lt > T.res[0], rk = ease(seg(lt, T.res[0], T.res[1] + .4));
+        const k = glide(seg(lt, ...T.march)), retreat = !won && lt > T.res[0], rk = ease(seg(lt, T.res[0], T.res[1] + .4));
         const s = retreat ? lerp(s1, s1 - .55, rk) : lerp(nav ? 0 : s0, s1, k);
         placeColumn(units, crv, len, s, (k > 0 && k < 1) || (retreat && rk < 1), lt, retreat, !!nav && lt < T.clash[0]);
-        if (ship) { const q = ease(seg(lt, nav.t0, nav.t1)), p = nav.route.getPointAt(q), tg = nav.route.getTangentAt(clamp(q, .001, .999)); ship.position.set(p.x, .02 + Math.sin(lt * 3) * .004, p.z); if (q < 1) ship.rotation.y = -Math.atan2(tg.z, tg.x);
-          ship.userData.crew.forEach((m, i) => { m.visible = lt < nav.t1 + .2 + i * .18; m.position.y = .045 + Math.abs(Math.sin(lt * 5 + i)) * .004; });
-          if (lt > nav.t1 - .5 && !navCam) { navCam = true; firstCam(); } }
+        if (ship) { sailShip(ship, nav, lt, t); ship.userData.crew.forEach((m, i) => { m.visible = lt < nav.t1 + .2 + i * .18; m.position.y = .045 + Math.abs(Math.sin(lt * 5 + i)) * .004; });
+          if (lt > nav.t1 - .7 && !navCam) { navCam = true; firstCam(); } }
         if (siege) { ladders.forEach((l, i) => { l.userData.inner.scale.y = Math.max(.001, ease(seg(lt, T.march[1] - .8 + i * .2, T.march[1] + .2 + i * .2))); });
           if (lt > T.march[1] - 1.4 && lt < T.clash[1] && lt > nextArrow && defs.length) { nextArrow = lt + .11; const fromDef = Math.random() < .7, A = fromDef ? defs[Math.floor(Math.random() * defs.length)] : units[Math.floor(Math.random() * Math.min(5, units.length))], B = fromDef ? units[Math.floor(Math.random() * Math.min(5, units.length))] : defs[Math.floor(Math.random() * defs.length)];
             if (A && B && A.visible !== false && B.visible !== false) { const m = new THREE.Mesh(arrowGeo, arrowMat); scene.add(m); arrows.push({ m, p0: A.position.clone().add(V(0, .05, 0)), p1: B.position.clone().add(V((Math.random() - .5) * .05, .02, (Math.random() - .5) * .05)), t0: lt }); } }
@@ -690,12 +733,12 @@
       const p1 = (nav ? findPath(start, goal, .05) : findPath(start, goal, .07)) || [start, goal];
       const crv = curve(p1), len = crv.getLength();
       const units = [soldier(team), cart(team), soldier(team)]; const colLen = .2;
-      const o2 = nav ? nav.t1 - .2 : 0, tw = W.time, T = { walk: [.8 + o2, 3.6 + o2], plant: [3.6 + o2, 4.6 + o2], spread: [4.4 + o2, 6.2 + o2], end: 7.2 + o2 };
-      let ship = null; if (nav) { ship = warship(team, 2); const p0 = nav.route.getPointAt(0); ship.position.set(p0.x, .02, p0.z); W.emit('sfx', { k: 'sail', at: nav.t0, dur: nav.t1 - nav.t0 }); }
-      if (!wide) { labelsOpacity(0, r); if (nav) { const mp = nav.route.getPointAt(.6); camTo(nearView(V((mp.x + goal[0]) / 2, 0, (mp.z + goal[1]) / 2), 3.6, 2.8), 1.2); } else camTo(sideView(V(goal[0], groundY(...goal), goal[1]).lerp(V(cross[0], 0, cross[1]), .4), dir, 2.6, 2.6), 1.2); } W.emit('sfx', { k: 'settle', at: T.walk[0] }); W.emit('sfx', { k: 'raise', at: T.plant[0] + .2 });
+      const o2 = nav ? nav.t1 - .2 : 0, wd = clamp((len - (nav ? 0 : colLen)) / SPEED.cart, 1.6, 3.6), we = .8 + o2 + wd, tw = W.time, T = { walk: [.8 + o2, we], plant: [we, we + 1], spread: [we + .8, we + 2.6], end: we + 3.6 };
+      let ship = null; if (nav) { ship = warship(team, 2); const p0 = nav.route.getPointAt(0); ship.position.set(p0.x, .02, p0.z); if (!wide) shipCam(ship, nav); W.emit('sfx', { k: 'sail', at: nav.t0, dur: nav.t1 - nav.t0 }); }
+      if (!wide) { labelsOpacity(0, r); if (nav) { /* الكاميرا تتابع السفينة: تُضبط بعد إنشائها */ } else camTo(sideView(V(goal[0], groundY(...goal), goal[1]).lerp(V(cross[0], 0, cross[1]), .4), dir, 2.6, 2.6), 1.2); } W.emit('sfx', { k: 'settle', at: T.walk[0] }); W.emit('sfx', { k: 'raise', at: T.plant[0] + .2 });
       const f = placeFlag(r, team, 0); f.pole = .001;
-      await run(t => { const lt = t - tw, k = ease(seg(lt, ...T.walk)); placeColumn(units, crv, len, lerp(nav ? 0 : colLen + .01, len - .04, k), k > 0 && k < 1, lt, false, !!nav);
-        if (ship) { const q = ease(seg(lt, nav.t0, nav.t1)), p = nav.route.getPointAt(q), tg = nav.route.getTangentAt(clamp(q, .001, .999)); ship.position.set(p.x, .02 + Math.sin(lt * 3) * .004, p.z); if (q < 1) ship.rotation.y = -Math.atan2(tg.z, tg.x); ship.userData.crew.forEach((m, i) => { m.visible = lt < T.walk[0] + .1 + i * .25; }); }
+      let navCam = false; await run(t => { const lt = t - tw, k = glide(seg(lt, ...T.walk)); placeColumn(units, crv, len, lerp(nav ? 0 : colLen + .01, len - .04, k), k > 0 && k < 1, lt, false, !!nav);
+        if (ship) { sailShip(ship, nav, lt, t); ship.userData.crew.forEach((m, i) => { m.visible = lt < T.walk[0] + .1 + i * .25; }); if (!wide && lt > nav.t1 - .7 && !navCam) { navCam = true; camTo(sideView(V(goal[0], groundY(...goal), goal[1]).lerp(V(cross[0], 0, cross[1]), .4), dir, 2.6, 2.6), 1.2); } }
         f.pole = ease(seg(lt, T.plant[0], T.plant[0] + .5)); f.lift = ease(seg(lt, T.plant[0] + .3, T.plant[1]));
         const sp = ease(seg(lt, ...T.spread)); SPo.set(r, I.flagSpot[0], I.flagSpot[1], '#ffffff', 0, TEAMS[team].color, sp < 1 ? sp * 2.2 : 0);
         if (sp >= 1 && W.owner[r] !== team) { W.owner[r] = team; I.owner = team; setTint(r); buildBorders(); makeLabel(tgt); }
@@ -773,10 +816,14 @@
     // ---------- الإطار ----------
     W.time = 0; let last = null; W.listeners = {};
     W.on = (k, f) => { (W.listeners[k] = W.listeners[k] || []).push(f); }; W.emit = (k, v) => (W.listeners[k] || []).forEach(f => { try { f(v); } catch (e) { } });
-    W.step = (dt, draw = true) => { if (W.paused) dt = 0; W.time += dt * (W.skipping ? 12 : W.speed); U.uTime.value = W.time;
+    // السرعة تتغير بنعومة (لا قفزة)، والتخطي ×10 بطلب المشرف فقط، و«snap» ينهي المشهد فورًا بلا تسارع مرئي (عند العودة من تبويب مخفي)
+    W.speedNow = 1; W.snap = () => { if (actors.length) { W.skipping = true; W.snapping = true; } };
+    W.step = (dt, draw = true) => { const rdt = dt; if (W.paused) dt = 0; W.speedNow += ((W.speed || 1) - W.speedNow) * Math.min(1, dt * 2.5);
+      if (W.snapping) { let n = 0; while (actors.length && n++ < 400) { W.time += .1; for (let i = actors.length - 1; i >= 0; i--) { const a = actors[i]; let done = false; try { done = a.fn(W.time); } catch (e) { done = true; } if (done) { actors.splice(i, 1); a.res(); } } } W.snapping = false; }
+      W.time += dt * (W.skipping ? 10 : W.speedNow); U.uTime.value = W.time;
       for (let i = actors.length - 1; i >= 0; i--) { const a = actors[i]; let done = false; try { done = a.fn(W.time); } catch (e) { console.error(e); done = true; } if (done) { actors.splice(i, 1); a.res(); } }
-      updatePuffs(W.time); if (draw) { waveFlags(W.time); updateSky(); updateCam(); declutter(dt); renderer.render(scene, camera); } else updateSky(); };
-    W.resize = (w, h) => { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); if (!actors.length) { const o = overview(); camNow.pos.copy(o.pos); camNow.look.copy(o.look); cam = { from: o, to: o, t0: 0, d: .01 }; } };
+      updatePuffs(W.time); if (draw) { waveFlags(W.time); updateSky(); updateCam(rdt); declutter(rdt); renderer.render(scene, camera); } else { updateSky(); updateCam(rdt); camera.updateMatrixWorld(); } };
+    W.resize = (w, h) => { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); if (!actors.length) { const o = overview(); camNow.pos.copy(o.pos); camNow.look.copy(o.look); camVel.pos.set(0, 0, 0); camVel.look.set(0, 0, 0); cam = { from: o, to: o, t0: 0, d: .01 }; } };
     // جودة تلقائية: إن هبط الأداء عن ~42 إطارًا في الثانية تُخفَّض الدقة ثم الظلال خطوة خطوة، بلا قفزات ظاهرة
     W.quality = 0; let fAcc = 0, fN = 0;
     W.degrade = () => { if (W.quality >= 3) return; W.quality++; const q = W.quality, el = renderer.domElement;
@@ -784,9 +831,11 @@
       if (q === 2) { if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } sun.shadow.mapSize.set(1024, 1024); }
       if (q === 3) renderer.setPixelRatio(.8);
       W.resize(el.clientWidth || innerWidth, el.clientHeight || innerHeight); };
-    W.start = () => { const loop = now => { const dt = last == null ? 0 : Math.min(.05, (now - last) / 1000); last = now; W.step(dt);
+    W.start = () => { W.running = true; const loop = now => { if (!W.running) return; const dt = last == null ? 0 : Math.min(.05, (now - last) / 1000); last = now; W.step(dt);
         if (!document.hidden && dt > 0) { fAcc += dt; fN++; if (fAcc > 3) { const fps = fN / fAcc; W.fps = fps; fAcc = 0; fN = 0; if (fps < 42) W.degrade(); } }
         requestAnimationFrame(loop); }; requestAnimationFrame(loop); };
+    // إغلاق نظيف (خريطة الطالب تُفتح وتُغلق مرارًا): إيقاف الحلقة وتحرير الهندسة والخامات وسياق الرسم
+    W.dispose = () => { W.running = false; try { scene.traverse(o => { if (o.geometry) o.geometry.dispose(); const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach(x => { if (x.map) x.map.dispose(); x.dispose(); }); }); renderer.dispose(); if (renderer.forceContextLoss) renderer.forceContextLoss(); } catch (e) { } };
     W.renderer = renderer; W.scene = scene; W.camera = camera;
     W.stats = () => ({ calls: renderer.info.render.calls, tris: renderer.info.render.triangles });
     W.fontsReady = async () => { try { await Promise.all(['900 40px TDisplay', '700 30px TDisplay', '700 26px TSans', '500 16px TSans'].map(f => document.fonts.load(f))); } catch (e) { } Object.keys(flagTexs).forEach(k => delete flagTexs[k]); flags.forEach(f => { f.cloth.material.map = ftex(f.o); f.cloth.material.needsUpdate = true; }); M.regions.forEach(makeLabel); };

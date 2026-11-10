@@ -184,3 +184,23 @@ input,select,textarea{font-family:var(--fs)}
 .plan{border-radius:14px;padding:10px 12px;font-size:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)}.plan.bad{border-color:var(--gold);background:rgba(242,193,78,.1)}.plan .w{margin-top:6px;color:var(--gold);font-weight:700;line-height:1.5}
 .dsp .pausetag{position:absolute;top:96px;left:50%;transform:translateX(-50%);background:rgba(242,193,78,.92);color:#21180a;border-radius:14px;padding:8px 20px;font-weight:700;font-size:18px;z-index:5}
 .offbar{position:fixed;top:0;left:0;right:0;z-index:950;background:#b83b3b;color:#fff;text-align:center;padding:8px 12px;font-size:14px;font-weight:700}
+
+/* تحكم الخريطة: خافت حتى يقترب المؤشر، وواضح في وضع الاستكشاف ليظهر زر «متابعة الحدث» */
+.camctl{position:fixed;left:14px;bottom:54px;z-index:20;display:flex;gap:6px;align-items:center;opacity:.18;transition:opacity .3s}.camctl:hover,.camctl.man{opacity:1}
+.camctl button{font-family:var(--fs);font-weight:700;font-size:16px;min-width:38px;height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(10,26,36,.82);color:#f5f1e8;cursor:pointer;padding:0 8px}
+.camctl button.w{font-size:13.5px;padding:0 12px}.camctl .ev{display:none}.camctl.man .ev{display:block;background:var(--gold);color:#21180a;border-color:transparent}
+#world{cursor:grab}#world:active{cursor:grabbing}
+@media (max-width:900px){.camctl{bottom:50px;gap:4px}.camctl button{min-width:34px;height:34px;font-size:14px}.camctl button.w{font-size:12px;padding:0 8px}}
+
+/* خيارات المواجهة: على الجوال أزرار كبيرة، والخطأ يُشطب، والصحيح يُعلَّم عند الحسم */
+.dopts{display:grid;gap:8px;min-width:0;grid-template-columns:minmax(0,1fr)}.dopts .opt{box-sizing:border-box;min-width:0;overflow-wrap:anywhere;display:flex;align-items:center;gap:10px;width:100%;text-align:start;font-family:var(--ft);font-size:17px;line-height:1.4;padding:12px 14px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--txt)}
+.dopts button.opt{cursor:pointer;background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.28)}.dopts button.opt:active{transform:scale(.98)}.dopts .opt.sel{border-color:var(--gold);background:rgba(242,193,78,.18)}
+.dopts .opt.dim{opacity:.6}.dopts .opt.no,.opts .opt.no,.hopts .no{opacity:.45;text-decoration:line-through}.dopts .opt.ok,.opts .opt.ok{border-color:#2fbf71;background:rgba(47,191,113,.2);opacity:1}
+.dopts .L{flex:none;width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:rgba(255,255,255,.12);font-family:var(--fs);font-weight:700;font-size:14px}
+.hopts{display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:15px}.hopts>div{padding:7px 10px;border-radius:10px;background:rgba(255,255,255,.05)}.hopts .ok{background:rgba(47,191,113,.2);border:1px solid #2fbf71;font-weight:700}
+@media (max-width:600px){.hopts{grid-template-columns:1fr}}
+
+/* ساعة المسابقة عند المشرف */
+.clockp{display:grid;gap:10px}.clockp .cl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.clockp .cl>div{background:rgba(255,255,255,.05);border-radius:12px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.clockp .cl span{font-size:12px;color:var(--mut)}.clockp .cl b{font-size:20px;font-family:var(--fs);direction:ltr;text-align:start}.clockp .act{font-size:17px;font-weight:700;color:var(--gold)}
+@media (max-width:600px){.clockp .cl{grid-template-columns:1fr 1fr}}

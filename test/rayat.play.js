@@ -1,7 +1,7 @@
 // لاعبون آليون بساعة افتراضية يلعبون مسابقة كاملة من اللوبي حتى التتويج (يستعمله اختبار التدفق واختبار الوقت)
 const path = require('path');
 global.d3 = require(path.join(__dirname, '../r3d/node_modules/d3-delaunay'));
-require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/data.js');
+require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/bank-adab.js'); require('../app/data.js');
 const RayatGame = require('../app/game.js'), RR = globalThis.RayatRules;
 const rng = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const COLORS = ['#2f6fdb', '#1f9d55', '#e07a2e', '#8e4fb8', '#c43d5a', '#1aa3a3'], NAMES = ['الصقور', 'السهم', 'الرواد', 'الهمّة', 'النخبة', 'الأفق'];

@@ -1,7 +1,7 @@
 // اختبار الأسئلة (اعتمده المستخدم 11 نوفمبر): لا تكرار بين المسابقات، والمستوى يُحترم من أول سؤال، والمواجهة من الأصعب
 const path = require('path');
 global.d3 = require(path.join(__dirname, '../r3d/node_modules/d3-delaunay'));
-require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/data.js');
+require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/bank-adab.js'); require('../app/data.js');
 const RayatGame = require('../app/game.js'), BANK = globalThis.RAYAT_BANK;
 let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
 const mk = level => new RayatGame({ bank: BANK, binis: [], level, teams: [{ name: 'أ', color: '#000' }, { name: 'ب', color: '#111' }], mapSeed: 7 });
@@ -27,4 +27,10 @@ for (const level of ['hard', 'med', 'easy']) {
   ok(new Set(ids3).size === ids3.length && ids3.every(id => byId[id].level === level), `${level}: دورة كاملة (${nLevel}) بلا تكرار داخل المسابقة`);
   const extra = g3.pickQuestion(3); ok(extra && !ids3.includes(extra.id), `${level}: بعد نفاد المستوى يُستعار من مستوى قريب لا من المكرر`);
 }
+// تنويع الأبواب: لا باب مرتين متتاليتين، ولا يطغى باب
+{ const g = mk('hard'), ts = []; for (let i = 0; i < 40; i++) ts.push(byId[g.pickQuestion(i % 3 ? 2 : 3).id].t);
+  ok(ts.every((t, i) => !i || t !== ts[i - 1]), 'لا يتكرر الباب مرتين متتاليتين');
+  const cnt = {}; ts.forEach(t => cnt[t] = (cnt[t] || 0) + 1); const mx = Math.max(...Object.values(cnt));
+  ok(mx <= 5 && Object.keys(cnt).length >= 10, `توزيع الأبواب متوازن (${Object.keys(cnt).length} بابًا، أعلى باب ${mx} من 40)`);
+  ok(['قرآن', 'سنة', 'شعر', 'ذكاء'].every(t => cnt[t] >= 1), 'الأبواب الجديدة تظهر: قرآن، سنة، شعر، ذكاء'); }
 console.log(`الأسئلة: ${pass} نجح، ${fail} فشل`); process.exit(fail ? 1 : 0);

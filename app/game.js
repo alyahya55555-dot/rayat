@@ -111,7 +111,10 @@
         let fresh = pool.filter(x => !seen.has(x.id));
         if (!fresh.length && lv === s.level) { const keep = [...seen].filter(id => !pool.some(x => x.id === id)); seenSave(keep); seen = new Set(keep); fresh = pool; }
         const tiers = [fresh.filter(x => x.d === want), fresh.filter(x => Math.abs(x.d - want) <= 1), fresh, pool.filter(x => x.d === want), pool.filter(x => Math.abs(x.d - want) <= 1), pool];
-        const c = tiers.find(t => t.length); q = c[Math.floor(Math.random() * c.length)]; break;
+        const c = tiers.find(t => t.length);
+        // تنويع الأبواب (طلب المستخدم 11 نوفمبر): الباب الأقل ظهورًا في هذه المسابقة أولًا، ولا يتكرر الباب مرتين متتاليتين
+        const tN = s.tN || (s.tN = {}), tops = [...new Set(c.map(x => x.t))], pool2 = tops.length > 1 ? tops.filter(t => t !== s.lastT) : tops, mn = Math.min(...pool2.map(t => tN[t] || 0)), pickT = pool2.filter(t => (tN[t] || 0) === mn), T = pickT[Math.floor(Math.random() * pickT.length)], c2 = c.filter(x => x.t === T);
+        q = c2[Math.floor(Math.random() * c2.length)]; tN[T] = (tN[T] || 0) + 1; s.lastT = T; break;
       }
       if (!q) { s.used = []; const c = this.bank.filter(x => x.level === s.level); const all = c.length ? c : this.bank; q = all[Math.floor(Math.random() * all.length)]; }
       s.used.push(q.id); if (!seen.has(q.id)) seenSave([...seen, q.id]); return q;

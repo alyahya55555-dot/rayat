@@ -1,7 +1,7 @@
 // اختبارات تراجع للأخطاء التي ظهرت في التجربة الفعلية (10 نوفمبر): الفاصلة، رسالة الإجابة، الإيقاف المؤقت، قيمة القلعة، كلفة الأوامر، التحالف
 const path = require('path'), fs = require('fs');
 global.d3 = require(path.join(__dirname, '../r3d/node_modules/d3-delaunay'));
-require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/data.js');
+require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/bank-adab.js'); require('../app/data.js');
 const RayatGame = require('../app/game.js'), RR = globalThis.RayatRules;
 // قفل القراءة (3 ثوانٍ) مُختبر في rayat.duel.test.js؛ هنا نتخطاه لنختبر ترتيب الفاصلة
 RayatGame.prototype.tieBuzzNow = function (pid) { if (this.s.tie) this.s.tie.openAt = 0; return this.tieBuzz(pid); };
@@ -66,7 +66,7 @@ for (const winIdx of [1, 2, 0]) { const g = mk(3, 2); g.start(); toStage(g, 'que
 { const g = mk(3, 2); g.start(); const S = g.S, c = S.regions.find(r => r.type === 'castle'), N = RR.CFG.CASTLE_POINTS; ok(N === 4, 'القلعة: القيمة المعتمدة 4');
   const b0 = RR.score(S, 0), b1 = RR.score(S, 1); c.owner = 0; ok(RR.score(S, 0) === b0 + N, `القلعة: امتلاكها يضيف ${N}`); c.owner = 1; ok(RR.score(S, 0) === b0 && RR.score(S, 1) === b1 + N, 'القلعة: انتقالها ينقل القيمة كاملة');
   ok(GD.CASTLE_AR() === 'بأربع أراضٍ' && GD.GUIDE.castle.what.includes('بأربع أراضٍ'), 'القلعة: نص المرشد من المصدر نفسه');
-  const svg = globalThis.RayatMap.svg(g.M, { teams: g.s.teams.map(t => ({ ...t, emb: t.mark })), owner: S.regions.map(r => r.owner), forts: new Set() }); ok(svg.includes('القلعة الكبرى ×4') && !svg.includes('×5'), 'القلعة: الخريطة الثنائية تعرض ×4');
+  const svg = globalThis.RayatMap.svg(g.M, { teams: g.s.teams.map(t => ({ ...t, emb: t.mark })), owner: S.regions.map(r => r.owner), forts: new Set() }); ok(svg.includes(g.M.regions.find(r => r.castle).name + ' ×4') && !svg.includes('×5'), 'القلعة: الخريطة الثنائية تعرض ×4');
   const all = ['app/ui-phone.js', 'app/ui-display.js', 'app/ui-host.js', 'app/guide.js', 'proto/rayat-map.js'].map(f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n'); ok(!/×5'|بخمس أراض/.test(all.replace(/5: 'بخمس أراضٍ'/, '')), 'القلعة: لا قيمة 5 مكتوبة يدويًا في الواجهات'); }
 
 // ---------- 6) كلفة الخطة بترتيب التنفيذ ----------

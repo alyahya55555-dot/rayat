@@ -1,7 +1,7 @@
 // اختبار المواجهة بالخيارات (طلب المستخدم 10 نوفمبر): الضاغط يختار من جواله، والتصحيح آلي، ولا تعادل
 const path = require('path');
 global.d3 = require(path.join(__dirname, '../r3d/node_modules/d3-delaunay'));
-require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/data.js');
+require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/bank-adab.js'); require('../app/data.js');
 const RayatGame = require('../app/game.js'), RR = globalThis.RayatRules;
 let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
 const NAMES = ['الصقور', 'السهم', 'الرواد', 'الهمّة'], COLORS = ['#2f6fdb', '#1f9d55', '#e07a2e', '#8e4fb8'];

@@ -173,13 +173,13 @@ input,select,textarea{font-family:var(--fs)}
 /* الشاشات القصيرة (جوال بالعرض) */
 @media (max-height:520px){
   .dsp .top{padding:8px 14px}.brand{font-size:26px}.brand small{display:none}
-  .dom{top:12px;width:min(38vw,760px)}.dom .names{font-size:12px;margin-top:4px}
+  .phase{max-width:30vw}.dom .names{font-size:12px;margin-top:4px}
   .card{padding:12px 18px;border-radius:16px}.qcard{bottom:8px}.banner{bottom:8px}
   .qtext{font-size:clamp(16px,2.6vw,22px);margin:0 0 8px}.qtop{margin-bottom:4px;font-size:12px}
   .opts{grid-template-columns:1fr 1fr;gap:6px}.opt{padding:6px 10px;font-size:15px}.opt .L{width:24px;height:24px;font-size:13px}
   .timer{margin-top:8px}.ptitle{font-size:clamp(34px,7vw,56px)!important}.mid{padding:16px 22px}
   .lobby{grid-template-columns:200px 1fr;text-align:start}.lobby .qr{width:170px}
-  .dom{top:10px;left:150px;right:150px;width:auto;transform:none}
+  .dom{top:10px;left:calc(30vw + 24px);right:110px;width:auto;transform:none}
   .mapctl{top:58px;left:14px;transform:none}.mapctl .need,.mapctl .lbl{display:none}
   .lobby{bottom:8px}
 }
@@ -9821,7 +9821,7 @@ const Display = {
   reserve() { if (!this.W || !this.root) return; const R = []; const add = el => { if (!el || el.classList.contains('hide') || !el.offsetParent && getComputedStyle(el).position !== 'fixed') return; const b = el.getBoundingClientRect(); if (b.width > 2 && b.height > 2) R.push({ x0: b.left, y0: b.top, x1: b.right, y1: b.bottom }); };
     $$('.dsp .brand, #phase, #dom, #qcard, #banner, #mid, #lobby, .sidelog > div', this.root).forEach(add); const mc = document.getElementById('mapctl'); if (mc && mc.offsetParent) add(mc); const sb = $('.sndbox', this.root); if (sb) add(sb); const cc = $('.camctl', this.root); if (cc) add(cc); this.W.reserved = R; },
   // أزرار المشرف فوق الخريطة تنزل تحت شريط السيطرة إن اتسع، فلا يتراكبان
-  placeCtl() { const mc = document.getElementById('mapctl'); if (!mc || !mc.offsetWidth) return; if (innerWidth <= 900 || innerHeight <= 520) { const ph0 = $('#phase', this.root), pb0 = ph0 && ph0.getBoundingClientRect(), r0 = mc.getBoundingClientRect(); const v0 = pb0 && pb0.height > 2 && pb0.left < r0.right && pb0.right > r0.left ? (pb0.bottom + 8) + 'px' : ''; if (mc.style.top !== v0) mc.style.top = v0; return; } // الشاشات الصغيرة: الأزرار تحت اسم المرحلة لا فوقه
+  placeCtl() { const mc = document.getElementById('mapctl'); if (!mc || !mc.offsetWidth) return; if (innerWidth <= 900 || innerHeight <= 520) { mc.style.top = ''; const r0 = mc.getBoundingClientRect(); let tp = 0; ['#phase', '#dom'].forEach(sel => { const e = $(sel, this.root), b0 = e && e.getBoundingClientRect(); if (b0 && b0.height > 2 && b0.left < r0.right && b0.right > r0.left && b0.top < r0.bottom && b0.bottom > r0.top) tp = Math.max(tp, b0.bottom + 8); }); ['#phase', '#dom'].forEach(sel => { const e = $(sel, this.root), b0 = e && e.getBoundingClientRect(); if (tp && b0 && b0.height > 2 && b0.left < r0.right && b0.right > r0.left && b0.top < tp + r0.height && b0.bottom > tp) tp = Math.max(tp, b0.bottom + 8); }); const v0 = tp ? tp + 'px' : ''; if (mc.style.top !== v0) mc.style.top = v0; return; } // الشاشات الصغيرة: الأزرار تحت اسم المرحلة لا فوقه
     const d = $('#dom', this.root), ph = $('#phase', this.root), db = d ? d.getBoundingClientRect() : null, pb = ph ? ph.getBoundingClientRect() : null; let top = 84;
     if (db && db.height > 2 && db.left < 24 + mc.offsetWidth + 10) top = Math.max(top, db.bottom + 12); if (pb && pb.height > 2) top = Math.max(top, pb.bottom + 10); const v = top + 'px'; if (mc.style.top !== v) mc.style.top = v;
     // أزرار الكاميرا لا تظهر من تحت بطاقة السؤال أو الإعلان (لا شيء فوق شيء)

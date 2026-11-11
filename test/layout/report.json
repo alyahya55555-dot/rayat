@@ -1,58 +1,12 @@
 {
- "phase": {
-  "360x740": [
+ "harvest": {
+  "390x844": [
    "تراكب: phase × mapctl"
-  ],
-  "430x932": [
-   "تراكب: phase × mapctl"
-  ],
-  "740x360": [
-   "تراكب: phase × dom"
-  ],
-  "844x390": [
-   "تراكب: phase × dom"
   ]
  },
- "question": {
-  "360x740": [
+ "bini": {
+  "390x844": [
    "تراكب: phase × mapctl"
-  ],
-  "430x932": [
-   "تراكب: phase × mapctl"
-  ],
-  "740x360": [
-   "تراكب: phase × dom"
-  ],
-  "844x390": [
-   "تراكب: phase × dom"
-  ]
- },
- "reveal": {
-  "360x740": [
-   "تراكب: phase × mapctl"
-  ],
-  "430x932": [
-   "تراكب: phase × mapctl"
-  ],
-  "740x360": [
-   "تراكب: phase × dom"
-  ],
-  "844x390": [
-   "تراكب: phase × dom"
-  ]
- },
- "scene-batch": {
-  "360x740": [
-   "تراكب: phase × mapctl"
-  ],
-  "430x932": [
-   "تراكب: phase × mapctl"
-  ],
-  "740x360": [
-   "تراكب: phase × dom"
-  ],
-  "844x390": [
-   "تراكب: phase × dom"
   ]
  }
 }

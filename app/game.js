@@ -102,6 +102,11 @@
     // يُختار السؤال من مستوى المسابقة؛ فإن نفد يُستعار من أقرب مستوى آخر قبل أي تكرار (450 سؤالًا تكفي مسابقة كاملة بلا تكرار)
     // اختيار السؤال: من المستوى المختار وبالدرجة المطلوبة، ولا يتكرر داخل المسابقة، ويُقدَّم ما لم يُعرض في مسابقات سابقة.
     // إذا عُرضت أسئلة المستوى كلها من قبل تُصفَّر ذاكرته فيبدأ دورة جديدة؛ وإذا نفد المستوى داخل المسابقة يُستعار من أقرب مستوى.
+    // الجيش يخرج من أقرب أرض للمهاجم إلى الهدف: الملاصقة أولًا (الأقرب مركزًا)، وللفرسان أرضه التي تبعد إقليمين
+    fromFor(t, r) { const S = this.S, M = this.M, d = j => { const a = M.regions[j].at, b = M.regions[r].at; return Math.hypot(a[0] - b[0], a[1] - b[1]); };
+      let c = S.regions[r].nb.filter(j => S.regions[j].owner === t && (M.regions[j].land || 0) === (M.regions[r].land || 0));
+      if (!c.length) c = [...new Set(S.regions[r].nb.flatMap(j => S.regions[j].nb))].filter(j => j !== r && S.regions[j].owner === t && (M.regions[j].land || 0) === (M.regions[r].land || 0));
+      return c.length ? c.sort((x, y) => d(x) - d(y))[0] : undefined; }
     pickQuestion(diffWant) {
       const s = this.s, ORD = ['easy', 'med', 'hard'], near = { easy: ['easy', 'med', 'hard'], med: ['med', 'easy', 'hard'], hard: ['hard', 'med', 'easy'] }[s.level] || [s.level];
       let seen = new Set(seenLoad()), q = null;
@@ -186,7 +191,7 @@
     // ---------- المواجهة ----------
     beginDuel(t, o) { const s = this.s, S = this.S, D = RR().act(S, t, o); if (!D) return this.nextAction();
       const kindAr = { normal: 'مواجهة', walls: 'مواجهة على أرض محصّنة', capital: 'غارة على عاصمة', castle: 'حصار القلعة الكبرى', garrisonQ: 'سؤال حامية القلعة' }[D.kind];
-      s.duel = { id: ++s.evSeq, a: D.a, d: D.d, ally: D.ally, r: D.r, unit: D.unit, kind: D.kind, kindAr, need: D.need, pts: { ...D.pts }, betray: D.betray, revenge: D.revenge, joint: !!o.joint, preds: {}, buzz: null, tried: [], q: null, gqAns: {}, from: S.regions[D.r].nb.find(j => S.regions[j].owner === t) };
+      s.duel = { id: ++s.evSeq, a: D.a, d: D.d, ally: D.ally, r: D.r, unit: D.unit, kind: D.kind, kindAr, need: D.need, pts: { ...D.pts }, betray: D.betray, revenge: D.revenge, joint: !!o.joint, preds: {}, buzz: null, tried: [], q: null, gqAns: {}, from: this.fromFor(t, D.r) };
       this.say(`${this.tn(t)} ${o.betray ? 'ينقضون الحلف ويهاجمون' : 'يهاجمون'} ${this.rn(D.r)} (${UNIT_AR[D.unit]})${o.joint ? ' مع حليفهم' : ''}`, 'big');
       if (o.betray) this.pushEv({ k: 'unally', a: t, b: D.d, betray: true });
       if (D.kind === 'garrisonQ') { const q = this.pickQuestion(3, true); s.duel.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.q = s.duel.q; s.stage = 'gq'; this.setTimer(DUR.gq); this.changed(); return; }
@@ -216,7 +221,7 @@
       if (D.d != null) { const per = {}; Object.entries(D.preds).forEach(([pid, side]) => { const p = s.players[pid]; if (p && side === res.winner) per[p.team] = (per[p.team] || 0) + 1; }); Object.entries(per).forEach(([t, n]) => { const g = RR().predict(S, +t, n); if (g) this.say(`${this.tn(+t)}: توقعات صحيحة +${g} ذهب`); }); D.predWin = per; }
       const r = D.r, result = res.taken ? 'taken' : res.loot ? 'loot' : res.garrisonFell ? 'garrisonFell' : 'hold';
       this.say(result === 'taken' ? `${this.tn(D.a)} يفتحون ${this.rn(r)}` : result === 'loot' ? `${this.tn(D.a)} ينهبون عاصمة ${this.tn(D.d)}` : result === 'garrisonFell' ? `سقطت حامية ${this.rn(r)} وصمدت الأرض` : `${this.tn(D.d != null ? D.d : null)} يصدّون الهجوم على ${this.rn(r)}`, 'big');
-      s.stage = 'scene'; const naval = this.seaTo(D.a, r, D.ally); s.ev = { id: ++s.evSeq, k: 'attack', a: D.a, d: D.d, ally: D.ally, r, unit: D.unit, result, from: D.from, loot: res.loot || null, cavLoot: res.cavLoot || 0, naval };
+      s.stage = 'scene'; const naval = this.seaTo(D.a, r, D.ally); s.ev = { id: ++s.evSeq, k: 'attack', a: D.a, d: D.d, ally: D.ally, r, unit: D.unit, result, from: D.from, loot: res.loot || null, cavLoot: res.cavLoot || 0, wallsBroken: !!res.wallsBroken, naval };
       s.lastDuel = { a: D.a, d: D.d, r, result, pts: D.pts, kindAr: D.kindAr }; s.duel = null; s.afterScene = 'next'; this.sceneTimer(DUR.scene.attack + (naval ? DUR.scene.sail : 0));
       // أحداث مؤجلة (خيط الحلف ينقطع) تُعرض بعد المشهد
       this.changed(); }
@@ -289,12 +294,14 @@
         log: s.log.slice(-8), mapSeed: s.mapSeed, skipSeq: s.skipSeq || 0 };
       if (S) { P.vis = s.vis; P.score = S.teams.map(T => RR().score(S, T.id)); P.res = S.teams.map(T => ({ ...T.res })); P.capLevel = S.teams.map(T => T.capLevel);
         P.ally = S.teams.map(T => T.ally); P.offer = S.teams.map(T => T.offerFrom); P.revenge = S.teams.map(T => T.revenge && T.revenge.until >= S.cycle ? T.revenge.on : null); P.phaseKey = this.phaseKey(); P.phaseName = RR().CFG.PHASES[S.phase].name;
-        P.phaseLeft = Math.max(0, this.bound(Math.min(S.phase, this.plan().length - 1)) - this.t()); P.clock = (c => ({ total: c.total, extra: c.extra, el: c.el, rem: c.rem, playRem: c.playRem }))(this.timeInfo()); P.left = S.turn ? S.turn.left.slice() : null; P.nRegions = S.regions.length; }
+        P.phaseLeft = Math.max(0, this.bound(Math.min(S.phase, this.plan().length - 1)) - this.t()); P.clock = (c => ({ total: c.total, extra: c.extra, el: c.el, rem: c.rem, playRem: c.playRem }))(this.timeInfo()); P.left = S.turn ? S.turn.left.slice() : null; P.nRegions = S.regions.length;
+        // وضوح القلعة: متى تنفتح، ومن صاحبها، وكم جولة أمان بقيت له
+        { const si = RR().CFG.PHASES.findIndex(x => x.key === 'siege'), c = S.regions.find(x => x.type === 'castle'); P.castleIn = S.phase < si ? Math.max(0, this.bound(si - 1) - this.t()) : 0; P.castle = c ? { owner: c.owner, safe: c.owner != null ? Math.max(0, (S.castleGrace || -1) - S.cycle) : 0, name: c.name } : null; } }
       if (s.q && (st === 'question' || st === 'reveal')) P.q = { id: s.q.id, text: s.q.text, c: s.q.c, a: st === 'reveal' ? s.q.a : undefined, topic: s.q.topic, answered: Object.keys(s.answers).length, mine: null };
       if (st === 'question' || st === 'reveal') P.answered = Object.keys(s.answers);
       if (st === 'reveal' && s.ans) P.ans = { ...s.ans, by: Object.fromEntries(Object.entries(s.answers).map(([pid, a]) => [pid, a.c])) };
       if (st === 'orders') { P.orderTeams = s.orderTeams; P.opts = {}; s.orderTeams.forEach(t => { P.opts[t] = this.options(t); }); P.ready = s.ready; P.chosen = Object.fromEntries(Object.entries(s.orders).map(([t, l]) => [t, l.length])); P.sug = s.sug; P.ans = s.ans; }
-      if (s.duel) { const D = s.duel; P.duel = { lock: Math.max(0, (D.openAt || 0) - this.t()), id: D.id, a: D.a, d: D.d, ally: D.ally, r: D.r, rn: S.regions[D.r].name, unit: D.unit, kind: D.kind, kindAr: D.kindAr, need: D.need, pts: D.pts, betray: D.betray, revenge: D.revenge, joint: D.joint, buzz: D.buzz, tried: D.tried, wrong: D.wrong || [], ans: st === 'point' && D.q ? D.q.a : undefined, preds: Object.keys(D.preds).length, last: D.last,
+      if (s.duel) { const D = s.duel; P.duel = { lock: Math.max(0, (D.openAt || 0) - this.t()), from: D.from, id: D.id, a: D.a, d: D.d, ally: D.ally, r: D.r, rn: S.regions[D.r].name, unit: D.unit, kind: D.kind, kindAr: D.kindAr, need: D.need, pts: D.pts, betray: D.betray, revenge: D.revenge, joint: D.joint, buzz: D.buzz, tried: D.tried, wrong: D.wrong || [], ans: st === 'point' && D.q ? D.q.a : undefined, preds: Object.keys(D.preds).length, last: D.last,
         q: D.q ? { id: D.q.id, text: D.q.text, c: D.q.c } : null, gqN: Object.keys(D.gqAns).length };
         if (st === 'gq') P.q = { id: D.q.id, text: D.q.text, c: D.q.c, gq: true }; }
       if (s.lastDuel) P.lastDuel = s.lastDuel;

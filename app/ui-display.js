@@ -40,7 +40,7 @@ const Display = {
       const cc = document.createElement('div'); cc.className = 'camctl'; cc.innerHTML = `<button data-c="in" title="تقريب">＋</button><button data-c="out" title="إبعاد">－</button><button data-c="l" title="تدوير">⟲</button><button data-c="r" title="تدوير">⟳</button><button data-c="all" class="w">🏝 الجزيرة كاملة</button><button data-c="ev" class="w ev">🎥 متابعة الحدث</button>`; this.root.appendChild(cc);
       const W = this.W, act = { in: () => W.zoomBy(.78), out: () => W.zoomBy(1.28), l: () => W.orbitBy(.35), r: () => W.orbitBy(-.35), all: () => W.viewAll(), ev: () => W.followEvent() };
       cc.onclick = e => { const b = e.target.closest('[data-c]'); if (b) act[b.dataset.c](); }; W.on('cam', m => cc.classList.toggle('man', m === 'manual')); }
-    this.W.on('sfx', e => SFX.play(e.k, e.at || 0, e.dur || 0));
+    this.W.on('sfx', e => SFX.play(e.k, e.at || 0, e.dur || 0, e));
     this.W.fontsReady(); this.W.resize(innerWidth, innerHeight); this.W.start(); this.visKey = '';
   },
   // بديل بلا WebGL: خريطة ثنائية الأبعاد بالألوان نفسها، والأحداث تظهر بتلوّن الأقاليم
@@ -92,7 +92,10 @@ const Display = {
       else if (ev.k === 'supply') SFX.play('harvest');
     } catch (e) { console.error(e); }
     this.playing--; this.curEv = null; if (!this.playing && this.P && this.P.vis && !this.P.ev) this.syncVis(this.P.vis); this.render(); },
-  onStage(st, prev) { if (['question', 'orders', 'predict', 'buzz', 'harvest', 'bini', 'tie'].includes(st) && !this.playing && this.W) this.W.overview(1.6); if (st === 'question') SFX.play('question'); if (st === 'reveal') SFX.play('reveal'); if (st === 'harvest') { SFX.play('harvest'); if (this.W && !this.playing && this.W.harvest) { this.playing++; const hk = this.P && this.P.ack; this.W.harvest().finally(() => { this.playing--; this.ack(hk); }); } else { const hk = this.P && this.P.ack; setTimeout(() => this.ack(hk), 3200); } } if (st === 'judge') SFX.play('buzz'); if (st === 'crown') { SFX.play('crown'); this.W && this.W.setSky('crown', 6); } },
+  onStage(st, prev) { if (this.W && !this.playing) { const D = this.P && this.P.duel; // البث: ترقب عند المواجهة، وانسياب فوق الجبهة وقت السؤال، والجزيرة كاملة وقت الأوامر
+      if (['predict', 'buzz', 'judge', 'point', 'gq'].includes(st) && D && this.W.faceoff) this.W.faceoff({ a: D.a, d: D.d, r: D.r, unit: D.unit, ally: D.ally, from: D.from });
+      else if ((st === 'question' || st === 'reveal') && this.W.idle) this.W.idle();
+      else if (['orders', 'harvest', 'bini', 'tie'].includes(st)) this.W.overview(1.6); } if (st === 'question') SFX.play('question'); if (st === 'reveal') SFX.play('reveal'); if (st === 'harvest') { SFX.play('harvest'); if (this.W && !this.playing && this.W.harvest) { this.playing++; const hk = this.P && this.P.ack; this.W.harvest().finally(() => { this.playing--; this.ack(hk); }); } else { const hk = this.P && this.P.ack; setTimeout(() => this.ack(hk), 3200); } } if (st === 'judge') SFX.play('buzz'); if (st === 'crown') { SFX.play('crown'); this.W && this.W.setSky('crown', 6); } },
   // مناطق الواجهة الظاهرة تُبلَّغ للخريطة فلا يظهر اسم إقليم تحتها
   reserve() { if (!this.W || !this.root) return; const R = []; const add = el => { if (!el || el.classList.contains('hide') || !el.offsetParent && getComputedStyle(el).position !== 'fixed') return; const b = el.getBoundingClientRect(); if (b.width > 2 && b.height > 2) R.push({ x0: b.left, y0: b.top, x1: b.right, y1: b.bottom }); };
     $$('.dsp .brand, #phase, #dom, #qcard, #banner, #mid, #lobby, .sidelog > div', this.root).forEach(add); const mc = document.getElementById('mapctl'); if (mc && mc.offsetParent) add(mc); const sb = $('.sndbox', this.root); if (sb) add(sb); const cc = $('.camctl', this.root); if (cc) add(cc); this.W.reserved = R; },
@@ -111,7 +114,8 @@ const Display = {
   render() {
     const P = this.P; if (!P) return; const T = P.teams, tn = i => i == null ? 'محايد' : esc(T[i].name), tc = i => i == null ? '#999' : T[i].color;
     // الشريط العلوي: المرحلة والسيطرة
-    $('#phase').innerHTML = P.stage === 'lobby' ? '' : `<b class="k">${esc(P.phaseName || '')}</b><span>الجولة ${P.cycle || 0} · <span id="plft"></span></span>`;
+    $('#phase').innerHTML = P.stage === 'lobby' ? '' : `<b class="k">${esc(P.phaseName || '')}</b><span>الجولة ${P.cycle || 0} · <span id="plft"></span></span>${P.castleIn > 0 && P.castle ? `<span class="ccd">🏰 ${esc(P.castle.name)} تنفتح بعد ${Math.max(1, Math.ceil(P.castleIn / 60000))} د</span>` : ''}`;
+    if (this.W && this.W.setCastle && P.castle) this.W.setCastle({ owner: P.castle.owner, safe: P.castle.safe });
     if (P.score) { const tot = (P.nRegions || 1) - 1 + 4; $('#dom').innerHTML = `<div class="bar">${T.map((t, i) => `<i style="flex:${P.score[i]};background:${t.color}"></i>`).join('')}<i style="flex:${Math.max(0, tot - P.score.reduce((a, b) => a + b, 0))};background:rgba(255,255,255,.18)"></i></div><div class="names">${T.map((t, i) => `<span><i class="chip" style="background:${t.color}"></i>${esc(t.name)} <em>${P.score[i]}</em></span>`).join('')}</div>`; }
     else $('#dom').innerHTML = '';
     const tbar = `<div class="timer"><i id="tbar"></i></div>`, st = P.stage;
@@ -119,9 +123,9 @@ const Display = {
     if (st === 'lobby') { const url = joinUrl(P.code, P.fp); return this.show('lobby', `<div><div class="qr">${url ? qrSvg(url) : ''}</div><div class="code">رمز الغرفة<b>${esc(P.code)}</b></div></div><div><div class="ptitle k" style="font-size:64px;text-align:start">امسح الرمز وانضم</div><div class="mut" style="font-size:20px;margin:6px 0 20px">اختر فريقك من جوالك، وأول من ينضم يكون القائد</div><div class="teams">${T.map((t, i) => { const pl = Object.entries(P.players).filter(([, p]) => p.t === i).sort(([a], [b]) => (b === t.cap) - (a === t.cap)), n = pl.length; return `<div class="team" style="--tc:${t.color}"><h3>${esc(t.name)}</h3>${pl.slice(0, 4).map(([pid, p]) => `<div class="p ${t.cap === pid ? 'cap' : ''}">${t.cap === pid ? '👑 ' : ''}${esc(p.n)}</div>`).join('')}${n > 4 ? `<div class="p">و${n - 4} آخرون</div>` : ''}${n ? '' : '<div class="p">بانتظار المتسابقين…</div>'}<div class="cnt">${n ? (n === 1 ? 'لاعب واحد' : n === 2 ? 'لاعبان' : n + (n <= 10 ? ' لاعبين' : ' لاعبًا')) : 'بانتظار المتسابقين'}</div></div>`; }).join('')}</div></div>`); }
     if (st === 'phase' && P.ev && P.ev.k === 'phase') { const U = { occupy: 'الاحتلال', supply: 'التموين', inf: 'المشاة', walls: 'الأسوار', cav: 'الفرسان', tower: 'برج المراقبة', garInf: 'الحامية', alliance: 'التحالفات', cat: 'المنجنيق', cap2: 'تطوير العاصمة', castle: 'القلعة الكبرى' };
       const un = (P.ev.unlock || []).filter(k => U[k] && k !== 'garCav' && k !== 'cap3').map(k => U[k]);
-      return this.show('mid', `<div class="kind">المرحلة</div><div class="ptitle k">${esc(P.ev.name)}</div>${un.length ? `<div class="punlock">ينفتح الآن: ${un.join('، ')}</div>` : P.ev.key === 'final' ? '<div class="punlock">سقطت التحالفات كلها، وكل فريق لنفسه</div>' : ''}`); }
+      return this.show('mid', `<div class="kind">المرحلة</div><div class="ptitle k">${esc(P.ev.name)}</div>${un.length ? `<div class="punlock">ينفتح الآن: ${un.join('، ')}</div>${(P.ev.unlock || []).includes('castle') ? `<div class="punlock">القلعة = ${RayatRules.CFG.CASTLE_POINTS} أراضٍ + ${(RayatRules.CFG.YIELD.castle.gold || 0) + (RayatRules.CFG.CASTLE_TRIBUTE.gold || 0)} ذهب كل جولة</div>` : ''}` : P.ev.key === 'final' ? '<div class="punlock">سقطت التحالفات كلها، وكل فريق لنفسه</div>' : ''}`); }
     if ((st === 'question' || st === 'reveal' || st === 'gq') && P.q) { const q = P.q, rev = st === 'reveal';
-      const head = st === 'gq' ? `سؤال حامية القلعة · يجيب ${tn(P.duel.a)} من جوالاتهم` : `سؤال الجولة ${P.cycle} · ${esc(q.topic || '')}`;
+      const head = st === 'gq' ? `سؤال حامية القلعة · إن أصاب نصف ${tn(P.duel.a)} أخذوا القلعة` : `سؤال الجولة ${P.cycle} · ${esc(q.topic || '')}`;
       const res = rev && P.ans ? `<div class="row" style="justify-content:center;gap:18px;margin-top:16px;flex-wrap:wrap">${T.map((t, i) => `<span style="font-weight:700"><i class="chip" style="background:${t.color}"></i> ${esc(t.name)}: ${Math.round((P.ans.ratios[i] || 0) * 100)}٪ ← ${P.ans.orders[i] || 0} ${P.ans.orders[i] === 1 ? 'أمر' : P.ans.orders[i] === 2 ? 'أمران' : 'أوامر'}</span>`).join('')}</div>` : '';
       return this.show('qcard', `<div class="qtop"><span>${head}</span><span>${rev ? '' : `أجاب ${(P.answered || []).length || q.answered || P.duel && P.duel.gqN || 0}`}</span></div><div class="qtext">${esc(q.text)}</div><div class="opts">${q.c.map((c, i) => `<div class="opt ${rev ? (i === q.a ? 'right' : 'dim') : ''}"><span class="L">${LET[i]}</span>${esc(c)}</div>`).join('')}</div>${res}${rev ? '' : tbar}`); }
     if (st === 'orders') { const ot = P.orderTeams || [];
@@ -150,7 +154,7 @@ const Display = {
   },
   caption(e, T) { const tn = i => i == null ? '' : `<span style="color:${T[i].color}">${esc(T[i].name)}</span>`, rn = r => esc(this.W ? this.W.M.regions[r].name : '');
     switch (e.k) {
-      case 'attack': { const u = { inf: 'المشاة', cav: 'الفرسان', cat: 'المنجنيق' }[e.unit] || ''; const res = e.result === 'taken' ? `${tn(e.a)} يفتحون ${rn(e.r)}` : e.result === 'loot' ? `${tn(e.a)} ينهبون عاصمة ${tn(e.d)}` : e.result === 'garrisonFell' ? `سقطت حامية ${rn(e.r)}، وصمدت الأرض` : `${tn(e.d)} يصدّون الهجوم`;
+      case 'attack': { const u = { inf: 'المشاة', cav: 'الفرسان', cat: 'المنجنيق' }[e.unit] || ''; const res = e.result === 'taken' ? `${tn(e.a)} يفتحون ${rn(e.r)}` : e.result === 'loot' ? `${tn(e.a)} ينهبون عاصمة ${tn(e.d)}` : e.result === 'garrisonFell' ? `سقطت حامية ${rn(e.r)}، وصمدت الأرض` : e.wallsBroken ? `${tn(e.d)} يصدّون الهجوم، لكن سورهم انهدم` : `${tn(e.d)} يصدّون الهجوم`;
         return [`هجوم ${u}${e.ally != null ? ' مشترك' : ''}`, res, guideLine(e, T)]; }
       case 'occupy': return ['احتلال', `${tn(e.team)} يحتلون ${rn(e.r)}`, guideLine(e, T)];
       case 'walls': return ['تحصين', `${tn(e.team)} يبنون سورًا في ${rn(e.r)}`, guideLine(e, T)];

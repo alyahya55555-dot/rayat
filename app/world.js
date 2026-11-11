@@ -4,7 +4,10 @@
 (function (G) {
   'use strict';
   const T3 = () => G.THREE;
-  const SZ = Object.assign({ island: 1, unit: 1, ship: 1, house: 1, crew: 1, frame: 1, lookZ: 0 }, G.RAYAT_SIZES || {}); // مقاسات للتجربة والمقارنة (الافتراضي = الحالي)
+  // المقاسات المعتمدة (11 نوفمبر) مقارنة بالسابق: الجزيرة +25٪، الجنود والفرسان والمنجنيق والعربات +25٪، السفن +35٪ وطاقمها بحجم الجنود،
+  // البيوت والآبار والأسوار والأبراج +10٪، الأشجار والصخور +10٪، العواصم والقلعة والمعالم والرايات +15٪، الجبال والحقول تكبر مع الأرض، الطرق أعرض 15٪
+  const SZ = Object.assign({ island: 1.25, unit: 1.25, ship: 1.35, house: 1.1, crew: 1.28, keep: 1.15, flag: 1.15, tree: 1.1, road: 1.15, frame: 1, lookZ: 0 }, G.RAYAT_SIZES || {});
+  const K = SZ.island; // الأبعاد داخل الأرض (مواضع البيوت والحقول والأشجار والجبال) تكبر مع الجزيرة
   const S = SZ.island / 100, CX = 930, CY = 600;
   const P = (x, y) => [(x - CX) * S, (y - CY) * S];
   const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -12,7 +15,8 @@
   // حركة بسرعة ثابتة مع انطلاق وتوقف ناعمين (15٪ تسارع، 70٪ سرعة ثابتة، 15٪ تهدئة)
   const glide = k => { const a = .15; k = clamp(k); return k < a ? k * k / (2 * a * (1 - a)) : k > 1 - a ? 1 - (1 - k) * (1 - k) / (2 * a * (1 - a)) : (k - a / 2) / (1 - a); };
   // سرعات الوحدات (وحدة عالم في الثانية): المدة تُحسب من طول المسار
-  const SPEED = { inf: .36, cav: .56, cat: .3, cart: .34, ship: 1.05, msg: .95 };
+  const SPEED0 = { inf: .36, cav: .56, cat: .3, cart: .34, ship: 1.05, msg: .95 }; // سرعات بوحدات الجزيرة السابقة
+  const SPEED = Object.fromEntries(Object.entries(SPEED0).map(([k, v]) => [k, v * K])); // المسافات أطول بنسبة الجزيرة، فتزيد السرعة بالنسبة نفسها وتبقى المشاهد 4–8 ثوانٍ
   const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
   const mkRnd = s => () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
   const hash = (x, y) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
@@ -47,17 +51,17 @@
     function coastDist(x, z) { let m = 1e9; for (const [ax, az, bx, bz] of coastSegs) { const dx = bx - ax, dz = bz - az, t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)), px = ax + t * dx - x, pz = az + t * dz - z, d = px * px + pz * pz; if (d < m) m = d; } m = Math.sqrt(m); return lands.some(L => inPoly(x, z, L)) ? m : -m; }
     const feats = [];
     M.regions.forEach(r => { const [x, z] = at(r);
-      if (r.type === 'mine') { feats.push({ x: x - .12, z: z - .05, h: .95, r: .42, k: 'm' }); feats.push({ x: x + .26, z: z + .08, h: .62, r: .32, k: 'm' }); }
-      if (r.type === 'rich') feats.push({ x, z, h: .55, r: .3, k: 'm' });
-      if (r.type === 'quarry') feats.push({ x, z, h: .28, r: .42, k: 'q' });
-      if (r.type === 'castle') feats.push({ x, z, h: .42, r: .78, k: 'p' });
-      if (r.type === 'capital') feats.push({ x, z, h: .16, r: .55, k: 'p' }); });
+      if (r.type === 'mine') { feats.push({ x: x - .12 * K, z: z - .05 * K, h: .95 * K, r: .42 * K, k: 'm' }); feats.push({ x: x + .26 * K, z: z + .08 * K, h: .62 * K, r: .32 * K, k: 'm' }); }
+      if (r.type === 'rich') feats.push({ x, z, h: .55 * K, r: .3 * K, k: 'm' });
+      if (r.type === 'quarry') feats.push({ x, z, h: .28 * K, r: .42 * K, k: 'q' });
+      if (r.type === 'castle') feats.push({ x, z, h: .42, r: .78 * SZ.keep, k: 'p' });
+      if (r.type === 'capital') feats.push({ x, z, h: .16, r: .55 * SZ.keep, k: 'p' }); });
     const flatRegion = id => ['farm', 'capital', 'castle', 'port', 'village'].includes(M.regions[id] && M.regions[id].type);
     function heightAt(x, z, cd = coastDist(x, z)) {
       if (cd < 0) return .006 + cd * .2 - sstep(.1, 1.5, -cd) * .62;
       let h = .006 + sstep(0, .4, cd) * .13;
       const id = regionAtW(x, z), rough = flatRegion(id) ? .35 : 1;
-      h += (fbm(x * .9 + 7, z * .9 + 3) - .45) * .16 * rough * sstep(0, .5, cd);
+      h += (fbm(x * .9 / K + 7, z * .9 / K + 3) - .45) * .16 * rough * sstep(0, .5, cd);
       for (const f of feats) { const d = Math.hypot(x - f.x, z - f.z) / f.r; if (d > 1.6) continue;
         if (f.k === 'm') h += f.h * Math.exp(-d * d * 2.6) * (.82 + .35 * fbm(x * 3 + 1, z * 3 + 2));
         else if (f.k === 'q') h += f.h * Math.exp(-d * d * 2) * (.6 + .8 * fbm(x * 6, z * 6));
@@ -91,7 +95,7 @@
     const add = (m, p, o = {}) => { m.castShadow = o.cast !== false; m.receiveShadow = true; if (p) m.position.set(...p); (o.to || scene).add(m); return m; };
 
     // ---------- التضاريس ----------
-    const X0 = -14, X1 = 14, Z0 = -9, Z1 = 9, NX = opt.lite ? 360 : 600, NZ = opt.lite ? 234 : 390;
+    const X0 = -14 * K, X1 = 14 * K, Z0 = -9.2 * K, Z1 = 9.2 * K, NX = Math.round((opt.lite ? 360 : 600) * Math.min(K, 1.15)), NZ = Math.round((opt.lite ? 234 : 390) * Math.min(K, 1.15));
     const tgeo = new THREE.PlaneGeometry(X1 - X0, Z1 - Z0, NX, NZ); tgeo.rotateX(-Math.PI / 2); tgeo.translate((X0 + X1) / 2, 0, (Z0 + Z1) / 2);
     const tp = tgeo.attributes.position, cols = new Float32Array(tp.count * 3), regA = new Float32Array(tp.count);
     const cGrass = [new THREE.Color('#7db455'), new THREE.Color('#5f9e46'), new THREE.Color('#93c463')], cSand = new THREE.Color('#ead39a'), cWet = new THREE.Color('#cdb784'), cRock = new THREE.Color('#9b8f7c'), cRock2 = new THREE.Color('#7f7466'), cSnow = new THREE.Color('#f4f1ea'), cDeep = new THREE.Color('#165a6e'), cShallow = new THREE.Color('#bfe0cf'), cField = new THREE.Color('#c9c066');
@@ -176,7 +180,7 @@
     const ROADS = []; { const L = M.regions.filter(r => !r.land), E = []; L.forEach(r => r.nb.forEach(j => { if (j > r.id && !M.regions[j].land) { const a = at(r), b = at(M.regions[j]); E.push([Math.hypot(a[0] - b[0], a[1] - b[1]), r.id, j]); } }));
       E.sort((a, b) => a[0] - b[0]); const par = {}, f = i => par[i] == null || par[i] === i ? i : (par[i] = f(par[i])), keep = [];
       E.forEach(e => { const a = f(e[1]), b = f(e[2]); if (a !== b) { par[a] = b; keep.push(e); } });
-      const endOff = r => r.type === 'capital' ? .3 : r.type === 'castle' ? .56 : r.type === 'village' ? .1 : .06;
+      const endOff = r => r.type === 'capital' ? .3 * SZ.keep : r.type === 'castle' ? .56 * SZ.keep : r.type === 'village' ? .1 * K : .06;
       keep.forEach(([, i, j], k) => { const A = M.regions[i], B = M.regions[j], [ax, az] = at(A), [bx, bz] = at(B), L2 = Math.hypot(bx - ax, bz - az), dx = (bx - ax) / L2, dz = (bz - az) / L2;
         const p0 = [ax + dx * endOff(A), az + dz * endOff(A)], p2 = [bx - dx * endOff(B), bz - dz * endOff(B)], bend = (k % 2 ? 1 : -1) * L2 * .08, p1 = [(p0[0] + p2[0]) / 2 - dz * bend, (p0[1] + p2[1]) / 2 + dx * bend], pts = [];
         for (let t = 0; t <= 1.0001; t += 1 / 22) { const u = 1 - t; pts.push([u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]]); }
@@ -185,16 +189,16 @@
     // ---------- العوائق والمواضع الخالية ----------
     const C = { roof: '#c4553a', roof2: '#a9452f', wall: '#f4ecdc', stone: '#d6cdb7', stone2: '#bdb39b', wood: '#8a6240', gold: '#f4c430' };
     const WALLS = ['#f4ecdc', '#efe2c8', '#f6efe3', '#e9dcc3'];
-    const OBST = []; ROADS.forEach(L => L.forEach(q => OBST.push({ k: 'طريق', x: q[0], z: q[1], r: .035, soft: true })));
+    const OBST = []; ROADS.forEach(L => L.forEach(q => OBST.push({ k: 'طريق', x: q[0], z: q[1], r: .035 * SZ.road, soft: true })));
     const hitObst = (x, z, rad, gap = 0, soft = false) => OBST.some(o => (soft || !o.soft) && Math.hypot(o.x - x, o.z - z) < o.r + rad + gap);
     const flatAt = (x, z, rad) => { const h0 = heightAt(x, z); if (h0 > .26) return false; for (let k = 0; k < 6; k++) { const a = k / 6 * 6.283; if (Math.abs(heightAt(x + Math.cos(a) * rad, z + Math.sin(a) * rad) - h0) > .05) return false; } return true; };
-    function spot(cx, cz, rMin, rMax, rad, rid, gap = .04, tries = 90) { for (let i = 0; i < tries; i++) { const a = rnd() * 6.283, d = lerp(rMin, rMax, rnd()), x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d * .82;
+    function spot(cx, cz, rMin, rMax, rad, rid, gap = .04, tries = 90) { for (let i = 0; i < tries; i++) { const a = rnd() * 6.283, d = lerp(rMin, rMax, rnd()) * K, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d * .82;
         if (rid != null && regionAtW(x, z) !== rid) continue; if (coastDist(x, z) < .12 + rad || !flatAt(x, z, Math.max(.05, rad))) continue;
         if (OBST.some(o => Math.hypot(o.x - x, o.z - z) < o.r + rad + gap)) continue; return [x, z]; } return null; }
     const faceTo = (x, z, cx, cz) => Math.atan2(cx - x, cz - z);
 
     // ---------- المباني ----------
-    function well(x, z) { OBST.push({ k: 'بئر', x, z, r: .05 }); const g = new THREE.Group(), y = groundY(x, z);
+    function well(x, z) { OBST.push({ k: 'بئر', x, z, r: .05 * SZ.house }); const g = new THREE.Group(), y = groundY(x, z); g.scale.setScalar(SZ.house);
       add(new THREE.Mesh(new THREE.CylinderGeometry(.036, .04, .04, 14), mat(C.stone, { flatShading: false })), [0, .02, 0], { to: g });
       add(new THREE.Mesh(new THREE.CylinderGeometry(.027, .027, .004, 14), mat('#2f6f86', { roughness: .2 })), [0, .039, 0], { to: g, cast: false });
       [-1, 1].forEach(k => add(new THREE.Mesh(new THREE.BoxGeometry(.007, .075, .007), mat(C.wood)), [k * .032, .072, 0], { to: g }));
@@ -234,8 +238,8 @@
     function field(x, z, w, d, c, rot) { OBST.push({ k: 'حقل', x, z, r: Math.max(w, d) * .55 }); const g = new THREE.Group(); add(new THREE.Mesh(new THREE.BoxGeometry(w, .012, d), mat(c, { flatShading: false })), [0, .006, 0], { to: g, cast: false });
       for (let i = 1; i < 5; i++) add(new THREE.Mesh(new THREE.BoxGeometry(w * .94, .008, .006), mat(new THREE.Color(c).multiplyScalar(.82))), [0, .014, -d / 2 + i * d / 5], { to: g, cast: false });
       g.position.set(x, groundY(x, z) + .004, z); g.rotation.y = rot; scene.add(g); }
-    function rock(x, z, s = 1) { OBST.push({ k: 'صخرة', x, z, r: .07 * s }); const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.06 * s, 0), mat(rnd() > .5 ? '#a8a294' : '#c7c0ae')); m.scale.set(1.3, .75, 1.1); m.rotation.set(rnd(), rnd() * 6, rnd()); return add(m, [x, groundY(x, z) + .02 * s, z]); }
-    function boat(x, z, rot) { const g = new THREE.Group(); add(new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .09), mat('#7b5236')), [0, .02, 0], { to: g }); add(new THREE.Mesh(new THREE.CylinderGeometry(.005, .005, .24, 5), mat('#5a4632')), [0, .14, 0], { to: g });
+    function rock(x, z, s = 1) { s *= SZ.tree; OBST.push({ k: 'صخرة', x, z, r: .07 * s }); const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.06 * s, 0), mat(rnd() > .5 ? '#a8a294' : '#c7c0ae')); m.scale.set(1.3, .75, 1.1); m.rotation.set(rnd(), rnd() * 6, rnd()); return add(m, [x, groundY(x, z) + .02 * s, z]); }
+    function boat(x, z, rot) { const g = new THREE.Group(); g.scale.setScalar(SZ.ship); add(new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .09), mat('#7b5236')), [0, .02, 0], { to: g }); add(new THREE.Mesh(new THREE.CylinderGeometry(.005, .005, .24, 5), mat('#5a4632')), [0, .14, 0], { to: g });
       const sl = new THREE.Mesh(new THREE.PlaneGeometry(.12, .15), mat('#fbf6ea', { side: THREE.DoubleSide, flatShading: false })); sl.position.set(.06, .15, 0); sl.castShadow = true; g.add(sl); g.position.set(x, .02, z); g.rotation.y = rot; scene.add(g); return g; }
 
     // ---------- الرايات ----------
@@ -263,23 +267,28 @@
     M.regions.forEach(r => { const [x, z] = at(r); R[r.id] = { x, z, type: r.type, fort: null, tower: null, gar: [], flag: null }; });
     // العواصم والقلعة أولًا (مواضعها ثابتة)
     M.regions.forEach(r => { const I = R[r.id], { x, z } = I, y = groundY(x, z);
-      if (r.type === 'capital') { I.keep = tower(x, y, z, .075, .42, '#8a8f99'); I.capRing = ring(x, z, y, .24, .19, 6, .1, .035, '#8a8f99', .045); I.flagSpot = [x, z]; I.flagY = y + .42 + .08; I.flagH = .9; I.flagBig = 1.45; I.capHouses = []; I.yard = [x, z]; }
-      if (r.type === 'castle') { ring(x, z, y, .5, .4, 8, .2, .055, '#6f7d8b', .075); tower(x, y, z, .13, .62, '#5f6d7b'); tower(x - .17, y, z + .08, .07, .4, '#6f7d8b'); tower(x + .17, y, z + .08, .07, .4, '#6f7d8b'); I.flagSpot = [x, z]; I.flagY = y + .62 + .14; I.flagH = 1.25; I.flagBig = 1.45; I.yard = [x, z]; }
+      if (r.type === 'capital') { const q = SZ.keep; I.keep = tower(x, y, z, .075 * q, .42 * q, '#8a8f99'); I.capRing = ring(x, z, y, .24 * q, .19 * q, 6, .1 * q, .035 * q, '#8a8f99', .045 * q); I.flagSpot = [x, z]; I.flagY = y + .42 * q + .08; I.flagH = .9 * SZ.flag; I.flagBig = 1.45 * SZ.flag; I.capHouses = []; I.yard = [x, z]; }
+      if (r.type === 'castle') { const q = SZ.keep; ring(x, z, y, .5 * q, .4 * q, 8, .2 * q, .055 * q, '#6f7d8b', .075 * q); tower(x, y, z, .13 * q, .62 * q, '#5f6d7b'); tower(x - .17 * q, y, z + .08 * q, .07 * q, .4 * q, '#6f7d8b'); tower(x + .17 * q, y, z + .08 * q, .07 * q, .4 * q, '#6f7d8b'); I.flagSpot = [x, z]; I.flagY = y + .62 * q + .14; I.flagH = 1.25 * SZ.flag; I.flagBig = 1.45 * SZ.flag; I.yard = [x, z]; }
     });
     // ساحة كل إقليم عادي: دائرة خالية نصف قطرها .17 تحجز للسور والبرج والحامية
-    M.regions.forEach(r => { const I = R[r.id]; if (I.flagSpot) return; const q = spot(I.x, I.z, 0, .32, .17, r.id, .02, 200) || spot(I.x, I.z, .1, .75, .15, r.id, .01, 300) || spot(I.x, I.z, .1, .9, .12, r.id, 0, 400) || [I.x, I.z];
-      I.yard = q; I.flagSpot = [q[0] - .03, q[1] + .02]; I.flagH = .52; I.flagBig = 1; OBST.push({ k: 'ساحة', x: q[0], z: q[1], r: .17, soft: true }); });
+    M.regions.forEach(r => { const I = R[r.id]; if (I.flagSpot) return; const YR = .17 * SZ.house, q = spot(I.x, I.z, 0, .32, YR, r.id, .02, 200) || spot(I.x, I.z, .1, .75, YR * .9, r.id, .01, 300) || spot(I.x, I.z, .1, .9, YR * .72, r.id, 0, 400) || [I.x, I.z];
+      I.yard = q; I.flagSpot = [q[0] - .03 * SZ.house, q[1] + .02 * SZ.house]; I.flagH = .52 * SZ.flag; I.flagBig = SZ.flag; OBST.push({ k: 'ساحة', x: q[0], z: q[1], r: YR, soft: true }); });
     M.regions.forEach(r => {
       const I = R[r.id], { x, z } = I;
       switch (r.type) {
-        case 'farm': { const rot = rnd() * .3 - .15; const fc = ['#e3c45c', '#bcd36c', '#d9b04c', '#a9cc63']; let nf = 0; for (let i = 0; i < 14 && nf < 6; i++) { const q = spot(x, z, .05, .7, .1, r.id, .015); if (q) { field(q[0], q[1], .16, .13, fc[(nf + Math.floor(rnd() * 2)) % 4], rot); nf++; } } const q = spot(x, z, .2, .5, .1, r.id); if (q) house(q[0], q[1], .95, C.roof2, faceTo(q[0], q[1], x, z)); break; }
-        case 'village': { const w = spot(x, z, 0, .12, .05, r.id, .03); const cx = w ? w[0] : x, cz = w ? w[1] : z; if (w) well(cx, cz); for (let i = 0; i < 5; i++) { const sc = .95 + rnd() * .15, q = spot(cx, cz, .17, .4, .1 * sc, r.id); if (q) house(q[0], q[1], sc, rnd() > .5 ? C.roof : C.roof2, faceTo(q[0], q[1], cx, cz) + (rnd() - .5) * .4); } break; }
-        case 'quarry': for (let i = 0; i < 8; i++) { const q = spot(x, z, 0, .32, .07, r.id, .0); if (q) rock(q[0], q[1], .8 + rnd() * 1.1); } break;
-        case 'mine': { const q = spot(x + .1, z + .2, 0, .2, .06, r.id); if (q) { const [gx, gz] = q, gy = groundY(gx, gz); OBST.push({ k: 'منجم', x: gx, z: gz, r: .06 }); add(new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, .02, 12, 1, false, 0, Math.PI), mat('#2a1d12')), [gx, gy + .03, gz]).rotation.x = Math.PI / 2;
+        case 'farm': { const rot = rnd() * .3 - .15; const fc = ['#e3c45c', '#bcd36c', '#d9b04c', '#a9cc63']; let nf = 0; const NF = Math.round(6 * K * K); for (let i = 0; i < NF * 2.4 && nf < NF; i++) { const q = spot(x, z, .05, .7, .1 * K, r.id, .015); if (q) { field(q[0], q[1], .16 * K, .13 * K, fc[(nf + Math.floor(rnd() * 2)) % 4], rot); nf++; } } const q = spot(x, z, .2, .5, .1, r.id); if (q) house(q[0], q[1], .95, C.roof2, faceTo(q[0], q[1], x, z)); break; }
+        case 'village': { const w = spot(x, z, 0, .12, .05, r.id, .03); const cx = w ? w[0] : x, cz = w ? w[1] : z; if (w) well(cx, cz); for (let i = 0; i < 6; i++) { const sc = .95 + rnd() * .15, q = spot(cx, cz, .17, .4, .1 * sc, r.id); if (q) house(q[0], q[1], sc, rnd() > .5 ? C.roof : C.roof2, faceTo(q[0], q[1], cx, cz) + (rnd() - .5) * .4); } break; }
+        case 'quarry': for (let i = 0; i < Math.round(8 * K * K); i++) { const q = spot(x, z, 0, .32, .07, r.id, .0); if (q) rock(q[0], q[1], .8 + rnd() * 1.1); } break;
+        case 'mine': { const q = spot(x + .1 * K, z + .2 * K, 0, .2, .06, r.id); if (q) { const [gx, gz] = q, gy = groundY(gx, gz); OBST.push({ k: 'منجم', x: gx, z: gz, r: .06 }); add(new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, .02, 12, 1, false, 0, Math.PI), mat('#2a1d12')), [gx, gy + .03, gz]).rotation.x = Math.PI / 2;
             for (let i = 0; i < 4; i++) add(new THREE.Mesh(new THREE.OctahedronGeometry(.016 + rnd() * .01, 0), mat(C.gold, { metalness: .75, roughness: .25, emissive: '#7a5a00', emissiveIntensity: .3 })), [gx + .05 + rnd() * .03, gy + .015, gz + .02 + rnd() * .03]); } break; }
         case 'rich': { const q = spot(x, z, 0, .25, .05, r.id); if (q) { OBST.push({ k: 'جوهر', x: q[0], z: q[1], r: .05 }); add(new THREE.Mesh(new THREE.OctahedronGeometry(.04, 0), mat('#5ec8e8', { metalness: .3, roughness: .15, emissive: '#1f6f8a', emissiveIntensity: .5 })), [q[0], groundY(q[0], q[1]) + .05, q[1]]); } break; }
-        case 'port': { const dir = Math.atan2(-z, -x) + Math.PI; const q = spot(x, z, 0, .25, .1, r.id); if (q) house(q[0], q[1], .95, C.roof2, dir); const dx = Math.cos(dir), dz = Math.sin(dir);
-          const dock = add(new THREE.Mesh(new THREE.BoxGeometry(.5, .025, .08), mat(C.wood)), [x + dx * .35, .05, z + dz * .35]); dock.rotation.y = -dir; I.port = { x: x + dx * .55, z: z + dz * .55, dir }; boat(x + dx * .55 + dz * .12, z + dz * .55 - dx * .12, -dir + .3); boat(x + dx * .7 - dz * .1, z + dz * .7 + dx * .1, -dir - .4); break; }
+        case 'port': { // الرصيف يتجه نحو الجزيرة التي يخدمها، ويبدأ من الشاطئ نفسه فيمتد في الماء
+          const rt = (M.routes || []).find(o => o.from === r.id), tg = rt ? at(M.regions[rt.to]) : [x * 2, z * 2], dir = Math.atan2(tg[1] - z, tg[0] - x), dx = Math.cos(dir), dz = Math.sin(dir);
+          let ts = 0; while (ts < 3 * K && coastDist(x + dx * ts, z + dz * ts) > 0) ts += .01; const sx = x + dx * ts, sz = z + dz * ts;
+          const q = spot(x, z, 0, .25, .1, r.id); if (q) house(q[0], q[1], .95, C.roof2, dir);
+          const DL = .5 * SZ.house, dock = add(new THREE.Mesh(new THREE.BoxGeometry(DL, .025, .08 * SZ.house), mat(C.wood)), [sx + dx * (DL / 2 - .08), .05, sz + dz * (DL / 2 - .08)]); dock.rotation.y = -dir;
+          const px = sx + dx * (DL + .05), pz = sz + dz * (DL + .05); I.port = { x: px, z: pz, dir }; OBST.push({ k: 'رصيف', x: sx, z: sz, r: .1 });
+          boat(px - dx * .12 + dz * .14, pz - dz * .12 - dx * .14, -dir + .3); boat(px + dx * .1 - dz * .13, pz + dz * .1 + dx * .13, -dir - .4); break; }
         case 'capital': for (let i = 0; i < 5; i++) { const q = spot(x, z, .36, .58, .085, r.id); if (q) house(q[0], q[1], .82, i % 2 ? C.roof : C.roof2, faceTo(q[0], q[1], x, z)); } break;
       }
     });
@@ -288,11 +297,11 @@
 
     // ---------- النباتات ----------
     const treeSpots = { pine: [], round: [] };
-    M.regions.forEach(r => { const [cx, cz] = at(r), n = { farm: 7, village: 9, port: 5, quarry: 8, mine: 10, rich: 4, capital: 6, castle: 4 }[r.type] || 6;
-      for (let tries = 0, k = 0; tries < n * 30 && k < n; tries++) { const a = rnd() * 6.283, d = .32 + rnd() * .75, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d * .8;
+    M.regions.forEach(r => { const [cx, cz] = at(r), n = Math.round(({ farm: 7, village: 9, port: 5, quarry: 8, mine: 10, rich: 4, capital: 6, castle: 4 }[r.type] || 6) * K * K);
+      for (let tries = 0, k = 0; tries < n * 30 && k < n; tries++) { const a = rnd() * 6.283, d = (.32 + rnd() * .75) * K, x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d * .8;
         if (regionAtW(x, z) !== r.id) continue; const cd = coastDist(x, z); if (cd < .25) continue; const h = heightAt(x, z, cd); if (h > .6) continue;
         const kind = h > .3 || r.type === 'mine' || r.type === 'quarry' ? 'pine' : (rnd() > .35 ? 'round' : 'pine'), cl = 1 + Math.floor(rnd() * 3);
-        for (let c = 0; c < cl; c++) { const xx = x + (rnd() - .5) * .14, zz = z + (rnd() - .5) * .14; if (regionAtW(xx, zz) === r.id && coastDist(xx, zz) > .2 && !OBST.some(o => Math.hypot(o.x - xx, o.z - zz) < o.r + .06)) treeSpots[kind].push([xx, heightAt(xx, zz), zz, .58 + rnd() * .36, rnd() * 6]); }
+        for (let c = 0; c < cl; c++) { const xx = x + (rnd() - .5) * .14, zz = z + (rnd() - .5) * .14; if (regionAtW(xx, zz) === r.id && coastDist(xx, zz) > .2 && !OBST.some(o => Math.hypot(o.x - xx, o.z - zz) < o.r + .06)) treeSpots[kind].push([xx, heightAt(xx, zz), zz, (.58 + rnd() * .36) * SZ.tree, rnd() * 6]); }
         k++; } });
     const TREES = [...treeSpots.pine.map(t => ({ t, k: 'pine' })), ...treeSpots.round.map(t => ({ t, k: 'round' }))];
     TREES.forEach(o => { o.x = o.t[0]; o.z = o.t[2]; o.r = .075 * o.t[3]; o.s = 1; });
@@ -307,11 +316,12 @@
     instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#5aa64a'), ROUND.filter((_, i) => i % 2), t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3] * .95, t[3])]);
     instanced(new THREE.IcosahedronGeometry(.095, 0), mat('#6db552'), ROUND.filter((_, i) => !(i % 2)), t => [V(t[0], t[1] + .17 * t[3], t[2]), V(t[3], t[3] * .95, t[3])]);
     updateTrees();
-    { const bush = [], flower = []; for (let i = 0; i < (opt.lite ? 900 : 2600); i++) { const x = lerp(-9, 9.5, rnd()), z = lerp(-4.6, 4.6, rnd()), cd = coastDist(x, z); if (cd < .3) continue; const h = heightAt(x, z, cd); if (h > .42) continue; const b = rnd() > .3, it = [x, h, z, .6 + rnd() * .7, rnd() * 6]; if (!OBST.some(o => !o.soft && Math.hypot(o.x - x, o.z - z) < o.r + .03)) (b ? bush : flower).push(it); }
+    { const bush = [], flower = []; const BB = lands.flat().reduce((b, [x, z]) => [Math.min(b[0], x), Math.max(b[1], x), Math.min(b[2], z), Math.max(b[3], z)], [1e9, -1e9, 1e9, -1e9]), bArea = (BB[1] - BB[0]) * (BB[3] - BB[2]) / (18.5 * 9.2);
+      for (let i = 0; i < Math.round((opt.lite ? 900 : 2600) * bArea); i++) { const x = lerp(BB[0], BB[1], rnd()), z = lerp(BB[2], BB[3], rnd()), cd = coastDist(x, z); if (cd < .3) continue; const h = heightAt(x, z, cd); if (h > .42) continue; const b = rnd() > .3, it = [x, h, z, .6 + rnd() * .7, rnd() * 6]; if (!OBST.some(o => !o.soft && Math.hypot(o.x - x, o.z - z) < o.r + .03)) (b ? bush : flower).push(it); }
       const ib = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.03, 0), mat('#4f9a3f'), bush.length); bush.forEach((t, i) => { ib.setMatrixAt(i, m4.compose(V(t[0], t[1] + .012, t[2]), qq.setFromEuler(ee.set(0, t[4], 0)), V(t[3], t[3] * .7, t[3]))); }); ib.receiveShadow = true; scene.add(ib);
       const fl = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.012, 0), mat('#ffffff'), flower.length), FC = ['#f6e27a', '#f4f1ea', '#e98aa0', '#c9a4ec'].map(c => new THREE.Color(c)); flower.forEach((t, i) => { fl.setMatrixAt(i, m4.makeTranslation(t[0], t[1] + .01, t[2])); fl.setColorAt(i, FC[i % 4]); }); scene.add(fl); }
     // الطرق
-    { const pos = [], col = [], idx = [], c = new THREE.Color('#cfae7a'), Wd = .033; let base = 0;
+    { const pos = [], col = [], idx = [], c = new THREE.Color('#cfae7a'), Wd = .033 * SZ.road; let base = 0;
       ROADS.forEach(L => { L.forEach((q, i) => { const a = L[Math.max(0, i - 1)], b = L[Math.min(L.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz), nx = -dz / l, nz = dx / l, end = Math.min(i, L.length - 1 - i) / 2;
           [-1.9, -1, 0, 1, 1.9].forEach((k, j) => { const x = q[0] + nx * Wd * k, z = q[1] + nz * Wd * k; pos.push(x, heightAt(x, z) + .006, z); col.push(c.r, c.g, c.b, (j === 0 || j === 4 ? 0 : .95) * Math.min(1, end)); }); });
         for (let i = 0; i < L.length - 1; i++) for (let j = 0; j < 4; j++) { const a = base + i * 5 + j, b = a + 5; idx.push(a, b, a + 1, a + 1, b, b + 1); } base += L.length * 5; });
@@ -509,7 +519,17 @@
       g.scale.y = .001; return g; }
 
     // ---------- الكاميرا ----------
-    const overview = () => { const a = camera.aspect || 16 / 9, k = clamp(1.78 / a, .8, 3.6); const f = SZ.island * SZ.frame; return { pos: V(-.25, 15.6 * k * f, 11.8 * k * f), look: V(-.25, 0, -.45 * SZ.island + SZ.lookZ) }; };
+    // منظر الجزيرة كاملة: يُحسب ليملأ الشاشة بالجزيرة الكبرى والجزيرتين معًا بأقل بحر حولها (لأي نسبة شاشة)، وبالزاوية نفسها
+    const OVD = V(0, 15.6, 11.8).normalize(), ovCache = {}, landPts = lands.flat().filter((_, i) => i % 3 === 0);
+    const overview = () => { const a = camera.aspect || 16 / 9, key = a.toFixed(3);
+      if (!ovCache[key]) { const tc = new THREE.PerspectiveCamera(30, a, .1, 400), pv = V(0, 0, 0); let best = null;
+        const x0 = Math.min(...landPts.map(p => p[0])), x1 = Math.max(...landPts.map(p => p[0])), z0 = Math.min(...landPts.map(p => p[1])), z1 = Math.max(...landPts.map(p => p[1]));
+        for (let lx = -1.6 * K; lx <= 1.6 * K; lx += .2) for (let lz = -1.4 * K; lz <= 1.4 * K; lz += .2) { const look = V((x0 + x1) / 2 + lx, 0, (z0 + z1) / 2 + lz); let lo = 4, hi = 80;
+          for (let it = 0; it < 16; it++) { const d = (lo + hi) / 2; tc.position.copy(look).addScaledVector(OVD, d); tc.lookAt(look); tc.updateMatrixWorld(); tc.updateProjectionMatrix();
+            const fits = landPts.every(([x, z]) => { pv.set(x, .02, z).project(tc); return Math.abs(pv.x) < .955 && pv.y < .9 && pv.y > -.93; }); if (fits) hi = d; else lo = d; }
+          if (!best || hi < best.d) best = { d: hi, look }; }
+        ovCache[key] = best; }
+      const o = ovCache[key], d = o.d * SZ.frame; return { pos: o.look.clone().addScaledVector(OVD, d), look: o.look.clone().add(V(0, 0, SZ.lookZ)) }; };
     let cam = { from: overview(), to: overview(), t0: 0, d: 0, follow: null };
     const camNow = { pos: overview().pos.clone(), look: overview().look.clone() };
     // مدة الانتقال تطول مع المسافة (فلا تندفع الكاميرا في لقطة بعيدة)، والتسارع والتهدئة ناعمان
@@ -576,11 +596,11 @@
     function placeFlag(id, o, lift = 1) { const I = R[id]; if (I.flag) { dropFlag(I.flag); I.flag = null; } if (o == null) return null;
       const [fx, fz] = I.flagSpot; I.flag = makeFlag(fx, fz, o, I.flagH, I.flagBig, I.flagY); I.flag.lift = lift; return I.flag; }
     function fortGroup(id) { // سور صغير حول الساحة
-      const I = R[id], [x, z] = I.yard, y = groundY(x, z), g = ring(x, z, y, .15, .13, 6, .06, .022, '#8a8f99', .026, scene, false); return g; }
-    function towerGroup(id) { const I = R[id], [x, z] = I.yard, tx = x + .07, tz = z - .05, y = groundY(tx, tz), g = new THREE.Group(); g.position.set(tx, y, tz); scene.add(g);
+      const I = R[id], [x, z] = I.yard, y = groundY(x, z), q = SZ.house, g = ring(x, z, y, .15 * q, .13 * q, 6, .06 * q, .022 * q, '#8a8f99', .026 * q, scene, false); return g; }
+    function towerGroup(id) { const I = R[id], [x, z] = I.yard, tx = x + .07 * SZ.house, tz = z - .05 * SZ.house, y = groundY(tx, tz), g = new THREE.Group(); g.position.set(tx, y, tz); g.scale.setScalar(SZ.house); scene.add(g);
       const t = tower(0, 0, 0, .028, .2, '#7a5236', g, false); const man = soldier(I.owner ?? 0); scene.remove(man); man.scale.setScalar(.9); man.position.set(0, .2 + .03, 0); g.add(man);
-      const tc = torch(tx, y + .3, tz, .8); tc.always = true; g.userData = { t, man, tc }; return g; }
-    function garGroup(id, o, kind) { const I = R[id], [x, z] = I.yard, list = []; for (let i = 0; i < 3; i++) { const u = kind === 'cav' ? rider(o, i) : soldier(o), a = 2.2 + i * .9; const px = x + Math.cos(a) * .07, pz = z + Math.sin(a) * .06; u.position.set(px, groundY(px, pz), pz); u.rotation.y = a + Math.PI / 2; u.scale.setScalar(kind === 'cav' ? 1.1 : 1.2); list.push(u); } return list; }
+      const tc = torch(tx, y + .3 * SZ.house, tz, .8 * SZ.house); tc.always = true; g.userData = { t, man, tc }; return g; }
+    function garGroup(id, o, kind) { const I = R[id], [x, z] = I.yard, list = []; for (let i = 0; i < 3; i++) { const u = kind === 'cav' ? rider(o, i) : soldier(o), a = 2.2 + i * .9; const px = x + Math.cos(a) * .07 * SZ.house, pz = z + Math.sin(a) * .06 * SZ.house; u.position.set(px, groundY(px, pz), pz); u.rotation.y = a + Math.PI / 2; u.scale.setScalar((kind === 'cav' ? 1.1 : 1.2) * SZ.unit); list.push(u); } return list; }
     function setFort(id, on) { const I = R[id]; if (!!I.fort === !!on) return; if (on) I.fort = fortGroup(id); else { scene.remove(I.fort); I.fort = null; } }
     function setTower(id, on) { const I = R[id]; if (!!I.tower === !!on) return; if (on) I.tower = towerGroup(id); else { const tc = I.tower.userData.tc; scene.remove(tc.sp); torches.splice(torches.indexOf(tc), 1); scene.remove(I.tower); I.tower = null; } }
     function setGar(id, o, kind) { const I = R[id]; const want = kind ? o + kind : null; if (I.garKey === want) return; I.gar.forEach(disposeUnit); I.gar = []; I.garKey = want; if (kind) I.gar = garGroup(id, o, kind); }
@@ -629,7 +649,7 @@
       else if (small) { for (let i = 0; i < 6; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); }
       else { mk(team, 'r', 0); for (let i = 0; i < 8; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); }
       return list; }
-    const spacing = u => (u.userData.kind === 'horse' ? .12 : u.userData.kind === 'cat' ? .14 : u.userData.kind === 'cart' ? .09 : .065) * Math.max(1, u.scale.x / UNIT_S);
+    const spacing = u => (u.userData.kind === 'horse' ? .12 : u.userData.kind === 'cat' ? .14 : u.userData.kind === 'cart' ? .09 : .065) * SZ.unit * Math.max(1, u.scale.x / UNIT_S);
     // يضع الوحدات على المنحنى صفًا (اثنين اثنين للمشاة) بحسب موضع المقدمة
     function muster(cross, dir, back, regId) { const freeAt = (x, z, c) => coastDist(x, z) > .2 && !hitObst(x, z, c) && !TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r + c) && groundY(x, z) < .4;
       for (const extra of [0, .1, .2, -.1, .3]) for (let k = 0; k < 13; k++) { const da = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .14, c = Math.cos(da), sn = Math.sin(da), dx = dir[0] * c - dir[1] * sn, dz = dir[0] * sn + dir[1] * c, x = cross[0] - dx * (back + extra), z = cross[1] - dz * (back + extra);

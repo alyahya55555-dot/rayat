@@ -6,7 +6,7 @@ const ROOT = path.join(__dirname, '..'), OUT = path.join(__dirname, 'out', 'size
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.woff2': 'font/woff2', '.json': 'application/json', '.png': 'image/png', '.mp3': 'audio/mpeg' };
 const PORT = 8200 + Math.floor(Math.random() * 20);
 const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURIComponent(q.url.split('?')[0])); fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': MIME[path.extname(f)] || 'application/octet-stream' }); r.end(d); }); }).listen(PORT);
-const CFGS = { now: {}, new: { island: 1.3, unit: 1.25, ship: 1.35, house: 1.1, crew: 1.28 } };
+const CFGS = { now: { island: 1, unit: 1, ship: 1, house: 1, crew: 1, keep: 1, flag: 1, tree: 1, road: 1 }, new: {} };
 (async () => {
   const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   for (const [name, sz] of Object.entries(CFGS)) {

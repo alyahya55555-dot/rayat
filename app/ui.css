@@ -222,3 +222,15 @@ body.mapon .ph{padding-top:calc(46vh + 10px)}.pm2d{position:absolute;inset:0}.pm
 @media (orientation:landscape) and (max-height:520px){#pmap{right:auto;width:52vw;height:100vh;border-bottom:0;border-right:2px solid var(--gold)}body.mapon .ph{padding-top:18px;margin-left:52vw;margin-right:0;max-width:none}}
 .ph .hd{gap:8px;flex-wrap:wrap}
 .pmload{position:absolute;inset:0;display:grid;place-items:center;font-family:var(--fs);font-size:15px;color:#fff;background:#0e4a5e}
+
+/* دليل المسابقة */
+.manualbg{position:fixed;inset:0;z-index:600;background:rgba(4,14,20,.72);display:grid;place-items:center;padding:12px}
+.manual{background:#10242f;border:1px solid var(--line);border-radius:20px;width:min(720px,100%);max-height:calc(100vh - 24px);overflow:auto;padding:18px 20px 28px;font-family:var(--ft);line-height:1.8;font-size:16.5px;color:var(--txt)}
+.manualpage{min-height:100vh;display:flex;justify-content:center;padding:12px}.manualpage .manual{max-height:none}
+.manual .mtop{display:flex;justify-content:space-between;align-items:center;position:sticky;top:-18px;background:#10242f;padding:6px 0 8px;z-index:1}.manual .mtop b{font-family:var(--fd);font-size:30px}
+.manual .mclose{width:38px;height:38px;border-radius:11px;border:0;background:rgba(255,255,255,.1);color:#fff;font-size:16px}
+.manual .mtabs{display:flex;gap:8px;margin:6px 0 4px}.manual .mtabs button{flex:1;font-family:var(--fs);font-weight:700;font-size:15px;padding:9px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--txt)}.manual .mtabs .sel{background:var(--gold);color:#21180a;border-color:transparent}
+.manual h3{font-family:var(--fd);font-size:21px;color:var(--gold);margin:20px 0 6px}.manual p{margin:4px 0}.manual .mut{font-size:14px}
+.manual .steps,.manual ul{margin:4px 0;padding-inline-start:22px}.manual li{margin:4px 0}
+.manual .mt{width:100%;border-collapse:collapse;font-size:15px}.manual .mt td{padding:7px 8px;border-bottom:1px solid var(--line)}.manual .mt td:last-child{font-family:var(--fs);font-weight:700;white-space:nowrap;text-align:left}
+.landing .guidebtn{margin-top:18px}

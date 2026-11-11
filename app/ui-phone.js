@@ -32,7 +32,7 @@ const Phone = {
     { const off = !!(this.P && this.lastState && performance.now() - this.lastState > 9000); let ob = document.getElementById('offbar'); if (off && !ob) { ob = document.createElement('div'); ob.id = 'offbar'; ob.className = 'offbar'; ob.textContent = 'انقطع الاتصال بالمشرف… تُعاد المحاولة تلقائيًا'; document.body.appendChild(ob); } else if (!off && ob) ob.remove(); }
     const el = $('#ptm'); if (el && this.P && this.P.paused) { el.textContent = this.P.tm ? '⏸ ' + Math.ceil(this.P.tm.r / 1000) + ' ث' : '⏸'; return; } if (el && this.endAt) { const s = Math.ceil(Math.max(0, this.endAt - performance.now()) / 1000); el.textContent = s + ' ث'; } },
   header() { const P = this.P, t = this.myTeam(), T = P && t != null ? P.teams[t] : null;
-    return `<div class="hd"><div class="nm k">رايـات</div>${T ? `<span class="badge" style="--tc:${T.color}">${esc(T.name)}${this.isCap() ? ' · القائد 👑' : ''}</span>` : ''}${P && P.vis && this.me && this.me.nm ? `<button class="mapbtn ${this.mapOpen ? 'on' : ''}" data-map>🗺️ الخريطة</button>` : ''}<span class="tm" id="ptm"></span></div>`; },
+    return `<div class="hd"><div class="nm k">رايـات</div>${T ? `<span class="badge" style="--tc:${T.color}">${esc(T.name)}${this.isCap() ? ' · القائد 👑' : ''}</span>` : ''}${P && P.vis && this.me && this.me.nm ? `<button class="mapbtn ${this.mapOpen ? 'on' : ''}" data-map>🗺️ الخريطة</button>` : ''}<button class="mapbtn" data-guide>📖</button><span class="tm" id="ptm"></span></div>`; },
   resBox() { const P = this.P, t = this.myTeam(); if (!P || !P.res || t == null) return ''; const R = P.res[t];
     return `<div class="res"><div>أرضكم<b>${P.score[t]}</b></div><div>🌾 طعام<b>${R.food}</b></div><div>💰 ذهب<b>${R.gold}</b></div><div>🪨 حجر<b>${R.stone}</b></div></div>`; },
   render() {
@@ -155,6 +155,7 @@ const Phone = {
     $$('[data-tab]').forEach(b => b.onclick = () => { this.tab = b.dataset.tab; this.render(); });
     $$('[data-gx]').forEach(b => b.onclick = e => { e.stopPropagation(); this.seen[b.dataset.gx] = 1; LS.set('rayat.seen', this.seen); this.render(); });
     $$('[data-opt]').forEach(b => b.onclick = () => this.chooseOpt(this.curList[+b.dataset.opt]));
+    $$('[data-guide]').forEach(b => b.onclick = () => Manual.open('p'));
     $$('[data-map]').forEach(b => b.onclick = () => this.mapOpen ? this.closeMap() : this.openMap());
     $$('[data-unpick]').forEach(b => b.onclick = () => { const i = +b.dataset.unpick; if (this.picks[i]) { this.picks.splice(i, 1); this.warned = false; this.send('ord', { l: this.picks, cy: P.cycle }); this.render(); } });
     $$('[data-ready]').forEach(b => b.onclick = () => { if (P.paused) return; const t = this.myTeam(), chk = planCheck(this.picks, P.res[t]); if (chk.bad && !this.warned) { this.warned = true; this.render(); return; } this.send('ord', { l: this.picks, cy: P.cycle }); this.send('rdy', { cy: P.cycle }); });

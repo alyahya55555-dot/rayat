@@ -4,7 +4,8 @@
 (function (G) {
   'use strict';
   const T3 = () => G.THREE;
-  const S = 1 / 100, CX = 930, CY = 600;
+  const SZ = Object.assign({ island: 1, unit: 1, ship: 1, house: 1, crew: 1 }, G.RAYAT_SIZES || {}); // مقاسات للتجربة والمقارنة (الافتراضي = الحالي)
+  const S = SZ.island / 100, CX = 930, CY = 600;
   const P = (x, y) => [(x - CX) * S, (y - CY) * S];
   const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
   const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2, seg = (t, a, b) => clamp((t - a) / (b - a));
@@ -76,11 +77,11 @@
     renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.08; renderer.outputColorSpace = THREE.SRGBColorSpace;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(SKY.opening.sea); scene.fog = new THREE.Fog(SKY.opening.sea, 20, 40);
+    scene.background = new THREE.Color(SKY.opening.sea); scene.fog = new THREE.Fog(SKY.opening.sea, 20 * SZ.island, 40 * SZ.island);
     const camera = new THREE.PerspectiveCamera(30, 16 / 9, .1, 200);
     const hemi = new THREE.HemisphereLight('#dff0ff', '#6d5b3c', .85); scene.add(hemi);
     const sun = new THREE.DirectionalLight('#ffe9c9', 2.9); sun.position.set(-6, 11, 5); sun.castShadow = true;
-    const SM_SIZE = opt.shadow || 2048; sun.shadow.mapSize.set(SM_SIZE, SM_SIZE); Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 8, bottom: -8, near: 1, far: 40 }); sun.shadow.bias = -.0005; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
+    const SM_SIZE = opt.shadow || 2048; sun.shadow.mapSize.set(SM_SIZE, SM_SIZE); Object.assign(sun.shadow.camera, { left: -11 * SZ.island, right: 11 * SZ.island, top: 8 * SZ.island, bottom: -8 * SZ.island, near: 1, far: 40 * SZ.island }); sun.shadow.bias = -.0005; sun.shadow.normalBias = .03; sun.shadow.radius = 3;
     scene.add(sun, sun.target);
     const fill = new THREE.DirectionalLight('#a9d4ff', .55); fill.position.set(7, 5, -6); scene.add(fill);
     try { const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new G.RoomEnvironment(), .04).texture; scene.environmentIntensity = .22; } catch (e) { }
@@ -201,7 +202,7 @@
       [-1, 1].forEach(k => { const pl = add(new THREE.Mesh(new THREE.BoxGeometry(.09, .006, .05), mat(C.roof2)), [0, .124, k * .018], { to: g }); pl.rotation.x = k * .6; });
       add(new THREE.Mesh(new THREE.BoxGeometry(.095, .008, .008), mat('#7a3524')), [0, .137, 0], { to: g });
       g.position.set(x, y, z); scene.add(g); return g; }
-    function house(x, z, s = 1, roof = C.roof, rotY = 0, to = scene) { OBST.push({ k: 'بيت', x, z, r: .1 * s });
+    function house(x, z, s = 1, roof = C.roof, rotY = 0, to = scene) { s *= SZ.house; OBST.push({ k: 'بيت', x, z, r: .1 * s });
       const g = new THREE.Group(), y = groundY(x, z), w = .15 * s, d = .12 * s, h = .085 * s, wc = WALLS[Math.floor(rnd() * WALLS.length)];
       add(new THREE.Mesh(new THREE.BoxGeometry(w + .012, .016 * s, d + .012), mat(C.stone2)), [0, .008 * s, 0], { to: g });
       add(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(wc)), [0, .016 * s + h / 2, 0], { to: g });
@@ -375,7 +376,7 @@
       const spear = new THREE.Group(); spear.position.set(.024, .06, .008); g.add(spear); mesh(cyl(.0022, .0022, .2, 6), SMT.wood, [0, .045, 0], null, spear); mesh(geo('spt', () => new THREE.ConeGeometry(.0055, .022, 8)), SMT.metal, [0, .156, 0], null, spear);
       return { g, armR, armL, spear, cape };
     }
-    const UNIT_S = 1.4;
+    const UNIT_S = 1.4 * SZ.unit;
     function soldier(o) {
       const g = new THREE.Group(); scene.add(g);
       const legL = new THREE.Group(), legR = new THREE.Group(); legL.position.set(-.008, .032, 0); legR.position.set(.008, .032, 0); g.add(legL, legR);
@@ -494,8 +495,8 @@
       if (!cross) cross = [shore[0] + dir[0] * .2, shore[1] + dir[1] * .2];
       return { route, len: rl, t0: .6, t1: .6 + sail, shore, cross, dir, seaB: best.land.sea }; }
     // سفينة حربية بشراع بلون الفريق وجنود على سطحها
-    function warship(o, n = 3) { const g = boat(0, 0, 0); g.scale.setScalar(1.35); const sl = g.children[2]; if (sl) sl.material = mat(TEAMS[o].color, { side: THREE.DoubleSide, flatShading: false });
-      const crew = []; for (let i = 0; i < n; i++) { const m = soldier(o); scene.remove(m); m.scale.setScalar(.75); m.position.set(-.07 + i * .06, .045, (i % 2 ? .015 : -.015)); m.rotation.y = Math.PI / 2; g.add(m); crew.push(m); } g.userData.crew = crew; return g; }
+    function warship(o, n = 3) { const g = boat(0, 0, 0); g.scale.setScalar(1.35 * SZ.ship); const sl = g.children[2]; if (sl) sl.material = mat(TEAMS[o].color, { side: THREE.DoubleSide, flatShading: false });
+      const crew = []; for (let i = 0; i < n; i++) { const m = soldier(o); scene.remove(m); m.scale.setScalar(.75 * SZ.crew); m.position.set(-.07 + i * .06, .045, (i % 2 ? .015 : -.015)); m.rotation.y = Math.PI / 2; g.add(m); crew.push(m); } g.userData.crew = crew; return g; }
     // سلّم حصار يستند إلى السور
     function ladder(bx, bz, tx, tz, yb, yt) { const g = new THREE.Group(), L = Math.hypot(tx - bx, yt - yb, tz - bz); g.position.set(bx, yb, bz); scene.add(g);
       const inner = new THREE.Group(); g.add(inner); for (const x of [-.012, .012]) mesh(box(.004, L, .004), SMT.wood, [x, L / 2, 0], null, inner); for (let y = .02; y < L; y += .024) mesh(box(.026, .003, .003), SMT.wood, [0, y, 0], null, inner);
@@ -508,7 +509,7 @@
       g.scale.y = .001; return g; }
 
     // ---------- الكاميرا ----------
-    const overview = () => { const a = camera.aspect || 16 / 9, k = clamp(1.78 / a, .8, 3.6); return { pos: V(-.25, 15.6 * k, 11.8 * k), look: V(-.25, 0, -.45) }; };
+    const overview = () => { const a = camera.aspect || 16 / 9, k = clamp(1.78 / a, .8, 3.6); return { pos: V(-.25, 15.6 * k * SZ.island, 11.8 * k * SZ.island), look: V(-.25, 0, -.45 * SZ.island) }; };
     let cam = { from: overview(), to: overview(), t0: 0, d: 0, follow: null };
     const camNow = { pos: overview().pos.clone(), look: overview().look.clone() };
     // مدة الانتقال تطول مع المسافة (فلا تندفع الكاميرا في لقطة بعيدة)، والتسارع والتهدئة ناعمان

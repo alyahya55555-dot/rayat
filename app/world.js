@@ -239,8 +239,18 @@
       for (let i = 1; i < 5; i++) add(new THREE.Mesh(new THREE.BoxGeometry(w * .94, .008, .006), mat(new THREE.Color(c).multiplyScalar(.82))), [0, .014, -d / 2 + i * d / 5], { to: g, cast: false });
       g.position.set(x, groundY(x, z) + .004, z); g.rotation.y = rot; scene.add(g); }
     function rock(x, z, s = 1) { s *= SZ.tree; OBST.push({ k: 'صخرة', x, z, r: .07 * s }); const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.06 * s, 0), mat(rnd() > .5 ? '#a8a294' : '#c7c0ae')); m.scale.set(1.3, .75, 1.1); m.rotation.set(rnd(), rnd() * 6, rnd()); return add(m, [x, groundY(x, z) + .02 * s, z]); }
-    function boat(x, z, rot) { const g = new THREE.Group(); g.scale.setScalar(SZ.ship); add(new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .09), mat('#7b5236')), [0, .02, 0], { to: g }); add(new THREE.Mesh(new THREE.CylinderGeometry(.005, .005, .24, 5), mat('#5a4632')), [0, .14, 0], { to: g });
-      const sl = new THREE.Mesh(new THREE.PlaneGeometry(.12, .15), mat('#fbf6ea', { side: THREE.DoubleSide, flatShading: false })); sl.position.set(.06, .15, 0); sl.castShadow = true; g.add(sl); g.position.set(x, .02, z); g.rotation.y = rot; scene.add(g); return g; }
+    // سفينة صغيرة متقنة: بدن مدبّب المقدمة بحافة داكنة، وصارٍ وعارضة، وشراع مربع فوق رؤوس الطاقم، وراية صغيرة في القمة
+    function boat(x, z, rot) { const g = new THREE.Group(); g.scale.setScalar(SZ.ship);
+      const hullG = boat.G || (boat.G = (() => { const sh = new THREE.Shape(); sh.moveTo(-.12, -.045); sh.lineTo(.07, -.045); sh.quadraticCurveTo(.13, -.03, .15, 0); sh.quadraticCurveTo(.13, .03, .07, .045); sh.lineTo(-.12, .045); sh.quadraticCurveTo(-.135, 0, -.12, -.045);
+        const e = new THREE.ExtrudeGeometry(sh, { depth: .045, bevelEnabled: true, bevelThickness: .008, bevelSize: .008, bevelSegments: 2, curveSegments: 8 }); e.rotateX(-Math.PI / 2); e.translate(0, -.012, 0); return e; })());
+      const hull = new THREE.Mesh(hullG, mat('#7b5236')); hull.castShadow = true; hull.receiveShadow = true; g.add(hull); // [0] البدن
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(.005, .006, .4, 6), mat('#5a4632')); mast.position.set(.01, .2, 0); mast.castShadow = true; g.add(mast); // [1] الصاري
+      const sl = new THREE.Mesh(new THREE.PlaneGeometry(.15, .13, 4, 3), mat('#fbf6ea', { side: THREE.DoubleSide, flatShading: false })); { const pa = sl.geometry.attributes.position; for (let k = 0; k < pa.count; k++) { const u = pa.getX(k) / .075; pa.setZ(k, .018 * (1 - u * u)); } sl.geometry.computeVertexNormals(); }
+      sl.rotation.y = Math.PI / 2; sl.position.set(.016, .3, 0); sl.castShadow = true; g.add(sl); // [2] الشراع منتفخ قليلًا
+      const yard = new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, .17, 5), mat('#5a4632')); yard.rotation.x = Math.PI / 2; yard.position.set(.016, .368, 0); g.add(yard);
+      const rim = new THREE.Mesh(new THREE.BoxGeometry(.25, .012, .1), mat('#5b3b26')); rim.position.set(.005, .042, 0); rim.scale.set(1, 1, 1); g.add(rim);
+      const pen = new THREE.Mesh(new THREE.PlaneGeometry(.05, .022), mat('#fbf6ea', { side: THREE.DoubleSide })); pen.position.set(-.014, .39, 0); g.add(pen); g.userData.pen = pen;
+      g.position.set(x, .02, z); g.rotation.y = rot; scene.add(g); return g; }
 
     // ---------- الرايات ----------
     const flags = [], flagTexs = {};
@@ -553,7 +563,7 @@
       if (!cross) cross = [shore[0] + dir[0] * .2, shore[1] + dir[1] * .2];
       return { route, len: rl, t0: .6, t1: .6 + sail, shore, cross, dir, seaB: best.land.sea }; }
     // سفينة حربية بشراع بلون الفريق وجنود على سطحها
-    function warship(o, n = 3) { const g = boat(0, 0, 0); g.scale.setScalar(1.35 * SZ.ship); const sl = g.children[2]; if (sl) sl.material = mat(TEAMS[o].color, { side: THREE.DoubleSide, flatShading: false });
+    function warship(o, n = 3) { const g = boat(0, 0, 0); g.scale.setScalar(1.35 * SZ.ship); const sl = g.children[2]; if (sl) sl.material = mat(TEAMS[o].color, { side: THREE.DoubleSide, flatShading: false }); if (g.userData.pen) g.userData.pen.material = mat(TEAMS[o].color, { side: THREE.DoubleSide });
       const crew = []; for (let i = 0; i < n; i++) { const m = soldier(o); scene.remove(m); m.scale.setScalar(.75 * SZ.crew); m.position.set(-.07 + i * .06, .045, (i % 2 ? .015 : -.015)); m.rotation.y = Math.PI / 2; g.add(m); crew.push(m); } g.userData.crew = crew; return g; }
     // سلّم حصار يستند إلى السور
     function ladder(bx, bz, tx, tz, yb, yt) { const g = new THREE.Group(), L = Math.hypot(tx - bx, yt - yb, tz - bz); g.position.set(bx, yb, bz); scene.add(g);
@@ -728,9 +738,9 @@
       else if (small) { for (let i = 0; i < 6; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); }
       else { for (let i = 0; i < 8; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); mk(team, 'r', 0); } // القائد الراكب خلف جنوده
       return list; }
-    const spacing = u => (u.userData.kind === 'horse' ? .12 : u.userData.kind === 'cat' ? .3 : u.userData.kind === 'cart' ? .09 : .065) * SZ.unit * Math.max(1, u.scale.x / UNIT_S);
+    const spacing = u => (u.userData.kind === 'horse' ? .19 : u.userData.kind === 'cat' ? .3 : u.userData.kind === 'cart' ? .09 : .065) * SZ.unit * Math.max(1, u.scale.x / UNIT_S);
     // يضع الوحدات على المنحنى صفًا (اثنين اثنين للمشاة) بحسب موضع المقدمة
-    function muster(cross, dir, back, regId) { const freeAt = (x, z, c) => coastDist(x, z) > .2 && !hitObst(x, z, c) && !flags.some(f => f.g && Math.hypot(f.g.position.x - x, f.g.position.z - z) < c + .16) && !TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r + c) && groundY(x, z) < .4;
+    function muster(cross, dir, back, regId) { const freeAt = (x, z, c) => coastDist(x, z) > .2 && !hitObst(x, z, c) && !flags.some(f => f.g && Math.hypot(f.g.position.x - x, f.g.position.z - z) < c + .3) && !TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r + c) && groundY(x, z) < .4;
       for (const extra of [0, .1, .2, -.1, .3]) for (let k = 0; k < 13; k++) { const da = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .14, c = Math.cos(da), sn = Math.sin(da), dx = dir[0] * c - dir[1] * sn, dz = dir[0] * sn + dir[1] * c, x = cross[0] - dx * (back + extra), z = cross[1] - dz * (back + extra);
         if (regId != null && regionAtW(x, z) !== regId && k < 12) continue; if (freeAt(x, z, .1)) return [x, z]; }
       for (let k = 0; k < 40; k++) { const a2 = k * 2.4, rr = .1 + k * .03, x = cross[0] - dir[0] * back + Math.cos(a2) * rr, z = cross[1] - dir[1] * back + Math.sin(a2) * rr; if ((regId == null || regionAtW(x, z) === regId) && freeAt(x, z, .08)) return [x, z]; }

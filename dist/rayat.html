@@ -8139,7 +8139,7 @@ var qrcode = function() {
     biniCancel() { const s = this.s, b = s.bini; if (!b) return; s.bini = null; s.stage = b.prevStage; this.setTimer(Math.max(3, b.prevLeft / 1000)); this.changed(); }
 
     // ---------- التتويج ----------
-    crown() { const s = this.s, S = this.S; if (S.tie) { s.stage = 'tie'; s.tie = { teams: S.tie.teams.slice(), pts: S.tie.pts.slice(), buzz: null, tried: [], q: null }; this.tieQuestion(); return; }
+    crown() { const s = this.s, S = this.S; if (!S.done && !S.tie) { const ph = RR().CFG.PHASES.findIndex(P => P.key === 'crown'); if (ph >= 0) RR().setPhase(S, ph); } /* أي طريق للتتويج يحسب الفائز أو الفاصلة أولًا */ if (S.tie) { s.stage = 'tie'; s.tie = { teams: S.tie.teams.slice(), pts: S.tie.pts.slice(), buzz: null, tried: [], q: null }; this.tieQuestion(); return; }
       s.winner = S.winner; s.stage = 'crown'; s.endedAt = this.t(); s.rank = RR().ranking(S); this.say(`${this.tn(s.winner)} يتوَّجون أبطالًا للجزيرة`, 'big'); s.deadline = 0; this.changed(); }
     tieQuestion() { const s = this.s, q = this.pickQuestion(3, true); s.tie.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.tie.buzz = null; s.tie.tried = []; s.tie.wrong = []; s.tie.openAt = this.t() + READ_S * SEC; this.setTimer(DUR.buzz + READ_S); this.changed(); }
     tieBuzz(pid) { const s = this.s, T = s.tie, p = s.players[pid]; if (s.stage !== 'tie' || !T || T.buzz || !p || this.t() < (T.openAt || 0) || !T.teams.includes(p.team) || T.tried.includes(p.team)) return; T.buzz = { pid, team: p.team, name: p.name }; this.setTimer(DUR.pick); this.changed(); }
@@ -8449,8 +8449,18 @@ var qrcode = function() {
       for (let i = 1; i < 5; i++) add(new THREE.Mesh(new THREE.BoxGeometry(w * .94, .008, .006), mat(new THREE.Color(c).multiplyScalar(.82))), [0, .014, -d / 2 + i * d / 5], { to: g, cast: false });
       g.position.set(x, groundY(x, z) + .004, z); g.rotation.y = rot; scene.add(g); }
     function rock(x, z, s = 1) { s *= SZ.tree; OBST.push({ k: 'صخرة', x, z, r: .07 * s }); const m = new THREE.Mesh(new THREE.DodecahedronGeometry(.06 * s, 0), mat(rnd() > .5 ? '#a8a294' : '#c7c0ae')); m.scale.set(1.3, .75, 1.1); m.rotation.set(rnd(), rnd() * 6, rnd()); return add(m, [x, groundY(x, z) + .02 * s, z]); }
-    function boat(x, z, rot) { const g = new THREE.Group(); g.scale.setScalar(SZ.ship); add(new THREE.Mesh(new THREE.BoxGeometry(.24, .05, .09), mat('#7b5236')), [0, .02, 0], { to: g }); add(new THREE.Mesh(new THREE.CylinderGeometry(.005, .005, .24, 5), mat('#5a4632')), [0, .14, 0], { to: g });
-      const sl = new THREE.Mesh(new THREE.PlaneGeometry(.12, .15), mat('#fbf6ea', { side: THREE.DoubleSide, flatShading: false })); sl.position.set(.06, .15, 0); sl.castShadow = true; g.add(sl); g.position.set(x, .02, z); g.rotation.y = rot; scene.add(g); return g; }
+    // سفينة صغيرة متقنة: بدن مدبّب المقدمة بحافة داكنة، وصارٍ وعارضة، وشراع مربع فوق رؤوس الطاقم، وراية صغيرة في القمة
+    function boat(x, z, rot) { const g = new THREE.Group(); g.scale.setScalar(SZ.ship);
+      const hullG = boat.G || (boat.G = (() => { const sh = new THREE.Shape(); sh.moveTo(-.12, -.045); sh.lineTo(.07, -.045); sh.quadraticCurveTo(.13, -.03, .15, 0); sh.quadraticCurveTo(.13, .03, .07, .045); sh.lineTo(-.12, .045); sh.quadraticCurveTo(-.135, 0, -.12, -.045);
+        const e = new THREE.ExtrudeGeometry(sh, { depth: .045, bevelEnabled: true, bevelThickness: .008, bevelSize: .008, bevelSegments: 2, curveSegments: 8 }); e.rotateX(-Math.PI / 2); e.translate(0, -.012, 0); return e; })());
+      const hull = new THREE.Mesh(hullG, mat('#7b5236')); hull.castShadow = true; hull.receiveShadow = true; g.add(hull); // [0] البدن
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(.005, .006, .4, 6), mat('#5a4632')); mast.position.set(.01, .2, 0); mast.castShadow = true; g.add(mast); // [1] الصاري
+      const sl = new THREE.Mesh(new THREE.PlaneGeometry(.15, .13, 4, 3), mat('#fbf6ea', { side: THREE.DoubleSide, flatShading: false })); { const pa = sl.geometry.attributes.position; for (let k = 0; k < pa.count; k++) { const u = pa.getX(k) / .075; pa.setZ(k, .018 * (1 - u * u)); } sl.geometry.computeVertexNormals(); }
+      sl.rotation.y = Math.PI / 2; sl.position.set(.016, .3, 0); sl.castShadow = true; g.add(sl); // [2] الشراع منتفخ قليلًا
+      const yard = new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, .17, 5), mat('#5a4632')); yard.rotation.x = Math.PI / 2; yard.position.set(.016, .368, 0); g.add(yard);
+      const rim = new THREE.Mesh(new THREE.BoxGeometry(.25, .012, .1), mat('#5b3b26')); rim.position.set(.005, .042, 0); rim.scale.set(1, 1, 1); g.add(rim);
+      const pen = new THREE.Mesh(new THREE.PlaneGeometry(.05, .022), mat('#fbf6ea', { side: THREE.DoubleSide })); pen.position.set(-.014, .39, 0); g.add(pen); g.userData.pen = pen;
+      g.position.set(x, .02, z); g.rotation.y = rot; scene.add(g); return g; }
 
     // ---------- الرايات ----------
     const flags = [], flagTexs = {};
@@ -8763,7 +8773,7 @@ var qrcode = function() {
       if (!cross) cross = [shore[0] + dir[0] * .2, shore[1] + dir[1] * .2];
       return { route, len: rl, t0: .6, t1: .6 + sail, shore, cross, dir, seaB: best.land.sea }; }
     // سفينة حربية بشراع بلون الفريق وجنود على سطحها
-    function warship(o, n = 3) { const g = boat(0, 0, 0); g.scale.setScalar(1.35 * SZ.ship); const sl = g.children[2]; if (sl) sl.material = mat(TEAMS[o].color, { side: THREE.DoubleSide, flatShading: false });
+    function warship(o, n = 3) { const g = boat(0, 0, 0); g.scale.setScalar(1.35 * SZ.ship); const sl = g.children[2]; if (sl) sl.material = mat(TEAMS[o].color, { side: THREE.DoubleSide, flatShading: false }); if (g.userData.pen) g.userData.pen.material = mat(TEAMS[o].color, { side: THREE.DoubleSide });
       const crew = []; for (let i = 0; i < n; i++) { const m = soldier(o); scene.remove(m); m.scale.setScalar(.75 * SZ.crew); m.position.set(-.07 + i * .06, .045, (i % 2 ? .015 : -.015)); m.rotation.y = Math.PI / 2; g.add(m); crew.push(m); } g.userData.crew = crew; return g; }
     // سلّم حصار يستند إلى السور
     function ladder(bx, bz, tx, tz, yb, yt) { const g = new THREE.Group(), L = Math.hypot(tx - bx, yt - yb, tz - bz); g.position.set(bx, yb, bz); scene.add(g);
@@ -8938,9 +8948,9 @@ var qrcode = function() {
       else if (small) { for (let i = 0; i < 6; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); }
       else { for (let i = 0; i < 8; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); mk(team, 'r', 0); } // القائد الراكب خلف جنوده
       return list; }
-    const spacing = u => (u.userData.kind === 'horse' ? .12 : u.userData.kind === 'cat' ? .3 : u.userData.kind === 'cart' ? .09 : .065) * SZ.unit * Math.max(1, u.scale.x / UNIT_S);
+    const spacing = u => (u.userData.kind === 'horse' ? .19 : u.userData.kind === 'cat' ? .3 : u.userData.kind === 'cart' ? .09 : .065) * SZ.unit * Math.max(1, u.scale.x / UNIT_S);
     // يضع الوحدات على المنحنى صفًا (اثنين اثنين للمشاة) بحسب موضع المقدمة
-    function muster(cross, dir, back, regId) { const freeAt = (x, z, c) => coastDist(x, z) > .2 && !hitObst(x, z, c) && !flags.some(f => f.g && Math.hypot(f.g.position.x - x, f.g.position.z - z) < c + .16) && !TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r + c) && groundY(x, z) < .4;
+    function muster(cross, dir, back, regId) { const freeAt = (x, z, c) => coastDist(x, z) > .2 && !hitObst(x, z, c) && !flags.some(f => f.g && Math.hypot(f.g.position.x - x, f.g.position.z - z) < c + .3) && !TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r + c) && groundY(x, z) < .4;
       for (const extra of [0, .1, .2, -.1, .3]) for (let k = 0; k < 13; k++) { const da = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .14, c = Math.cos(da), sn = Math.sin(da), dx = dir[0] * c - dir[1] * sn, dz = dir[0] * sn + dir[1] * c, x = cross[0] - dx * (back + extra), z = cross[1] - dz * (back + extra);
         if (regId != null && regionAtW(x, z) !== regId && k < 12) continue; if (freeAt(x, z, .1)) return [x, z]; }
       for (let k = 0; k < 40; k++) { const a2 = k * 2.4, rr = .1 + k * .03, x = cross[0] - dir[0] * back + Math.cos(a2) * rr, z = cross[1] - dir[1] * back + Math.sin(a2) * rr; if ((regId == null || regionAtW(x, z) === regId) && freeAt(x, z, .08)) return [x, z]; }
@@ -10095,11 +10105,13 @@ const Host = {
   onBc(peer, pr, fp) { const isNew = !this.bcPeers.has(peer); this.bcPeers.set(peer, Date.now()); if (isNew) setTimeout(() => this.broadcast(), 50); if (pr.r === 'd') { this.bcDisplay = Date.now(); this.dispAck(peer, pr); return; } this.onPres(peer, pr, fp || null); },
   // انقطع نت المشرف أثناء المسابقة: توقف تلقائي حتى يعود، ثم تستأنف من حيث وقفت (الجوالات لا تخسر وقتها)
   netWatch() { const mq = this.net && this.net.mq, g = this.g; if (!mq || !mq.everUp || !g) return; const s = g.s, up = this.net.label().cls === 'on';
+    // لا توقف إلا إذا كان في المسابقة متسابق متصل عبر الإنترنت (المتصلون من نوافذ الحاسوب نفسه لا يتأثرون)
+    if (!up && !Object.keys(s.players).some(pid => s.players[pid].online !== false && this.netPid && this.netPid[pid])) { this.downSince = 0; return; }
     if (!up) { this.downSince = this.downSince || Date.now(); if (!this.autoPaused && Date.now() - this.downSince > 4000 && s.stage !== 'lobby' && s.stage !== 'crown' && !s.paused) { this.autoPaused = true; g.pause(true); this.changed && this.changed(); toast('انقطع اتصالك بالإنترنت: أوقفنا المسابقة حتى يعود', 5000); } }
     else { this.downSince = 0; if (this.autoPaused) { this.autoPaused = false; if (s.paused) { g.pause(false); this.changed && this.changed(); } toast('عاد الاتصال: استؤنفت المسابقة', 3500); } } },
   checkBc() { this.renderSide(); const now = Date.now(); this.bcPeers.forEach((t, peer) => { if (now - t > 12000) { this.bcPeers.delete(peer); this.onLeave(peer); } }); },
   onLeave(peer) { const pid = this.peerPid[peer]; if (pid) this.g.offline(pid); },
-  onPres(peer, pr, by) { const g = this.g; if (pr.r !== 's' || !pr.pid || pr.c !== g.s.code) return; const pid = String(pr.pid).slice(0, 16);
+  onPres(peer, pr, by) { const g = this.g; if (pr.r !== 's' || !pr.pid || pr.c !== g.s.code) return; const pid = String(pr.pid).slice(0, 16); (this.netPid || (this.netPid = {}))[pid] = !String(peer).startsWith('bc:');
     if (this.byPid[pid] && by && this.byPid[pid] !== by) return; if (by) this.byPid[pid] = by; this.peerPid[peer] = pid;
     if (pr.nm) g.join(pid, pr.nm, pr.tw); if (!g.s.players[pid]) return;
     const h = this.handled[pid] = this.handled[pid] || {}, fresh = f => { const m = pr[f]; if (!m || typeof m.n !== 'number' || m.n <= (h[f] || 0)) return null; h[f] = m.n; return m; };
@@ -10140,7 +10152,7 @@ const Host = {
     const ce = $('#cel'); if (ce) { const c = this.g.timeInfo(), mm = ms => { const t = Math.max(0, Math.round(ms / 1000)); return Math.floor(t / 60) + ':' + String(t % 60).padStart(2, '0'); }; ce.textContent = mm(c.el); $('#crem').textContent = c.over > 0 ? 'تجاوز ' + mm(c.over) : mm(c.rem); const e = new Date(Date.now() + c.rem), cd = $('#cend'); cd.textContent = c.done ? 'انتهت' : (this.g.s.paused ? '⏸ ' : '') + String(e.getHours()).padStart(2, '0') + ':' + String(e.getMinutes()).padStart(2, '0'); } },
   renderSide() { const el = $('#hside'); if (!el) return; const g = this.g, s = g.s, P = g.pub(), l = this.net.label();
     el.innerHTML = `<div><h1 class="k">رايـات</h1><div class="mut">لوحة المشرف</div></div>
-      <div class="panel col"><div class="row" style="justify-content:space-between"><span>رمز الغرفة</span><b style="font-size:28px;letter-spacing:6px;direction:ltr">${esc(s.code)}</b></div><div class="mut" style="font-size:13px"><span class="dot ${l.cls}"></span> ${esc(l.t)}</div><button class="btn" data-hguide style="text-align:center">📖 دليل المسابقة</button><button class="btn pri" id="maphere">🗺️ اعرض الخريطة هنا</button><a class="btn" id="opendsp" href="${esc(this.dspLink())}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">🖥️ شاشة العرض في نافذة ثانية</a></div>${IN_CLAUDE && !this.net.room ? `<div class="panel col" style="border-color:var(--gold)"><b>لدخول الطلاب بلا حسابات</b><div class="mut" style="font-size:14px">هذه الصفحة لا تتصل بالجوالات غير المسجّلة. شغّل المسابقة من الرابط الثابت:</div><a class="btn pri" href="${STABLE_URL}#host" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">افتح الرابط الثابت</a></div>` : ''}
+      <div class="panel col"><div class="row" style="justify-content:space-between"><span>رمز الغرفة</span><b style="font-size:28px;letter-spacing:6px;direction:ltr">${esc(s.code)}</b></div><div class="mut" style="font-size:13px"><span class="dot ${l.cls}"></span> ${esc(l.t)}</div><button class="btn" data-hguide style="text-align:center">📖 دليل المسابقة</button><button class="btn pri" id="maphere">🗺️ اعرض الخريطة هنا</button><a class="btn" id="opendsp" href="${esc(this.dspLink())}" target="_blank" rel="noopener" style="text-align:center;text-decoration:none;color:inherit">🖥️ شاشة العرض في نافذة ثانية</a></div>${IN_CLAUDE && !this.net.room ? `<div class="panel col" style="border-color:var(--gold)"><b>لدخول الطلاب بلا حسابات</b><div class="mut" style="font-size:14px">هذه الصفحة لا تتصل بالجوالات غير المسجّلة. شغّل المسابقة من الرابط الثابت:</div><a class="btn pri" href="${STABLE_URL}#host" target="_blank" rel="noopener" style="text-align:center;text-decoration:none">افتح الرابط الثابت</a></div>` : ''}
       ${g.S ? `<div class="panel col"><b>الفرق</b><div class="tlist">${P.teams.map((t, i) => `<div style="--tc:${t.color}"><span><b>${esc(t.name)}</b> · ${t.n} لاعب</span><span>${P.score[i]} أرض · 🌾${P.res[i].food} 💰${P.res[i].gold} 🪨${P.res[i].stone}</span></div>`).join('')}</div></div>` : ''}
       <div class="panel log"><b>السجل</b>${s.log.slice(-14).reverse().map(x => `<div>${esc(x.text)}</div>`).join('') || '<div>—</div>'}</div>`;
     $('#maphere').onclick = () => this.showMap(true); },

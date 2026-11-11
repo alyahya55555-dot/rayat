@@ -262,7 +262,7 @@
     biniCancel() { const s = this.s, b = s.bini; if (!b) return; s.bini = null; s.stage = b.prevStage; this.setTimer(Math.max(3, b.prevLeft / 1000)); this.changed(); }
 
     // ---------- التتويج ----------
-    crown() { const s = this.s, S = this.S; if (S.tie) { s.stage = 'tie'; s.tie = { teams: S.tie.teams.slice(), pts: S.tie.pts.slice(), buzz: null, tried: [], q: null }; this.tieQuestion(); return; }
+    crown() { const s = this.s, S = this.S; if (!S.done && !S.tie) { const ph = RR().CFG.PHASES.findIndex(P => P.key === 'crown'); if (ph >= 0) RR().setPhase(S, ph); } /* أي طريق للتتويج يحسب الفائز أو الفاصلة أولًا */ if (S.tie) { s.stage = 'tie'; s.tie = { teams: S.tie.teams.slice(), pts: S.tie.pts.slice(), buzz: null, tried: [], q: null }; this.tieQuestion(); return; }
       s.winner = S.winner; s.stage = 'crown'; s.endedAt = this.t(); s.rank = RR().ranking(S); this.say(`${this.tn(s.winner)} يتوَّجون أبطالًا للجزيرة`, 'big'); s.deadline = 0; this.changed(); }
     tieQuestion() { const s = this.s, q = this.pickQuestion(3, true); s.tie.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.tie.buzz = null; s.tie.tried = []; s.tie.wrong = []; s.tie.openAt = this.t() + READ_S * SEC; this.setTimer(DUR.buzz + READ_S); this.changed(); }
     tieBuzz(pid) { const s = this.s, T = s.tie, p = s.players[pid]; if (s.stage !== 'tie' || !T || T.buzz || !p || this.t() < (T.openAt || 0) || !T.teams.includes(p.team) || T.tried.includes(p.team)) return; T.buzz = { pid, team: p.team, name: p.name }; this.setTimer(DUR.pick); this.changed(); }

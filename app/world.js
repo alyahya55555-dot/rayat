@@ -4,7 +4,7 @@
 (function (G) {
   'use strict';
   const T3 = () => G.THREE;
-  const SZ = Object.assign({ island: 1, unit: 1, ship: 1, house: 1, crew: 1 }, G.RAYAT_SIZES || {}); // مقاسات للتجربة والمقارنة (الافتراضي = الحالي)
+  const SZ = Object.assign({ island: 1, unit: 1, ship: 1, house: 1, crew: 1, frame: 1, lookZ: 0 }, G.RAYAT_SIZES || {}); // مقاسات للتجربة والمقارنة (الافتراضي = الحالي)
   const S = SZ.island / 100, CX = 930, CY = 600;
   const P = (x, y) => [(x - CX) * S, (y - CY) * S];
   const lerp = (a, b, t) => a + (b - a) * t, clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -509,7 +509,7 @@
       g.scale.y = .001; return g; }
 
     // ---------- الكاميرا ----------
-    const overview = () => { const a = camera.aspect || 16 / 9, k = clamp(1.78 / a, .8, 3.6); return { pos: V(-.25, 15.6 * k * SZ.island, 11.8 * k * SZ.island), look: V(-.25, 0, -.45 * SZ.island) }; };
+    const overview = () => { const a = camera.aspect || 16 / 9, k = clamp(1.78 / a, .8, 3.6); const f = SZ.island * SZ.frame; return { pos: V(-.25, 15.6 * k * f, 11.8 * k * f), look: V(-.25, 0, -.45 * SZ.island + SZ.lookZ) }; };
     let cam = { from: overview(), to: overview(), t0: 0, d: 0, follow: null };
     const camNow = { pos: overview().pos.clone(), look: overview().look.clone() };
     // مدة الانتقال تطول مع المسافة (فلا تندفع الكاميرا في لقطة بعيدة)، والتسارع والتهدئة ناعمان

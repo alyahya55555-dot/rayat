@@ -163,7 +163,7 @@ input,select,textarea{font-family:var(--fs)}
 /* الشاشات القصيرة (جوال بالعرض) */
 @media (max-height:520px){
   .dsp .top{padding:8px 14px}.brand{font-size:26px}.brand small{display:none}
-  .dom{top:12px}.dom .names{font-size:12px;margin-top:4px}
+  .dom{top:12px;width:min(38vw,760px)}.dom .names{font-size:12px;margin-top:4px}
   .card{padding:12px 18px;border-radius:16px}.qcard{bottom:8px}.banner{bottom:8px}
   .qtext{font-size:clamp(16px,2.6vw,22px);margin:0 0 8px}.qtop{margin-bottom:4px;font-size:12px}
   .opts{grid-template-columns:1fr 1fr;gap:6px}.opt{padding:6px 10px;font-size:15px}.opt .L{width:24px;height:24px;font-size:13px}
@@ -239,7 +239,7 @@ body.mapon .ph{padding-top:calc(46vh + 10px)}.pm2d{position:absolute;inset:0}.pm
 .manual .mx{background:rgba(242,200,90,.08);border-inline-start:3px solid var(--gold);border-radius:10px;padding:10px 12px}
 .manual .mi .ml{list-style:none;padding:0;margin:6px 0 0}.manual .mi .ml li{margin:3px 0}
 .ph .buzz.locked{background:radial-gradient(circle at 50% 35%,#7d8b93,#4a565d);box-shadow:none;font-size:clamp(22px,7vw,30px);opacity:.92}
-.phase .ccd{display:block;margin-top:4px;font-size:14px;opacity:1;color:var(--gold)}
+.phase .ccd{display:inline;font-size:inherit;opacity:1;color:var(--gold);white-space:nowrap}.camctl{transition:opacity .3s}
 .plines{display:flex;flex-direction:column;gap:10px;margin-top:10px;align-items:flex-start}
 .pline{opacity:0;transform:translateY(10px);animation:plin .7s ease forwards;display:flex;gap:12px;align-items:baseline;font-size:24px}
 .pline b{font-family:var(--fd);font-weight:900;font-size:30px;white-space:nowrap}.pline span{color:var(--mut)}

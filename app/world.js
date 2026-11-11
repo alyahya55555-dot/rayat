@@ -627,11 +627,11 @@
       let to = cam.to; if (cam.follow) to = cam.follow();
       const k = camEase(seg(W.time, cam.t0, cam.t0 + cam.d)); camNow.pos.lerpVectors(cam.from.pos, to.pos, k); camNow.look.lerpVectors(cam.from.look, to.look, k);
       // حارس التضاريس: إن حجب جبلٌ أو تلٌّ ما تنظر إليه الكاميرا ترتفع بنعومة حتى يظهر، ثم تعود
-      let need = 0; if (actors.length) { const tg = [camNow.look]; for (const o of scene.children) { if (tg.length > 30) break; if (o.userData && o.userData.kind && o.visible !== false && o.position.distanceToSquared(camNow.look) < 9) tg.push(o.position); }
-        for (const t of tg) for (let h = need; h <= 2.4 && terrBlock(camNow.pos, t, h); h += .1) need = h + .1; } terrLift += (need - terrLift) * Math.min(1, rdt * (need > terrLift ? 9 : 2.5));
+      let need = terrNeed; if (actors.length && (++terrN % 3 === 0)) { need = 0; const tg = [camNow.look]; for (const o of scene.children) { if (tg.length > 30) break; if (o.userData && o.userData.kind && o.visible !== false && o.position.distanceToSquared(camNow.look) < 9) tg.push(o.position); }
+        for (const t of tg) for (let h = need; h <= 2.4 && terrBlock(camNow.pos, t, h); h += .1) need = h + .1; terrNeed = need; } else if (!actors.length) need = terrNeed = 0; terrLift += (need - terrLift) * Math.min(1, rdt * (need > terrLift ? 9 : 2.5));
       camera.position.copy(camNow.pos); camera.position.y += terrLift; camera.lookAt(camNow.look);
       if (shakeA > 0) { const k = 1 - (W.time - shakeT0) / shakeD; if (k <= 0) shakeA = 0; else { const a = shakeA * k * k * K; camera.position.x += Math.sin(W.time * 61) * a; camera.position.y += Math.sin(W.time * 47 + 1) * a * .7; camera.position.z += Math.cos(W.time * 53) * a; } } }
-    let terrLift = 0;
+    let terrLift = 0, terrNeed = 0, terrN = 0; // يُحسب كل ثالث إطار فقط، خفيف على الأداء
     function terrBlock(cp, tp, up) { const L = Math.hypot(cp.x - tp.x, cp.z - tp.z), n = Math.max(6, Math.ceil(L / .08)), cy = cp.y + up;
       for (let i = 1; i < n; i++) { const q = i / n, x = lerp(tp.x, cp.x, q), z = lerp(tp.z, cp.z, q), y = lerp(tp.y + .04, cy, q); if (q > .04 && groundY(x, z) > y) return true; } return false; }
     let camT = 0; const camVel = { pos: V(0, 0, 0), look: V(0, 0, 0) }, _ch = V(0, 0, 0), _tp = V(0, 0, 0), _g1 = V(0, 0, 0), _g2 = V(0, 0, 0);

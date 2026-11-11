@@ -13,7 +13,7 @@ const Host = {
     this.root = $('#app'); this.root.innerHTML = '<div class="hst"><div class="side" id="hside"></div><div class="main" id="hmain"></div></div>';
     this.net.init().then(() => { if (this.net.mq) this.net.mq.ensureKey().then(k => { if (k) { this.fp = k.fp; this.render(); this.broadcast(); } }); });
     if (saved && saved.s && saved.s.stage !== 'lobby' && saved.s.stage !== 'crown') this.askResume(saved);
-    setInterval(() => { this.g.tick(); this.tickUI(); }, 200); setInterval(() => this.broadcast(), 2500); setInterval(() => this.checkBc(), 3000);
+    setInterval(() => { this.g.tick(); this.tickUI(); }, 200); setInterval(() => this.broadcast(), 2500); setInterval(() => this.checkBc(), 3000); setInterval(() => this.netWatch(), 1000);
     window.addEventListener('beforeunload', () => this.save());
     this.render();
   },
@@ -27,6 +27,10 @@ const Host = {
   hasDisplay() { return !!this.mapLayer || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000); },
   onPeers(ch) { ch.peers.forEach(p => { if (p.presence && p.presence.r === 'd' && !p.sameTab) this.dispAck(p.peer, p.presence); }); [...ch.joined, ...ch.updated].filter(p => !p.sameTab && p.kind === 'viewer').forEach(p => this.onPres(p.peer, p.presence || {}, p.by)); ch.left.forEach(p => this.onLeave(p.peer)); this.display = ch.peers.filter(p => p.presence && p.presence.r === 'd').length; if (ch.joined.length) this.broadcast(); this.renderSide(); },
   onBc(peer, pr, fp) { const isNew = !this.bcPeers.has(peer); this.bcPeers.set(peer, Date.now()); if (isNew) setTimeout(() => this.broadcast(), 50); if (pr.r === 'd') { this.bcDisplay = Date.now(); this.dispAck(peer, pr); return; } this.onPres(peer, pr, fp || null); },
+  // انقطع نت المشرف أثناء المسابقة: توقف تلقائي حتى يعود، ثم تستأنف من حيث وقفت (الجوالات لا تخسر وقتها)
+  netWatch() { const mq = this.net && this.net.mq, g = this.g; if (!mq || !mq.everUp || !g) return; const s = g.s, up = this.net.label().cls === 'on';
+    if (!up) { this.downSince = this.downSince || Date.now(); if (!this.autoPaused && Date.now() - this.downSince > 4000 && s.stage !== 'lobby' && s.stage !== 'crown' && !s.paused) { this.autoPaused = true; g.pause(true); this.changed && this.changed(); toast('انقطع اتصالك بالإنترنت: أوقفنا المسابقة حتى يعود', 5000); } }
+    else { this.downSince = 0; if (this.autoPaused) { this.autoPaused = false; if (s.paused) { g.pause(false); this.changed && this.changed(); } toast('عاد الاتصال: استؤنفت المسابقة', 3500); } } },
   checkBc() { this.renderSide(); const now = Date.now(); this.bcPeers.forEach((t, peer) => { if (now - t > 12000) { this.bcPeers.delete(peer); this.onLeave(peer); } }); },
   onLeave(peer) { const pid = this.peerPid[peer]; if (pid) this.g.offline(pid); },
   onPres(peer, pr, by) { const g = this.g; if (pr.r !== 's' || !pr.pid || pr.c !== g.s.code) return; const pid = String(pr.pid).slice(0, 16);

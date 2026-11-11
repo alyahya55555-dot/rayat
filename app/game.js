@@ -7,7 +7,7 @@
   const DUR = { phase: 6, question: 20, reveal: 5, orders: 40, ordersNew: 20, more: 15, harvest: 4.6, predict: 7, buzz: 15, buzz2: 10, judgeMax: 25, pick: 12, duelRes: 2.5, gq: 20,
     // مدد المشاهد على شاشة العرض (ثوانٍ) — المشرف يتخطاها بضغطة
     scene: { occupy: 8.6, attack: 11.2, walls: 6.8, tower: 6.8, garInf: 6.8, garCav: 6.8, capital: 5.6, supply: 2.2, ally: 5.8, unally: 3.4, sail: 6.4, batch: 8, phase: 5.2 } };
-  const LEVELS = { easy: 'سهل', med: 'متوسط', hard: 'صعب' }, LV_OLD = { mid: 'easy', sec: 'med', uni: 'hard' }, lv = k => LV_OLD[k] || (LEVELS[k] ? k : 'med');
+  const LEVELS = { easy: 'سهل', med: 'متوسط', hard: 'صعب', xhard: 'صعب جدًا' }, LV_OLD = { mid: 'easy', sec: 'med', uni: 'hard' }, lv = k => LV_OLD[k] || (LEVELS[k] ? k : 'med');
   // الصعوبة داخل المستوى المختار (1..3): تبدأ من المتوسطة والعليا وتتصاعد قليلًا؛ والمواجهة دائمًا من الأصعب.
   // القيمة = نسبة اختيار الدرجة 3 (والباقي درجة 2). اعتمده المستخدم 11 نوفمبر.
   const PH_HARD = { opening: .25, expansion: .3, friction: .4, war: .5, siege: .7, final: .8, crown: .8 };
@@ -64,7 +64,9 @@
       else { let ch = false; if (p.name !== name) { p.name = name; ch = true; } if (p.online === false) { p.online = true; ch = true; } if (s.stage === 'lobby' && want != null && s.teams[want] && p.team !== +want) { p.team = +want; if (Object.values(s.captains).includes(pid)) Object.keys(s.captains).forEach(k => { if (s.captains[k] === pid) delete s.captains[k]; }); if (s.captains[p.team] == null) s.captains[p.team] = pid; ch = true; } if (ch) this.changed(); }
       return p;
     }
-    offline(pid) { const p = this.s.players[pid]; if (p && p.online !== false) { p.online = false; this.changed(); } }
+    offline(pid) { const p = this.s.players[pid]; if (p && p.online !== false) { p.online = false; this.changed(); if (this.s.stage === 'orders' && this.allReady() && this.s.deadline) this.s.deadline = Math.min(this.s.deadline, this.t() + 1500); } }
+    // الجميع جاهز: كل فريق له أوامر إما ضغط «جاهز» أو ليس فيه أحد متصل (انقطع نت الفريق كله فلا ينتظره الباقون)
+    allReady() { const s = this.s; if (!(s.orderTeams || []).some(t => this.online(t).length)) return false; return (s.orderTeams || []).every(t => s.ready[t] || !(this.S.turn.left[t] > 0) || !this.online(t).length); }
     setCaptain(team, pid) { if (this.s.players[pid] && this.s.players[pid].team === team) { this.s.captains[team] = pid; this.changed(); } }
     movePlayer(pid, team) { const p = this.s.players[pid]; if (!p || !this.s.teams[team]) return; Object.keys(this.s.captains).forEach(k => { if (this.s.captains[k] === pid) delete this.s.captains[k]; }); p.team = team; if (this.s.captains[team] == null) this.s.captains[team] = pid; this.changed(); }
     kick(pid) { delete this.s.players[pid]; Object.keys(this.s.captains).forEach(k => { if (this.s.captains[k] === pid) delete this.s.captains[k]; }); this.changed(); }
@@ -108,7 +110,7 @@
       if (!c.length) c = [...new Set(S.regions[r].nb.flatMap(j => S.regions[j].nb))].filter(j => j !== r && S.regions[j].owner === t && (M.regions[j].land || 0) === (M.regions[r].land || 0));
       return c.length ? c.sort((x, y) => d(x) - d(y))[0] : undefined; }
     pickQuestion(diffWant) {
-      const s = this.s, ORD = ['easy', 'med', 'hard'], near = { easy: ['easy', 'med', 'hard'], med: ['med', 'easy', 'hard'], hard: ['hard', 'med', 'easy'] }[s.level] || [s.level];
+      const s = this.s, ORD = ['easy', 'med', 'hard', 'xhard'], near = { easy: ['easy', 'med', 'hard', 'xhard'], med: ['med', 'easy', 'hard', 'xhard'], hard: ['hard', 'xhard', 'med', 'easy'], xhard: ['xhard', 'hard', 'med', 'easy'] }[s.level] || [s.level];
       let seen = new Set(seenLoad()), q = null;
       for (const lv of near) {
         const pool = this.bank.filter(x => x.level === lv && !s.used.includes(x.id)); if (!pool.length) continue;
@@ -125,7 +127,7 @@
       s.used.push(q.id); if (!seen.has(q.id)) seenSave([...seen, q.id]); return q;
     }
     nextQuestion() { const s = this.s, q = this.pickQuestion(Math.random() < (PH_HARD[this.phaseKey()] ?? .5) ? 3 : 2);
-      s.cycle++; s.q = { id: q.id, text: q.q, c: q.c, a: q.a, topic: q.t || '' }; s.answers = {}; s.stage = 'question'; this.setTimer(DUR.question); this.changed(); }
+      s.cycle++; s.q = { id: q.id, text: q.q, c: q.c, a: q.a, topic: q.t || '', f: q.f || '' }; s.answers = {}; s.stage = 'question'; this.setTimer(DUR.question); this.changed(); }
     answer(pid, qid, choice) { const s = this.s, p = s.players[pid]; if (!p || !s.q || s.q.id !== qid) return;
       if (s.stage === 'question') { if (s.answers[pid] != null) return; s.answers[pid] = { c: +choice, t: this.t() }; this.changed(); if (this.allAnswered()) this.reveal(); return; }
       if (s.stage === 'gq' && s.duel && (p.team === s.duel.a || p.team === s.duel.ally)) { if (s.duel.gqAns[pid] != null) return; s.duel.gqAns[pid] = +choice; this.changed(); const need = this.online(s.duel.a).concat(s.duel.ally != null ? this.online(s.duel.ally) : []); if (need.every(x => s.duel.gqAns[x] != null)) this.gqEnd(); } }
@@ -149,7 +151,7 @@
     setOrders(pid, list, cy) { const s = this.s, p = s.players[pid]; if (cy != null && cy !== s.cycle) return; if (s.stage !== 'orders' || !p || this.captain(p.team) !== pid || !s.orderTeams.includes(p.team)) return;
       const n = this.S.turn ? this.S.turn.left[p.team] : 0; s.orders[p.team] = (Array.isArray(list) ? list : []).slice(0, n).map(o => this.cleanOrder(o)).filter(Boolean); this.changed(); }
     cleanOrder(o) { if (!o || typeof o !== 'object') return null; const k = String(o.k || ''); const out = { k }; if (o.r != null) out.r = +o.r; if (o.res) out.res = String(o.res); if (o.unit) out.unit = String(o.unit); if (o.joint) out.joint = true; if (o.betray) out.betray = true; if (o.revenge) out.revenge = true; return out; }
-    setReady(pid, cy) { const s = this.s, p = s.players[pid]; if (cy != null && cy !== s.cycle) return; if (s.stage !== 'orders' || !p || this.captain(p.team) !== pid) return; s.ready[p.team] = true; this.changed(); if (s.orderTeams.every(t => s.ready[t] || !(this.S.turn.left[t] > 0))) this.execute(); }
+    setReady(pid, cy) { const s = this.s, p = s.players[pid]; if (cy != null && cy !== s.cycle) return; if (s.stage !== 'orders' || !p || this.captain(p.team) !== pid) return; s.ready[p.team] = true; this.changed(); if (this.allReady()) this.execute(); }
     suggest(pid, o) { const s = this.s, p = s.players[pid]; if (s.stage !== 'orders' || !p) return; const c = this.cleanOrder(o); if (!c) return; (s.sug[p.team] = s.sug[p.team] || {})[pid] = c; this.changed(); }
     // التنفيذ: حسب ترتيب الدقة، وأي أمر صار غير ممكن يتحول إلى تموين
     execute() { const s = this.s, S = this.S; s.stage = 'exec'; const plan = [];
@@ -301,7 +303,7 @@
         P.phaseLeft = Math.max(0, this.bound(Math.min(S.phase, this.plan().length - 1)) - this.t()); P.clock = (c => ({ total: c.total, extra: c.extra, el: c.el, rem: c.rem, playRem: c.playRem }))(this.timeInfo()); P.left = S.turn ? S.turn.left.slice() : null; P.nRegions = S.regions.length;
         // وضوح القلعة: متى تنفتح، ومن صاحبها، وكم جولة أمان بقيت له
         { const si = RR().CFG.PHASES.findIndex(x => x.key === 'siege'), c = S.regions.find(x => x.type === 'castle'); P.castleIn = S.phase < si ? Math.max(0, this.bound(si - 1) - this.t()) : 0; P.castle = c ? { owner: c.owner, safe: c.owner != null ? Math.max(0, (S.castleGrace || -1) - S.cycle) : 0, name: c.name } : null; } }
-      if (s.q && (st === 'question' || st === 'reveal')) P.q = { id: s.q.id, text: s.q.text, c: s.q.c, a: st === 'reveal' ? s.q.a : undefined, topic: s.q.topic, answered: Object.keys(s.answers).length, mine: null };
+      if (s.q && (st === 'question' || st === 'reveal')) P.q = { id: s.q.id, text: s.q.text, c: s.q.c, a: st === 'reveal' ? s.q.a : undefined, f: st === 'reveal' ? s.q.f || '' : undefined, topic: s.q.topic, answered: Object.keys(s.answers).length, mine: null };
       if (st === 'question' || st === 'reveal') P.answered = Object.keys(s.answers);
       if (st === 'reveal' && s.ans) P.ans = { ...s.ans, by: Object.fromEntries(Object.entries(s.answers).map(([pid, a]) => [pid, a.c])) };
       if (st === 'orders') { P.orderTeams = s.orderTeams; P.ordersNew = !!s.ordersNew; P.opts = {}; s.orderTeams.forEach(t => { P.opts[t] = this.options(t); }); P.ready = s.ready; P.chosen = Object.fromEntries(Object.entries(s.orders).map(([t, l]) => [t, l.length])); P.sug = s.sug; P.ans = s.ans; }

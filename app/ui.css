@@ -245,3 +245,11 @@ body.mapon .ph{padding-top:calc(46vh + 10px)}.pm2d{position:absolute;inset:0}.pm
 .pline b{font-family:var(--fd);font-weight:900;font-size:30px;white-space:nowrap}.pline span{color:var(--mut)}
 @keyframes plin{to{opacity:1;transform:none}}
 @media (max-width:900px){.pline{font-size:16px;gap:8px}.pline b{font-size:20px}}
+
+/* الوقت: شريط ومعه الثواني بالأرقام، وتحمرّ في آخر خمس ثوانٍ */
+.tline{display:flex;align-items:center;gap:14px;margin-top:18px}.tline .timer{flex:1;margin-top:0!important}
+.tline b{font-family:var(--fs);font-size:30px;font-weight:700;min-width:2.2em;text-align:center;font-variant-numeric:tabular-nums;color:var(--gold);transition:color .3s}
+.tline.low b{color:#ff7a66}.tline.low .timer i{background:#ff7a66}
+/* «أثر» السؤال: سطر عملي أو قلبي عند الكشف */
+.athar{margin:14px auto 0;max-width:46em;padding:10px 16px;border-inline-start:3px solid var(--gold);background:rgba(255,255,255,.06);border-radius:8px;font-family:var(--ft,var(--fs));font-size:20px;line-height:1.6;text-align:start}
+.ph .athar{font-size:16px;margin:10px 0 0}

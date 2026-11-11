@@ -1,7 +1,7 @@
 // اختبار الأسئلة (اعتمده المستخدم 11 نوفمبر): لا تكرار بين المسابقات، والمستوى يُحترم من أول سؤال، والمواجهة من الأصعب
 const path = require('path');
 global.d3 = require(path.join(__dirname, '../r3d/node_modules/d3-delaunay'));
-require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/bank-adab.js'); require('../app/data.js');
+require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/bank-adab.js'); require('../app/bank-plus.js'); require('../app/data.js');
 const RayatGame = require('../app/game.js'), BANK = globalThis.RAYAT_BANK;
 let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
 const mk = level => new RayatGame({ bank: BANK, binis: [], level, teams: [{ name: 'أ', color: '#000' }, { name: 'ب', color: '#111' }], mapSeed: 7 });
@@ -27,6 +27,20 @@ for (const level of ['hard', 'med', 'easy']) {
   ok(new Set(ids3).size === ids3.length && ids3.every(id => byId[id].level === level), `${level}: دورة كاملة (${nLevel}) بلا تكرار داخل المسابقة`);
   const extra = g3.pickQuestion(3); ok(extra && !ids3.includes(extra.id), `${level}: بعد نفاد المستوى يُستعار من مستوى قريب لا من المكرر`);
 }
+// المستوى الرابع «صعب جدًا» (طلب المستخدم 11 نوفمبر 20:41): أسئلته من مستواه، وإذا نفد يُستعار من «صعب» قبل غيره
+{ const nX = BANK.filter(q => q.level === 'xhard').length; ok(nX >= 55, 'صعب جدًا: بنك كافٍ (' + nX + ')'); ok(RayatGame.LEVELS.xhard === 'صعب جدًا', 'اسم المستوى الرابع');
+  const g = mk('xhard'), ids = []; for (let i = 0; i < 40; i++) ids.push(g.pickQuestion(i % 3 ? 2 : 3).id);
+  ok(ids.every(id => byId[id].level === 'xhard'), 'صعب جدًا: أول 40 سؤالًا كلها من مستواه'); ok(new Set(ids).size === ids.length, 'صعب جدًا: بلا تكرار');
+  const more = []; for (let i = 0; i < nX; i++) more.push(g.pickQuestion(3).id); const borrowed = more.filter(id => byId[id].level !== 'xhard');
+  ok(borrowed.length > 0 && borrowed.every(id => byId[id].level === 'hard'), 'صعب جدًا: بعد نفاده يُستعار من «صعب» فقط');
+  ok(new Set(ids.concat(more)).size === ids.length + more.length, 'صعب جدًا: الاستعارة بلا تكرار');
+  const h = mk('hard'), hx = []; for (let i = 0; i < 40; i++) hx.push(h.pickQuestion(2).id); ok(hx.every(id => byId[id].level === 'hard'), '«صعب» لا يأخذ من «صعب جدًا» ما دام فيه جديد'); }
+// «الأثر»: سطر عملي أو قلبي يظهر عند الكشف فقط
+{ const g = mk('med'); g.start && 0; const withF = BANK.filter(q => q.f); ok(withF.length >= 20, 'أسئلة لها «أثر» (' + withF.length + ')'); ok(withF.every(q => q.f.length <= 70), '«الأثر» قصير');
+  const q = withF.find(x => x.level === 'med'); g.s.q = { id: q.id, text: q.q, c: q.c, a: q.a, topic: q.t, f: q.f }; g.s.stage = 'question'; const P1 = g.pub ? g.pub() : null;
+  if (P1 && P1.q) { ok(P1.q.f === undefined, 'الأثر لا يظهر أثناء السؤال'); g.s.stage = 'reveal'; g.s.ans = { ratios: [0, 0], orders: [0, 0] }; const P2 = g.pub(); ok(P2.q && P2.q.f === q.f, 'الأثر يظهر عند الكشف'); } }
+// لا أسئلة ساذجة محذوفة باقية (مثل الأمم المتحدة والأرقام الرومانية)
+ok(!BANK.some(q => /الأمم المتحدة|الروماني|عاصمة اليابان|عاصمة كندا/.test(q.q)), 'الأسئلة الساذجة المحذوفة لا تظهر');
 // تنويع الأبواب: لا باب مرتين متتاليتين، ولا يطغى باب
 { const g = mk('hard'), ts = []; for (let i = 0; i < 40; i++) ts.push(byId[g.pickQuestion(i % 3 ? 2 : 3).id].t);
   ok(ts.every((t, i) => !i || t !== ts[i - 1]), 'لا يتكرر الباب مرتين متتاليتين');

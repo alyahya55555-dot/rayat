@@ -472,7 +472,7 @@
     function updatePuffs(t) { puffs = puffs.filter(p => { const k = (t - p.t0) / p.life; if (k > 1) { scene.remove(p.sp); p.sp.material.dispose(); return false; } if (k < 0) { p.sp.visible = false; return true; } p.sp.visible = true; p.sp.material.opacity = Math.sin(k * Math.PI) * p.op; p.sp.scale.setScalar(p.size * (.6 + k * 1.2)); p.sp.position.set(p.x + p.dx * k, p.y + p.vy * k, p.z + p.dz * k); return true; }); }
 
     // ---------- إيجاد المسارات (A*) بعيدًا عن كل العوائق ----------
-    const blockers = (extra, minS = .05) => [...OBST.filter(o => !o.soft), ...TREES.filter(o => o.s > minS), ...flags.filter(f => f.g && f.g.visible !== false && f.lift > .05).map(f => ({ k: 'راية', x: f.g.position.x, z: f.g.position.z, r: .035 })), ...(extra || [])]; // والرايات أيضًا: لا يقف جيش ولا منجنيق على سارية // المسار يتجنب حتى الشجرة التي تنمو من جديد
+    const blockers = (extra, minS = .05) => [...OBST.filter(o => !o.soft), ...TREES.filter(o => o.s > minS), ...flags.filter(f => f.g && f.g.visible !== false && f.lift > .05).map(f => ({ k: 'راية', x: f.g.position.x, z: f.g.position.z, r: .07 })), ...(extra || [])]; // والرايات أيضًا: لا يقف جيش ولا منجنيق على سارية // المسار يتجنب حتى الشجرة التي تنمو من جديد
     function findPath(a, b, clear = .07, extra) {
       const mg = 1.6 * K, cell = .04, minx = Math.min(a[0], b[0]) - mg, minz = Math.min(a[1], b[1]) - mg, nx = Math.ceil((Math.max(a[0], b[0]) + mg - minx) / cell), nz = Math.ceil((Math.max(a[1], b[1]) + mg - minz) / cell);
       const blk = new Uint8Array(nx * nz), obs = blockers(extra);
@@ -719,11 +719,12 @@
       return list; }
     const spacing = u => (u.userData.kind === 'horse' ? .12 : u.userData.kind === 'cat' ? .3 : u.userData.kind === 'cart' ? .09 : .065) * SZ.unit * Math.max(1, u.scale.x / UNIT_S);
     // يضع الوحدات على المنحنى صفًا (اثنين اثنين للمشاة) بحسب موضع المقدمة
-    function muster(cross, dir, back, regId) { const freeAt = (x, z, c) => coastDist(x, z) > .2 && !hitObst(x, z, c) && !flags.some(f => f.g && Math.hypot(f.g.position.x - x, f.g.position.z - z) < c + .06) && !TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r + c) && groundY(x, z) < .4;
+    function muster(cross, dir, back, regId) { const freeAt = (x, z, c) => coastDist(x, z) > .2 && !hitObst(x, z, c) && !flags.some(f => f.g && Math.hypot(f.g.position.x - x, f.g.position.z - z) < c + .16) && !TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r + c) && groundY(x, z) < .4;
       for (const extra of [0, .1, .2, -.1, .3]) for (let k = 0; k < 13; k++) { const da = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .14, c = Math.cos(da), sn = Math.sin(da), dx = dir[0] * c - dir[1] * sn, dz = dir[0] * sn + dir[1] * c, x = cross[0] - dx * (back + extra), z = cross[1] - dz * (back + extra);
         if (regId != null && regionAtW(x, z) !== regId && k < 12) continue; if (freeAt(x, z, .1)) return [x, z]; }
       for (let k = 0; k < 40; k++) { const a2 = k * 2.4, rr = .1 + k * .03, x = cross[0] - dir[0] * back + Math.cos(a2) * rr, z = cross[1] - dir[1] * back + Math.sin(a2) * rr; if ((regId == null || regionAtW(x, z) === regId) && freeAt(x, z, .08)) return [x, z]; }
-      return regId != null ? R[regId].yard.slice() : [cross[0] - dir[0] * back, cross[1] - dir[1] * back]; } // لا تجمّع في الماء أبدًا
+      if (regId != null) { const [yx, yz] = R[regId].yard; for (let k = 0; k < 36; k++) { const a2 = k * 2.4, rr = .17 + k * .012, x = yx + Math.cos(a2) * rr, z = yz + Math.sin(a2) * rr; if (freeAt(x, z, .06)) return [x, z]; } return [yx + .17, yz + .1]; } // لا تجمّع في الماء ولا عند السارية أبدًا
+      return [cross[0] - dir[0] * back, cross[1] - dir[1] * back]; }
     function placeColumn(units, crv, len, s, walking, t, retreat = false, hide = false) {
       let off = 0; const out = [];
       units.forEach((u, i) => { const k = u.userData.kind, narrow = !!crv.narrow; const pair = k === 'foot' && !narrow ? (i % 2 ? .028 : -.028) * SZ.unit : 0; if (k !== 'foot' || i % 2 === 0 || narrow) off += spacing(u) * (i ? 1 : 0);
@@ -869,11 +870,11 @@
     W.occupy = async ({ team, r, from, wide }) => {
       W.busy = true; const SPo = spreadSlot(); const tgt = M.regions[r], I = R[r];
       const fromId = from != null ? from : (tgt.nb.find(j => W.owner[j] === team) ?? M.caps[team]);
-      const cross = crossing(fromId, r), goal = [I.yard[0] + .06, I.yard[1] + .08], [fx, fz] = at(M.regions[fromId]);
+      const cross = crossing(fromId, r), [fx, fz] = at(M.regions[fromId]), goal = (() => { const [sx, sz] = I.flagSpot, gx = I.yard[0] + .06 - sx, gz = I.yard[1] + .08 - sz, gd = Math.hypot(gx, gz) || 1, m = Math.max(.17, gd); return [sx + gx / gd * m, sz + gz / gd * m]; })(); // القافلة تقف بجانب موضع الراية لا فوقه
       const dir0 = [cross[0] - fx, cross[1] - fz], dl = Math.hypot(...dir0) || 1, dir = [dir0[0] / dl, dir0[1] / dl];
       const nav = !tgt.nb.some(j => (M.regions[j].land || 0) === (tgt.land || 0) && W.owner[j] === team) ? navalPlan(team, null, r) : null;
       const start = nav ? nav.shore : muster(cross, dir, .5, fromId);
-      const p1 = findPath(start, goal, .085) || findPath(start, goal, .06) || [start, goal]; // خلوص يكفي صف المستوطنين بحجمهم الجديد
+      const fx0 = [{ k: 'راية', x: I.flagSpot[0], z: I.flagSpot[1], r: .07 }], p1 = findPath(start, goal, .085, fx0) || findPath(start, goal, .06, fx0) || findPath(start, goal, .06) || [start, goal]; // موضع الراية الجديدة محجوز قبل غرسها // خلوص يكفي صف المستوطنين بحجمهم الجديد
       const crv = curve(p1), len = crv.getLength();
       const units = [soldier(team), cart(team), soldier(team)]; const colLen = .2;
       const o2 = nav ? nav.t1 - .2 : 0, wd = clamp((len - (nav ? 0 : colLen)) / SPEED.cart, 1.6, 3.6), we = .8 + o2 + wd, tw = W.time, T = { walk: [.8 + o2, we], plant: [we, we + 1], spread: [we + .8, we + 2.6], end: we + 3.6 };
@@ -973,7 +974,7 @@
       const pose = () => { const tt = W.time - t0, az = Math.sin(tt * .045) * .3, look = V(f[0] + Math.sin(tt * .035) * .5 * K, 0, f[1]); return { pos: V(look.x + Math.sin(az) * Math.cos(el) * dist, Math.sin(el) * dist, look.z + Math.cos(az) * Math.cos(el) * dist), look }; };
       camTo(pose(), 2.6); camFollow(pose); };
     // معلومات القلعة فوقها: صاحبها وجولات أمانه
-    W._dbg = { trees: () => TREES, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
+    W._dbg = { trees: () => TREES, flags: () => flags, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
     W.setCastle = (info) => { const k = JSON.stringify(info || {}); if (k === W._ck) return; W._ck = k; W.castleInfo = info || {}; const c = M.regions.find(x => x.type === 'castle'); if (c) makeLabel(c); };
 
     // ---------- الإطار ----------

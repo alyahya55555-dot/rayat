@@ -3,7 +3,14 @@ const Phone = {
   init(code, fp) {
     // هوية الجوال لكل تبويب (تبقى مع إعادة التحميل، ولا تختلط إن فُتح أكثر من جوال في متصفح واحد)
     const SS = { get(k, d) { try { const v = sessionStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }, set(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { } } }; this.SS = SS;
-    this.code = code; this.pid = SS.get('rayat.pid', null) || uid(10); SS.set('rayat.pid', this.pid); this.me = SS.get('rayat.me', {}) || {};
+    // إذا أُغلق المتصفح ثم فُتح الرابط من جديد على الجوال نفسه: تعود الهوية نفسها (الاسم والفريق والقيادة) بلا تسجيل مكرر.
+    // تُحفظ لكل رمز مسابقة مع «نبض» كل ثانيتين، فلا تُستعار هوية تبويب آخر ما زال مفتوحًا في المتصفح نفسه.
+    const lk = 'rayat.id.' + (code || ''), old = code ? LS.get(lk, null) : null, live = old && Date.now() - (old.at || 0) < 7000;
+    this.code = code; this.pid = SS.get('rayat.pid', null) || (old && !live ? old.pid : null) || uid(10); SS.set('rayat.pid', this.pid);
+    this.me = SS.get('rayat.me', null) || (old && old.pid === this.pid ? old.me : null) || {}; SS.set('rayat.me', this.me);
+    try { if (old && old.pid === this.pid && old.sign && !sessionStorage.getItem('rayat.sign')) sessionStorage.setItem('rayat.sign', old.sign); } catch (e) { } // مفتاح التوقيع نفسه، فيعرفه المشرف
+    const sg = () => { try { return sessionStorage.getItem('rayat.sign'); } catch (e) { return null; } };
+    this.keepId = () => { if (this.code) LS.set('rayat.id.' + this.code, { pid: this.pid, me: this.me, sign: sg(), at: Date.now() }); }; this.keepId(); setInterval(() => this.keepId(), 2000); addEventListener('pagehide', () => { if (this.code) LS.set('rayat.id.' + this.code, { pid: this.pid, me: this.me, sign: sg(), at: 0 }); });
     this.n = SS.get('rayat.n', 0); this.P = null; this.picks = []; this.tab = null; this.local = {}; this.seen = LS.get('rayat.seen', {});
     this.net = new Net('student'); if (fp) this.net.expectFp = fp;
     this.net.on('state', P => this.onState(P)); this.net.on('status', () => this.render());
@@ -60,7 +67,7 @@ const Phone = {
       const rev = st === 'reveal', sv = this.SS.get('rayat.ans', null), sent = this.local.ans ?? (sv && sv.q === q.id ? sv.c : null), got = (P.answered || []).includes(this.pid);
       const mine = rev ? (P.ans && P.ans.by && P.ans.by[this.pid] != null ? P.ans.by[this.pid] : null) : sent;
       if (st === 'gq') { /* سؤال الحامية: لا قائمة تأكيد، نعتمد المحلي */ }
-      return `<div class="box col"><div class="q">${esc(q.text)}</div><div class="ans">${q.c.map((c, i) => `<button data-ans="${i}" class="${rev ? (i === q.a ? 'ok' : mine === i ? 'no' : '') : mine === i ? 'sel' : ''}" ${mine != null || rev ? 'disabled' : ''}><span class="L">${LET[i]}</span>${esc(c)}</button>`).join('')}</div>${rev ? `<div class="big k" style="font-size:22px">${mine === q.a ? '✅ أصبت' : mine == null ? (sent != null ? 'لم تصل إجابتك قبل انتهاء الوقت' : 'لم تجب') : '❌ لم تُصب'}</div><div class="mut" style="text-align:center">فريقك: ${Math.round(((P.ans && P.ans.ratios[t]) || 0) * 100)}٪ إجابات صحيحة ← ${(n => n === 0 ? 'لا أوامر' : n === 1 ? 'أمر واحد' : n === 2 ? 'أمران' : n + ' أوامر')(P.ans ? P.ans.orders[t] || 0 : 0)}</div>` : mine != null ? `<div class="mut" style="text-align:center">${got || st === 'gq' ? 'وصلت إجابتك ✓' : 'جارٍ إرسال إجابتك…'}</div>` : ''}</div>${this.resBox()}`; }
+      return `<div class="box col"><div class="q">${esc(q.text)}</div><div class="ans">${q.c.map((c, i) => `<button data-ans="${i}" class="${rev ? (i === q.a ? 'ok' : mine === i ? 'no' : '') : mine === i ? 'sel' : ''}" ${mine != null || rev ? 'disabled' : ''}><span class="L">${LET[i]}</span>${esc(c)}</button>`).join('')}</div>${rev ? `<div class="big k" style="font-size:22px">${mine === q.a ? '✅ أصبت' : mine == null ? (sent != null ? 'لم تصل إجابتك قبل انتهاء الوقت' : 'لم تجب') : '❌ لم تُصب'}</div>${q.f ? `<div class="athar">${esc(q.f)}</div>` : ''}<div class="mut" style="text-align:center">فريقك: ${Math.round(((P.ans && P.ans.ratios[t]) || 0) * 100)}٪ إجابات صحيحة ← ${(n => n === 0 ? 'لا أوامر' : n === 1 ? 'أمر واحد' : n === 2 ? 'أمران' : n + ' أوامر')(P.ans ? P.ans.orders[t] || 0 : 0)}</div>` : mine != null ? `<div class="mut" style="text-align:center">${got || st === 'gq' ? 'وصلت إجابتك ✓' : 'جارٍ إرسال إجابتك…'}</div>` : ''}</div>${this.resBox()}`; }
     if (st === 'orders') return this.ordersUI();
     if (st === 'predict' && P.duel) { const D = P.duel, side = D.a === t || D.ally === t ? 'a' : D.d === t ? 'd' : null;
       if (side) return `<div class="box"><div class="big k" style="color:${tc(t)}">${side === 'a' ? 'فريقكم يهاجم' : 'أرضكم تحت الهجوم!'}</div><div class="mut" style="text-align:center;margin-top:8px">${esc(D.kindAr)} على ${esc(D.rn)}. استعدوا للاستباق: أول من يضغط من فريقكم يجيب بصوت عالٍ.</div></div>`;

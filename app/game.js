@@ -4,7 +4,7 @@
   'use strict';
   const RR = () => G.RayatRules;
   const SEC = 1000;
-  const DUR = { phase: 6, question: 20, reveal: 5, orders: 20, harvest: 4.6, predict: 7, buzz: 15, buzz2: 10, judgeMax: 25, pick: 12, duelRes: 2.5, gq: 20,
+  const DUR = { phase: 6, question: 20, reveal: 5, orders: 40, ordersNew: 20, more: 15, harvest: 4.6, predict: 7, buzz: 15, buzz2: 10, judgeMax: 25, pick: 12, duelRes: 2.5, gq: 20,
     // مدد المشاهد على شاشة العرض (ثوانٍ) — المشرف يتخطاها بضغطة
     scene: { occupy: 8.6, attack: 11.2, walls: 6.8, tower: 6.8, garInf: 6.8, garCav: 6.8, capital: 5.6, supply: 2.2, ally: 5.8, unally: 3.4, sail: 6.4, batch: 8, phase: 5.2 } };
   const LEVELS = { easy: 'سهل', med: 'متوسط', hard: 'صعب' }, LV_OLD = { mid: 'easy', sec: 'med', uni: 'hard' }, lv = k => LV_OLD[k] || (LEVELS[k] ? k : 'med');
@@ -93,7 +93,7 @@
     endAfterRound(on = true) { const s = this.s; if (s.stage === 'lobby' || s.stage === 'crown') return; s.endAfter = !!on; this.say(on ? 'تنتهي المسابقة بعد هذه الجولة' : 'أُلغي الإنهاء بعد الجولة'); this.changed(); }
     enterPhase(i) { const s = this.s, P = RR().CFG.PHASES[i]; if (i > 0) RR().setPhase(this.S, i); s.phase = i; s.phaseStart = this.t();
       this.S.events.filter(e => e.t === 'unally' && e.phase === i).forEach(e => this.pushEv({ k: 'unally', a: e.a, b: e.b, betray: false }));
-      const nU = (P.unlock || []).filter(k => k !== 'garCav' && k !== 'cap3').length, hold = nU ? 1.2 + nU * 2.2 + 1.6 : 0; s.stage = 'phase'; s.ev = { id: ++s.evSeq, k: 'phase', key: P.key, name: P.name, unlock: P.unlock, hold }; this.sceneTimer(Math.max(DUR.scene.phase, hold)); this.say('بدأت مرحلة ' + P.name, 'big');
+      const nU = (P.unlock || []).filter(k => k !== 'garCav' && k !== 'cap3').length, hold = nU ? 1.2 + nU * 2.2 + 1.6 : 0; s.stage = 'phase'; s.ev = { id: ++s.evSeq, k: 'phase', key: P.key, name: P.name, unlock: P.unlock, hold }; s.fresh = nU > 0; this.sceneTimer(Math.max(DUR.scene.phase, hold)); this.say('بدأت مرحلة ' + P.name, 'big');
       if (P.key === 'crown') { s.vis = this.snapshot(); this.crown(); return; }
       this.changed(); }
     pushEv(e) { this.s.queue.push(e); }
@@ -140,7 +140,11 @@
       const L = RR().legal(this.S, team), O = { supply: [], occupy: [], walls: [], tower: [], garInf: [], garCav: [], cap: [], attack: [] };
       L.forEach(o => { if (o.k === 'supply') O.supply.push(o); else if (o.k === 'cap2' || o.k === 'cap3') O.cap.push(o); else if (O[o.k]) O[o.k].push(o); });
       return O; }
-    openOrders(teams) { const s = this.s; s.stage = 'orders'; s.orders = {}; s.sug = {}; s.ready = {}; s.orderTeams = teams; this.setTimer(DUR.orders); this.changed(); }
+    openOrders(teams) { const s = this.s; s.stage = 'orders'; s.orders = {}; s.sug = {}; s.ready = {}; s.orderTeams = teams; s.moreN = 0;
+      // وقت التفكير: 40 ثانية، وأول جولة بعد انفتاح أدوات جديدة +20 لفهمها؛ و«جاهز» من كل القادة ينهيه فورًا (طلب المستخدم 11 نوفمبر)
+      s.ordersNew = !!s.fresh; this.setTimer(DUR.orders + (s.fresh ? DUR.ordersNew : 0)); s.fresh = false; this.changed(); }
+    // المشرف يمدّ وقت القرار 15 ثانية (حتى ثلاث مرات في الجولة)
+    moreTime() { const s = this.s; if (s.stage !== 'orders' || (s.moreN || 0) >= 3 || !s.deadline) return; s.moreN = (s.moreN || 0) + 1; s.deadline += DUR.more * SEC; s.dur += DUR.more * SEC; this.say('+15 ثانية للتفكير'); this.changed(); }
     // القائد يحدد أوامره (قائمة بطول عدد أوامره)
     setOrders(pid, list, cy) { const s = this.s, p = s.players[pid]; if (cy != null && cy !== s.cycle) return; if (s.stage !== 'orders' || !p || this.captain(p.team) !== pid || !s.orderTeams.includes(p.team)) return;
       const n = this.S.turn ? this.S.turn.left[p.team] : 0; s.orders[p.team] = (Array.isArray(list) ? list : []).slice(0, n).map(o => this.cleanOrder(o)).filter(Boolean); this.changed(); }
@@ -300,7 +304,7 @@
       if (s.q && (st === 'question' || st === 'reveal')) P.q = { id: s.q.id, text: s.q.text, c: s.q.c, a: st === 'reveal' ? s.q.a : undefined, topic: s.q.topic, answered: Object.keys(s.answers).length, mine: null };
       if (st === 'question' || st === 'reveal') P.answered = Object.keys(s.answers);
       if (st === 'reveal' && s.ans) P.ans = { ...s.ans, by: Object.fromEntries(Object.entries(s.answers).map(([pid, a]) => [pid, a.c])) };
-      if (st === 'orders') { P.orderTeams = s.orderTeams; P.opts = {}; s.orderTeams.forEach(t => { P.opts[t] = this.options(t); }); P.ready = s.ready; P.chosen = Object.fromEntries(Object.entries(s.orders).map(([t, l]) => [t, l.length])); P.sug = s.sug; P.ans = s.ans; }
+      if (st === 'orders') { P.orderTeams = s.orderTeams; P.ordersNew = !!s.ordersNew; P.opts = {}; s.orderTeams.forEach(t => { P.opts[t] = this.options(t); }); P.ready = s.ready; P.chosen = Object.fromEntries(Object.entries(s.orders).map(([t, l]) => [t, l.length])); P.sug = s.sug; P.ans = s.ans; }
       if (s.duel) { const D = s.duel; P.duel = { lock: Math.max(0, (D.openAt || 0) - this.t()), from: D.from, id: D.id, a: D.a, d: D.d, ally: D.ally, r: D.r, rn: S.regions[D.r].name, unit: D.unit, kind: D.kind, kindAr: D.kindAr, need: D.need, pts: D.pts, betray: D.betray, revenge: D.revenge, joint: D.joint, buzz: D.buzz, tried: D.tried, wrong: D.wrong || [], ans: st === 'point' && D.q ? D.q.a : undefined, preds: Object.keys(D.preds).length, last: D.last,
         q: D.q ? { id: D.q.id, text: D.q.text, c: D.q.c } : null, gqN: Object.keys(D.gqAns).length };
         if (st === 'gq') P.q = { id: D.q.id, text: D.q.text, c: D.q.c, gq: true }; }

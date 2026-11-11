@@ -30,4 +30,12 @@ const mk = (total = 60) => { let clock = 1e12; const g = new RayatGame({ now: ()
   const { g, run } = mk(40); g.start(); run(39 * 60000); ok(g.s.stage === 'crown' || g.s.stage === 'tie', '40 دقيقة: انتهى اللعب قبل الدقيقة 39'); const c = g.timeInfo(); ok(c.el <= 40 * 60000 + 30000, '40 دقيقة: النهاية داخل المدة (' + (c.el / 60000).toFixed(1) + ')'); }
 { // بيني طويل يأكل من وقت المرحلة لا من النهاية
   const { g, run, adv } = mk(50); g.start(); run(6 * 60000); let guard = 0; while (g.s.stage !== 'harvest' && guard++ < 2000) run(500); const end0 = g.gameEnd(); g.biniStart(0, 2); ok(g.s.stage === 'bini', 'بدأ البيني'); adv(6 * 60000); g.biniWinner(1); run(45 * 60000); ok(Math.abs(g.gameEnd() - end0) < 500, 'بيني مدته 6 دقائق لا يؤخّر موعد النهاية'); ok(g.s.stage === 'crown' || g.s.stage === 'tie', 'المسابقة انتهت في وقتها بعد بيني طويل'); ok(g.timeInfo().el <= 50 * 60000 + 60000, 'المدة الكلية محفوظة (' + (g.timeInfo().el / 60000).toFixed(1) + ')'); }
+
+{ // وقت التفكير (طلب المستخدم 11 نوفمبر): 40 ثانية، و+20 في أول جولة بعد أدوات جديدة، والمشرف يمدّ 15 ثانية حتى ثلاث مرات
+  const { g, adv } = mk(60); g.start(); let seenNew = false, seenBase = false, seenCy = -1;
+  for (let i = 0; i < 4000 && !(seenNew && seenBase); i++) { if (g.s.stage === 'orders' && g.s.cycle !== seenCy) { seenCy = g.s.cycle; const d = g.s.dur / 1000; if (g.s.ordersNew) { seenNew = true; ok(d === 60, 'أول جولة بعد أدوات جديدة: 60 ثانية (' + d + ')'); } else { seenBase = true; ok(d === 40, 'وقت القرار 40 ثانية (' + d + ')'); }
+      const dl = g.s.deadline; g.moreTime(); ok(g.s.deadline - dl === 15000, '+15 ثانية تمدّ الموعد'); g.moreTime(); g.moreTime(); const dl2 = g.s.deadline; g.moreTime(); ok(g.s.deadline === dl2, 'لا تمديد بعد الثالثة'); }
+    if (g.s.stage === 'question' && g.s.q) Object.keys(g.s.players).forEach(pid => g.answer(pid, g.s.q.id, g.s.q.a)); if (g.s.stage === 'judge') g.judge(true);
+    adv(1000); g.tick(); }
+  ok(seenNew && seenBase, 'مرّت جولة عادية وجولة أدوات جديدة'); }
 console.log(`الوقت والمدة: ${pass} نجح، ${fail} فشل`); process.exit(fail ? 1 : 0);

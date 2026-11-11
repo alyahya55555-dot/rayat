@@ -16,7 +16,8 @@ const Phone = {
   send(f, d) { this.n++; this.SS.set('rayat.n', this.n); this.net.presence({ [f]: Object.assign({ n: this.n }, d) }); },
   onState(P) { if (!P || (this.code && P.code !== this.code)) return; if (!this.code) this.code = P.code; if (this.P && P.v < this.P.v) return;
     const prev = this.P; this.P = P; this.lastState = performance.now(); if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d; } else this.endAt = 0;
-    if (P.mapSeed != null && (!this.M || this.mkey !== P.teams.length + ':' + P.mapSeed)) { this.mkey = P.teams.length + ':' + P.mapSeed; this.M = RayatMap.build(P.teams.length, P.mapSeed); }
+    if (P.mapSeed != null && (!this.M || this.mkey !== P.teams.length + ':' + P.mapSeed)) { this.mkey = P.teams.length + ':' + P.mapSeed; this.M = RayatMap.build(P.teams.length, P.mapSeed); if (this.mapOpen) this.closeMap(); }
+    if (this.MW && P.vis) { const vk = JSON.stringify(P.vis); if (vk !== this.mvk) { this.mvk = vk; try { this.MW.setState(P.vis); } catch (e) { } } this.mapInfo(); }
     const t = this.myTeam(); if (prev && prev.stage !== P.stage) { this.local = {}; if (P.stage === 'orders') this.picks = []; this.tab = null;
       if (P.stage === 'predict' && P.duel && (P.duel.d === t || P.duel.a === t)) this.buzzV([120, 60, 120]);
       if (P.stage === 'buzz' && P.duel && (P.duel.d === t || P.duel.a === t || P.duel.ally === t)) this.buzzV([60]); }
@@ -31,7 +32,7 @@ const Phone = {
     { const off = !!(this.P && this.lastState && performance.now() - this.lastState > 9000); let ob = document.getElementById('offbar'); if (off && !ob) { ob = document.createElement('div'); ob.id = 'offbar'; ob.className = 'offbar'; ob.textContent = 'انقطع الاتصال بالمشرف… تُعاد المحاولة تلقائيًا'; document.body.appendChild(ob); } else if (!off && ob) ob.remove(); }
     const el = $('#ptm'); if (el && this.P && this.P.paused) { el.textContent = this.P.tm ? '⏸ ' + Math.ceil(this.P.tm.r / 1000) + ' ث' : '⏸'; return; } if (el && this.endAt) { const s = Math.ceil(Math.max(0, this.endAt - performance.now()) / 1000); el.textContent = s + ' ث'; } },
   header() { const P = this.P, t = this.myTeam(), T = P && t != null ? P.teams[t] : null;
-    return `<div class="hd"><div class="nm k">رايـات</div>${T ? `<span class="badge" style="--tc:${T.color}">${esc(T.name)}${this.isCap() ? ' · القائد 👑' : ''}</span>` : ''}<span class="tm" id="ptm"></span></div>`; },
+    return `<div class="hd"><div class="nm k">رايـات</div>${T ? `<span class="badge" style="--tc:${T.color}">${esc(T.name)}${this.isCap() ? ' · القائد 👑' : ''}</span>` : ''}${P && P.vis && this.me && this.me.nm ? `<button class="mapbtn ${this.mapOpen ? 'on' : ''}" data-map>🗺️ الخريطة</button>` : ''}<span class="tm" id="ptm"></span></div>`; },
   resBox() { const P = this.P, t = this.myTeam(); if (!P || !P.res || t == null) return ''; const R = P.res[t];
     return `<div class="res"><div>أرضكم<b>${P.score[t]}</b></div><div>🌾 طعام<b>${R.food}</b></div><div>💰 ذهب<b>${R.gold}</b></div><div>🪨 حجر<b>${R.stone}</b></div></div>`; },
   render() {
@@ -79,6 +80,35 @@ const Phone = {
     if (e.k === 'ally') return `تحالف ${tn(e.a)} و${tn(e.b)}`; if (e.k === 'unally') return e.betray ? `${tn(e.a)} ينقضون الحلف` : 'انتهى حلف'; return 'تنفيذ الأوامر'; },
   waitBox(t) { return `<div class="box"><div class="big k" style="font-size:22px">${t}</div></div>`; },
   // ---------- الأوامر ----------
+  // اختيار أمر: القائد يضيفه لخطته، والعضو يرسله اقتراحًا (يُستعمل من قائمة الأوامر ومن بطاقة الأرض في الخريطة)
+  chooseOpt(o0) { const P = this.P; if (!P || P.paused || P.stage !== 'orders') return; const o = this.clean(o0), gk = this.guideKey(o); this.seen[gk] = 1; LS.set('rayat.seen', this.seen);
+    if (this.isCap()) { const n = P.left[this.myTeam()] || 0; if (this.picks.length >= n) this.picks.shift(); this.picks.push(o); this.warned = false; this.send('ord', { l: this.picks, cy: P.cycle }); }
+    else this.send('sug', { o }); this.buzzV(20); this.render(); this.mapInfo(); },
+  // ---------- خريطة الطالب ثلاثية الأبعاد: كاميرا مستقلة لكل جوال، وحالة الأراضي متزامنة مع المسابقة ----------
+  // الخريطة في أعلى الشاشة، والسؤال والجرس والأوامر تبقى تحتها كما هي، فلا تتعارض اللمسات.
+  openMap() { const P = this.P; if (!P || !this.M || !P.vis || this.mapOpen) return; const box = document.createElement('div'); box.id = 'pmap';
+    box.innerHTML = `<canvas id="pmapc"></canvas><div class="pmbar"><button data-pm="all">🏝 كاملة</button><button data-pm="in">＋</button><button data-pm="out">－</button><button data-pm="l">⟲</button><button data-pm="r">⟳</button><button data-pm="x" class="x">✕ إغلاق</button></div><div class="pminfo hide" id="pminfo"></div><div class="pmhint" id="pmhint">اسحب للتحريك · إصبعان للتقريب والتدوير · المس أرضًا لمعلوماتها</div>`;
+    document.body.appendChild(box); document.body.classList.add('mapon'); this.mapOpen = true; this.mapSel = null; const cv = box.querySelector('canvas'), TT = P.teams.map(t => ({ name: t.name, color: t.color, mark: t.mark || t.name[0] }));
+    const ld = document.createElement('div'); ld.className = 'pmload'; ld.textContent = 'جارٍ تجهيز الخريطة…'; box.appendChild(ld); this.render();
+    setTimeout(() => { if (!this.mapOpen || !document.getElementById('pmap')) return;
+    try { const c = document.createElement('canvas'); if (!(c.getContext('webgl2') || c.getContext('webgl'))) throw new Error('no webgl'); const W = this.MW = RayatWorld(cv, this.M, TT, { seed: 91, lite: true, shadow: 1024, maxDpr: 1.5 });
+      W.fontsReady(); W.setState(P.vis); this.mvk = JSON.stringify(P.vis); W.resize(box.clientWidth, box.clientHeight); W.viewAll(); W.start(); this.mapOff = W.attachControls(cv, { onPick: r => { this.mapSel = r; this.mapInfo(); const h = document.getElementById('pmhint'); if (h) h.remove(); } });
+      const act = { all: () => W.viewAll(), in: () => W.zoomBy(.75), out: () => W.zoomBy(1.33), l: () => W.orbitBy(.4), r: () => W.orbitBy(-.4), x: () => this.closeMap() }; box.querySelector('.pmbar').onclick = e => { const b = e.target.closest('[data-pm]'); if (b) act[b.dataset.pm](); };
+      this.mapRz = () => { if (this.MW) this.MW.resize(box.clientWidth, box.clientHeight); }; addEventListener('resize', this.mapRz); }
+    catch (e) { // بديل بلا رسوم ثلاثية: خريطة مسطحة بالألوان نفسها
+      this.MW = null; cv.remove(); const d = document.createElement('div'); d.className = 'pm2d'; d.innerHTML = RayatMap.svg(this.M, { teams: TT.map(t => ({ ...t, emb: t.mark })), owner: P.vis.regions.map(r => r.owner), forts: new Set(P.vis.regions.filter(r => r.walls).map(r => r.id)) }); box.prepend(d);
+      box.querySelector('.pmbar').innerHTML = '<button data-pm="x" class="x">✕ إغلاق</button>'; box.querySelector('.pmbar').onclick = () => this.closeMap(); const h = box.querySelector('.pmhint'); if (h) h.textContent = 'جهازك لا يدعم العرض ثلاثي الأبعاد، فهذه خريطة مسطحة'; }
+    ld.remove(); }, 40); },
+  closeMap() { if (!this.mapOpen) return; this.mapOpen = false; if (this.mapOff) { this.mapOff(); this.mapOff = null; } if (this.mapRz) { removeEventListener('resize', this.mapRz); this.mapRz = null; } if (this.MW) { try { this.MW.dispose(); } catch (e) { } this.MW = null; }
+    const box = document.getElementById('pmap'); if (box) box.remove(); document.body.classList.remove('mapon'); this.mapSel = null; this.render(); },
+  // بطاقة الأرض المحددة: اسمها ونوعها وإنتاجها ومالكها وتحصيناتها، والأوامر المتاحة عليها الآن بحسب صلاحية الطالب
+  mapInfo() { const el = document.getElementById('pminfo'), P = this.P, r = this.mapSel; if (!el || !P) return; if (r == null || !this.M.regions[r] || !P.vis) { el.classList.add('hide'); return; }
+    const R = this.M.regions[r], v = P.vis.regions[r] || {}, T = P.teams, TY = { farm: 'مزرعة', mine: 'منجم', quarry: 'محجر', village: 'قرية', port: 'ميناء', rich: 'أرض غنية', capital: 'عاصمة', castle: 'القلعة الكبرى' }, Y = RayatRules.CFG.YIELD[R.type], t = this.myTeam();
+    const def = [v.walls ? 'سور' : '', v.tower ? 'برج مراقبة' : '', v.garrison ? (v.garrison === 'cav' ? 'حامية فرسان' : 'حامية مشاة') : ''].filter(Boolean);
+    let acts = ''; if (P.stage === 'orders' && t != null && (P.orderTeams || []).includes(t) && P.opts && P.opts[t]) { const all = [].concat(...Object.values(P.opts[t]).filter(Array.isArray)).filter(o => o.r === r), cap = this.isCap(); this.mapOpts = all;
+      acts = all.length ? `<div class="pma">${all.map((o, i) => { const [a, b] = this.optLabel(o); return `<button data-pmo="${i}">${cap ? 'أضف للخطة' : 'اقترح'}: ${esc(a)}<small>${esc(b)}</small></button>`; }).join('')}</div>` : `<div class="mut">لا أمر متاحًا لفريقك على هذه الأرض الآن</div>`; }
+    const html = `<button class="pmx" data-pmc>✕</button><b class="k">${esc(R.name)}</b><div class="pml"><span>${TY[R.type] || ''}${R.type === 'castle' ? ' · تُحسب بـ' + RayatRules.CFG.CASTLE_POINTS + ' أراضٍ' : ''}</span><span>المالك: <b style="color:${v.owner != null ? T[v.owner].color : 'inherit'}">${v.owner != null ? esc(T[v.owner].name) : 'محايدة'}</b></span></div><div class="pml"><span>تنتج كل جولة: ${Y ? costText(Y) : '—'}</span><span>${def.length ? 'التحصين: ' + def.join('، ') : 'بلا تحصين'}</span></div>${acts}`;
+    if (el.dataset.h !== html) { el.dataset.h = html; el.innerHTML = html; el.querySelector('[data-pmc]').onclick = () => { this.mapSel = null; this.mapInfo(); }; el.querySelectorAll('[data-pmo]').forEach(b => b.onclick = () => this.chooseOpt(this.mapOpts[+b.dataset.pmo])); } el.classList.remove('hide'); },
   optLabel(o) { const C = RayatRules.CFG.COST, T = this.P.teams, own = r => { const v = this.P.vis && this.P.vis.regions[r]; return v ? v.owner : null; };
     switch (o.k) {
       case 'supply': return [`تموين ${RES_AR[o.res]}`, `+${RayatRules.CFG.SUPPLY} ${RES_AR[o.res]}`];
@@ -124,9 +154,8 @@ const Phone = {
     $$('[data-tbuzz]').forEach(b => b.onclick = () => { this.send('tb', {}); this.buzzV(80); b.textContent = '✓'; b.disabled = true; });
     $$('[data-tab]').forEach(b => b.onclick = () => { this.tab = b.dataset.tab; this.render(); });
     $$('[data-gx]').forEach(b => b.onclick = e => { e.stopPropagation(); this.seen[b.dataset.gx] = 1; LS.set('rayat.seen', this.seen); this.render(); });
-    $$('[data-opt]').forEach(b => b.onclick = () => { const o = this.clean(this.curList[+b.dataset.opt]); const gk = this.guideKey(o); this.seen[gk] = 1; LS.set('rayat.seen', this.seen);
-      if (this.isCap()) { const n = P.left[this.myTeam()] || 0; if (this.picks.length >= n) this.picks.shift(); this.picks.push(o); this.warned = false; this.send('ord', { l: this.picks, cy: P.cycle }); }
-      else this.send('sug', { o }); this.buzzV(20); this.render(); });
+    $$('[data-opt]').forEach(b => b.onclick = () => this.chooseOpt(this.curList[+b.dataset.opt]));
+    $$('[data-map]').forEach(b => b.onclick = () => this.mapOpen ? this.closeMap() : this.openMap());
     $$('[data-unpick]').forEach(b => b.onclick = () => { const i = +b.dataset.unpick; if (this.picks[i]) { this.picks.splice(i, 1); this.warned = false; this.send('ord', { l: this.picks, cy: P.cycle }); this.render(); } });
     $$('[data-ready]').forEach(b => b.onclick = () => { if (P.paused) return; const t = this.myTeam(), chk = planCheck(this.picks, P.res[t]); if (chk.bad && !this.warned) { this.warned = true; this.render(); return; } this.send('ord', { l: this.picks, cy: P.cycle }); this.send('rdy', { cy: P.cycle }); });
     $$('[data-fix]').forEach(b => b.onclick = () => { this.warned = false; this.render(); });

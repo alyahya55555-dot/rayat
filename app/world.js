@@ -444,7 +444,10 @@
       mesh(box(.008, .06, .008), wood, [-.025, .055, -.01], null, g); mesh(box(.008, .06, .008), wood, [.025, .055, -.01], null, g); mesh(box(.06, .008, .008), wood, [0, .085, -.01], null, g);
       const arm = new THREE.Group(); arm.position.set(0, .04, -.01); g.add(arm); mesh(box(.007, .007, .11), wood, [0, 0, .045], null, arm); const cup = mesh(sph(.012, 10, 8), SMT.leather, [0, .006, .1], null, arm);
       mesh(box(.074, .02, .006), tm(o, 'cloth'), [0, .03, .056], null, g);
-      g.userData = { arm, cup, kind: 'cat', o }; g.scale.setScalar(UNIT_S); return g;
+      // جنديان يجرّانه بحبلين (اعتمده المستخدم): أمام المنجنيق، يمشيان معه ويقفان حين يقف
+      const haul = [-1, 1].map(k => { const m = soldier(o); scene.remove(m); m.scale.setScalar(1); m.position.set(k * .032, 0, .13); g.add(m); return m; });
+      [-1, 1].forEach(k => { const a = V(k * .03, .026, .058), b2 = V(k * .032, .034, .12), r = mesh(geo('rope', () => new THREE.CylinderGeometry(.0013, .0013, 1, 4)), mat('#8a6a42'), [(a.x + b2.x) / 2, (a.y + b2.y) / 2, (a.z + b2.z) / 2], null, g); r.scale.y = a.distanceTo(b2); r.quaternion.setFromUnitVectors(V(0, 1, 0), b2.clone().sub(a).normalize()); });
+      g.userData = { arm, cup, haul, kind: 'cat', o }; g.scale.setScalar(UNIT_S); return g;
     }
     function cart(o) { const g = new THREE.Group(); scene.add(g); mesh(box(.05, .022, .07), SMT.wood, [0, .03, 0], null, g); for (const z of [-.022, .022]) for (const x of [-.03, .03]) mesh(geo('wheel', () => new THREE.CylinderGeometry(.018, .018, .008, 12)), SMT.leather, [x, .018, z], [0, 0, Math.PI / 2], g);
       mesh(box(.046, .02, .05), mat('#d9c08f'), [0, .05, 0], null, g); mesh(box(.004, .004, .06), SMT.wood, [0, .03, .06], null, g); g.userData = { kind: 'cart', o }; g.scale.setScalar(UNIT_S); return g; }
@@ -454,7 +457,7 @@
       else if (u.kind === 'horse') { const gg = walking ? 1 : 0; u.legs[0].rotation.x = Math.sin(ph) * .55 * gg; u.legs[1].rotation.x = Math.sin(ph + .5) * .55 * gg; u.legs[2].rotation.x = -Math.sin(ph + .3) * .5 * gg; u.legs[3].rotation.x = -Math.sin(ph + .8) * .5 * gg;
         u.horse.position.y = walking ? Math.abs(Math.sin(ph)) * .012 : 0; u.horse.rotation.x = walking ? Math.sin(ph) * .06 : 0; u.neck.rotation.x = walking ? Math.sin(ph + 1) * .12 : Math.sin(t * 2 + i) * .04; u.tail.rotation.x = -2.4 + Math.sin(t * 6 + i) * .15;
         if (u.flag) { const a = u.flag.cl.geometry.attributes.position; for (let k = 0; k < a.count; k++) { const x = u.flag.base[k * 3], q = -x / u.flag.W; a.array[k * 3 + 2] = Math.sin(-x * 70 - t * 9 + i) * .006 * q; } a.needsUpdate = true; } }
-      else if (u.kind === 'cat' || u.kind === 'cart') { s.position.y += walking ? Math.abs(Math.sin(ph * .7)) * .003 : 0; return; }
+      else if (u.kind === 'cat' || u.kind === 'cart') { s.position.y += walking ? Math.abs(Math.sin(ph * .7)) * .003 : 0; if (u.haul) u.haul.forEach((m, k) => { const y0 = s.position.y; animUnit(m, t, walking, i + k + 7, false); m.position.y = 0; }); return; }
       if (u.spear) u.spear.rotation.x = fighting ? -.6 + Math.sin(t * 16 + i * 2) * .7 : (u.kind === 'horse' ? .9 : 0);
       if (u.cape) u.cape.rotation.x = .18 + (walking ? Math.sin(ph * .5) * .12 + .15 : 0);
     }
@@ -469,15 +472,15 @@
     function updatePuffs(t) { puffs = puffs.filter(p => { const k = (t - p.t0) / p.life; if (k > 1) { scene.remove(p.sp); p.sp.material.dispose(); return false; } if (k < 0) { p.sp.visible = false; return true; } p.sp.visible = true; p.sp.material.opacity = Math.sin(k * Math.PI) * p.op; p.sp.scale.setScalar(p.size * (.6 + k * 1.2)); p.sp.position.set(p.x + p.dx * k, p.y + p.vy * k, p.z + p.dz * k); return true; }); }
 
     // ---------- إيجاد المسارات (A*) بعيدًا عن كل العوائق ----------
-    const blockers = extra => [...OBST.filter(o => !o.soft), ...TREES.filter(o => o.s > .5), ...(extra || [])];
+    const blockers = (extra, minS = .05) => [...OBST.filter(o => !o.soft), ...TREES.filter(o => o.s > minS), ...(extra || [])]; // المسار يتجنب حتى الشجرة التي تنمو من جديد
     function findPath(a, b, clear = .07, extra) {
-      const cell = .04, minx = Math.min(a[0], b[0]) - 1, minz = Math.min(a[1], b[1]) - 1, nx = Math.ceil((Math.max(a[0], b[0]) + 1 - minx) / cell), nz = Math.ceil((Math.max(a[1], b[1]) + 1 - minz) / cell);
+      const mg = 1.6 * K, cell = .04, minx = Math.min(a[0], b[0]) - mg, minz = Math.min(a[1], b[1]) - mg, nx = Math.ceil((Math.max(a[0], b[0]) + mg - minx) / cell), nz = Math.ceil((Math.max(a[1], b[1]) + mg - minz) / cell);
       const blk = new Uint8Array(nx * nz), obs = blockers(extra);
       for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) { const x = minx + ix * cell, z = minz + iz * cell; if (coastDist(x, z) < .14 || groundY(x, z) > .45 * K) { blk[iz * nx + ix] = 1; continue; } }
       obs.forEach(o => { const rr = o.r + clear, i0 = Math.max(0, Math.floor((o.x - rr - minx) / cell)), i1 = Math.min(nx - 1, Math.ceil((o.x + rr - minx) / cell)), j0 = Math.max(0, Math.floor((o.z - rr - minz) / cell)), j1 = Math.min(nz - 1, Math.ceil((o.z + rr - minz) / cell));
         for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (Math.hypot(minx + i * cell - o.x, minz + j * cell - o.z) < rr) blk[j * nx + i] = 1; });
       const toI = p => [clamp(Math.round((p[0] - minx) / cell), 0, nx - 1), clamp(Math.round((p[1] - minz) / cell), 0, nz - 1)];
-      const [sx, sz] = toI(a), [gx, gz] = toI(b); [[sx, sz], [gx, gz]].forEach(([cx0, cz0]) => { for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const x2 = cx0 + dx, z2 = cz0 + dz; if (x2 >= 0 && z2 >= 0 && x2 < nx && z2 < nz) blk[z2 * nx + x2] = 0; } }); // مخرج صغير حول البداية والنهاية
+      const [sx, sz] = toI(a), [gx, gz] = toI(b); [[sx, sz], [gx, gz]].forEach(([cx0, cz0]) => { if (!blk[cz0 * nx + cx0]) return; for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const x2 = cx0 + dx, z2 = cz0 + dz; if (x2 >= 0 && z2 >= 0 && x2 < nx && z2 < nz) blk[z2 * nx + x2] = 0; } }); // مخرج صغير حول البداية والنهاية
       const N = nx * nz, gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), hp = [], push = (f, i) => { hp.push([f, i]); let k = hp.length - 1; while (k) { const pk = (k - 1) >> 1; if (hp[pk][0] <= hp[k][0]) break; [hp[pk], hp[k]] = [hp[k], hp[pk]]; k = pk; } }, pop = () => { const top = hp[0], last = hp.pop(); if (hp.length) { hp[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r2 = l + 1; let m = k; if (l < hp.length && hp[l][0] < hp[m][0]) m = l; if (r2 < hp.length && hp[r2][0] < hp[m][0]) m = r2; if (m === k) break; [hp[m], hp[k]] = [hp[k], hp[m]]; k = m; } } return top; }; push(0, sz * nx + sx); gs[sz * nx + sx] = 0;
       const H = (i) => Math.hypot(i % nx - gx, Math.floor(i / nx) - gz); let found = false, it = 0;
       while (hp.length && it++ < 400000) { const [fc, cur] = pop(); if (fc - H(cur) * 1.001 > gs[cur] + 1e-6) continue; if (cur === gz * nx + gx) { found = true; break; }
@@ -491,7 +494,9 @@
       return out;
     }
     // منحنى ناعم يمر بنقاط المسار، بطول قوسي
-    function curve(pts) { const v = pts.map(p => V(p[0], 0, p[1])); if (v.length === 2) v.splice(1, 0, v[0].clone().lerp(v[1], .5)); return new THREE.CatmullRomCurve3(v, false, 'centripetal', .2); }
+    // المنحنى يمر قريبًا من خط المسار: تُضاف نقاط على المقاطع الطويلة فلا ينتفخ المنحنى عند المنعطفات نحو شجرة أو بيت
+    function curve(pts) { const v = []; pts.forEach((p, i) => { const P = V(p[0], 0, p[1]); if (i) { const Q = v[v.length - 1], L = Q.distanceTo(P), n = Math.floor(L / .22); for (let k = 1; k <= n; k++) { const t = k / (n + 1); if (L * t > .06 && L * (1 - t) > .06) v.push(Q.clone().lerp(P, t)); } } v.push(P); });
+      if (v.length === 2) v.splice(1, 0, v[0].clone().lerp(v[1], .5)); return new THREE.CatmullRomCurve3(v, false, 'centripetal', .2); }
 
     // اليابسة والبحر: هل النقطة على أرض؟ ومسار بحري لا يلمس اليابسة
     const onLand = (x, z) => lands.some(L => { let c = false; for (let i = 0, j = L.length - 1; i < L.length; j = i++) { const [xi, zi] = L[i], [xj, zj] = L[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; });
@@ -524,7 +529,7 @@
     // أمام السور: نقطة خالية قبالة الأسوار من جهة المهاجم (للحصار)
     const RING = t => t === 'castle' ? { rx: .5 * SZ.keep, rz: .4 * SZ.keep, h: .2 * SZ.keep } : { rx: .24 * SZ.keep, rz: .19 * SZ.keep, h: .1 * SZ.keep };
     function wallFront(r, c0) { const I = R[r], tgt = M.regions[r], { rx, rz } = RING(tgt.type), a0 = Math.atan2(c0[1] - I.z, c0[0] - I.x);
-      for (let k = 0; k < 11; k++) { const aa = a0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .14; for (const o of [.24, .3, .2, .36]) { const x = I.x + Math.cos(aa) * (rx + o), z = I.z + Math.sin(aa) * (rz + o); if (!hitObst(x, z, .07) && coastDist(x, z) > .15 && !TREES.some(t => t.s > .5 && Math.hypot(t.x - x, t.z - z) < t.r + .06)) { const dd = Math.hypot(I.x - x, I.z - z) || 1; return { p: [x, z], dir: [(I.x - x) / dd, (I.z - z) / dd] }; } } }
+      for (let k = 0; k < 11; k++) { const aa = a0 + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .14; for (const o of [.24, .3, .2, .36, .44]) { const x = I.x + Math.cos(aa) * (rx + o), z = I.z + Math.sin(aa) * (rz + o); if (!hitObst(x, z, .12) && coastDist(x, z) > .25 && !TREES.some(t => t.s > .5 && Math.hypot(t.x - x, t.z - z) < t.r + .06)) { const dd = Math.hypot(I.x - x, I.z - z) || 1; return { p: [x, z], dir: [(I.x - x) / dd, (I.z - z) / dd] }; } } }
       return null; }
     function freeNear(x, z, rid, c = .05) { for (let k = 0; k < 24; k++) { const a2 = k * 2.4, rr = .06 + k * .012, px = x + Math.cos(a2) * rr, pz = z + Math.sin(a2) * rr; if ((rid == null || regionAtW(px, pz) === rid) && !hitObst(px, pz, c) && !TREES.some(t => t.s > .5 && Math.hypot(t.x - px, t.z - pz) < t.r + c)) return [px, pz]; } return [x, z]; }
     // إبحار السفينة: سرعة ثابتة على طول المسار، دوران ناعم مع الانعطاف، وأثر ماء خلفها
@@ -538,7 +543,7 @@
     // خطة الإنزال البحري: من ميناء الفريق (أو أقرب ساحل له) إلى شاطئ الإقليم المستهدف
     function navalPlan(a, ally, r) { const tgt = M.regions[r], [tx, tz] = at(tgt), mine = j => W.owner[j] === a || (ally != null && W.owner[j] === ally);
       const own = M.regions.filter(q => mine(q.id) && q.type !== 'castle'); if (!own.length) { W._why = 'own'; return null; } const ports = own.filter(q => R[q.id].port), srcs = ports.length ? ports : own;
-      const exitRay = (cx, cz, id, ang) => { const ux = Math.cos(ang), uz = Math.sin(ang); for (let s2 = .05; s2 < 2.6; s2 += .02) { const x = cx + ux * s2, z = cz + uz * s2; if (!onLand(x, z)) { const b = [cx + ux * (s2 - .1), cz + uz * (s2 - .1)]; if (regionAtW(...b) !== id) return null; return { shore: b, sea: [cx + ux * (s2 + .22), cz + uz * (s2 + .22)], u: [ux, uz] }; } } return null; };
+      const exitRay = (cx, cz, id, ang) => { const ux = Math.cos(ang), uz = Math.sin(ang); for (let s2 = .05; s2 < 2.6; s2 += .02) { const x = cx + ux * s2, z = cz + uz * s2; if (!onLand(x, z)) { const b = [cx + ux * (s2 - .2), cz + uz * (s2 - .2)]; if (regionAtW(...b) !== id || coastDist(...b) < .08) return null; return { shore: b, sea: [cx + ux * (s2 + .22), cz + uz * (s2 + .22)], u: [ux, uz] }; } } return null; };
       let best = null;
       srcs.forEach(q => { const I = R[q.id]; let sea = null; if (I.port) { const ux = Math.cos(I.port.dir), uz = Math.sin(I.port.dir); let q = 0; while (q < 1.5 && onLand(I.port.x + ux * q, I.port.z + uz * q)) q += .03; sea = [I.port.x + ux * (q + .15), I.port.z + uz * (q + .15)]; } else { let bb = null; for (let k = 0; k < 24; k++) { const e2 = exitRay(I.x, I.z, q.id, k / 24 * 6.283); if (e2) { const d = Math.hypot(e2.sea[0] - tx, e2.sea[1] - tz); if (!bb || d < bb.d) bb = { d, sea: e2.sea }; } } if (bb) sea = bb.sea; }
         if (!sea) return; for (let k = 0; k < 36; k++) { const e2 = exitRay(tx, tz, r, k / 36 * 6.283); if (!e2) continue; const d = Math.hypot(e2.sea[0] - sea[0], e2.sea[1] - sea[1]); if (!best || d < best.d) best = { d, seaA: sea, land: e2 }; } });
@@ -616,9 +621,16 @@
     let camT = 0; const camVel = { pos: V(0, 0, 0), look: V(0, 0, 0) }, _ch = V(0, 0, 0), _tp = V(0, 0, 0), _g1 = V(0, 0, 0), _g2 = V(0, 0, 0);
     function sdamp(cur, tgt, vel, st, dt) { const om = 2 / st, x = om * dt, ex = 1 / (1 + x + .48 * x * x + .235 * x * x * x); _ch.copy(cur).sub(tgt); _tp.copy(vel).addScaledVector(_ch, om).multiplyScalar(dt); vel.sub(_tp.clone().multiplyScalar(om)).multiplyScalar(ex); cur.copy(tgt).add(_ch.add(_tp).multiplyScalar(ex)); }
     // لقطة بلا حجب: نجرّب زوايا حول الهدف ونختار الأقرب للمفضّلة التي لا يحجبها جبل
+    // هل يحجب بيت أو شجرة أو جبل أو راية خطَّ النظر بين الكاميرا والهدف؟
+    function losBlocked(cp, tp) { const L = Math.hypot(cp.x - tp.x, cp.z - tp.z), n = Math.max(6, Math.ceil(L / .06));
+      for (let k = 1; k < n - 1; k++) { const q = k / n, x = lerp(tp.x, cp.x, q), z = lerp(tp.z, cp.z, q), y = lerp(tp.y + .05, cp.y, q), gy = groundY(x, z); if (q > .06 && gy > y - .03) return true;
+        if (q < .12) continue; if (OBST.some(o => !o.soft && (o.k === 'بيت' || o.k === 'سور' || o.k === 'برج') && Math.hypot(o.x - x, o.z - z) < o.r * .9 && y < gy + .26 * SZ.house)) return true;
+        if (TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r * .9 && y < gy + .34 * o.t[3])) return true; }
+      return false; }
     function clearView(focus, prefAz, dist, h) { let best = null;
       for (let k = 0; k < 24; k++) { const da = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * Math.PI / 12, az = prefAz + da, pos = focus.clone().add(V(Math.cos(az) * dist, h, Math.sin(az) * dist));
         let ok = true; for (let q = .08; q < .95; q += .04) { const x = lerp(focus.x, pos.x, q), z = lerp(focus.z, pos.z, q), y = lerp(focus.y + .06, pos.y, q); if (groundY(x, z) > y - .03 || (q > .35 && flags.some(f => f.g && Math.hypot(f.g.position.x - x, f.g.position.z - z) < .16 && f.g.position.y + (f.h || .5) + .05 > y))) { ok = false; break; } }
+        if (ok && losBlocked(pos, focus)) ok = false;
         if (ok) { best = pos; break; } }
       return { pos: best || focus.clone().add(V(0, h * 1.6, dist * .6)), look: focus.clone().add(V(0, .06, 0)) }; }
     const sideView = (focus, dir, dist = 2.3, h = 2.3) => clearView(focus, Math.atan2(dir[0], -dir[1]) , Math.hypot(dist, .2), h);
@@ -682,7 +694,8 @@
       const pts = sharedEdge(fromId, toId), [ax, az] = at(M.regions[fromId]), [bx, bz] = at(M.regions[toId]);
       const mid = pts.length ? pts.reduce((s, p) => [s[0] + p[0] / pts.length, s[1] + p[1] / pts.length], [0, 0]) : [(ax + bx) / 2, (az + bz) / 2];
       const cand = (pts.length ? pts : [mid]).map(p => ({ p, d: Math.hypot(p[0] - mid[0], p[1] - mid[1]) })).sort((x, y) => x.d - y.d);
-      for (const c of cand) { const p = c.p; if (hitObst(p[0], p[1], .1) || TREES.some(o => o.s > .5 && Math.hypot(o.x - p[0], o.z - p[1]) < o.r + .08)) continue; return p; }
+      for (const c of cand) { const p = c.p; if (coastDist(p[0], p[1]) < .28 || groundY(p[0], p[1]) > .36 * K || hitObst(p[0], p[1], .1) || TREES.some(o => o.s > .5 && Math.hypot(o.x - p[0], o.z - p[1]) < o.r + .08)) continue; return p; }
+      for (const c of cand) { const p = c.p; if (coastDist(p[0], p[1]) < .18 || groundY(p[0], p[1]) > .42 * K || hitObst(p[0], p[1], .08)) continue; return p; } // نقطة العبور بعيدة عن الشاطئ
       return cand[0].p;
     }
     // ترتيب الجيش حسب نوع الوحدة
@@ -691,20 +704,22 @@
       if (unit === 'cav') { for (let i = 0; i < 4; i++) mk(i % 2 && ally != null ? ally : team, 'r', i); }
       else if (unit === 'cat') { for (let i = 0; i < (small ? 4 : 6); i++) mk(i % 2 && ally != null ? ally : team, 'f', i); mk(team, 'c', 0); } // المنجنيق في المؤخرة: يقف على مسافة من السور
       else if (small) { for (let i = 0; i < 6; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); }
-      else { mk(team, 'r', 0); for (let i = 0; i < 8; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); }
+      else { for (let i = 0; i < 8; i++) mk(i % 2 && ally != null ? ally : team, 'f', i); mk(team, 'r', 0); } // القائد الراكب خلف جنوده
       return list; }
-    const spacing = u => (u.userData.kind === 'horse' ? .12 : u.userData.kind === 'cat' ? .14 : u.userData.kind === 'cart' ? .09 : .065) * SZ.unit * Math.max(1, u.scale.x / UNIT_S);
+    const spacing = u => (u.userData.kind === 'horse' ? .12 : u.userData.kind === 'cat' ? .3 : u.userData.kind === 'cart' ? .09 : .065) * SZ.unit * Math.max(1, u.scale.x / UNIT_S);
     // يضع الوحدات على المنحنى صفًا (اثنين اثنين للمشاة) بحسب موضع المقدمة
     function muster(cross, dir, back, regId) { const freeAt = (x, z, c) => coastDist(x, z) > .2 && !hitObst(x, z, c) && !TREES.some(o => o.s > .5 && Math.hypot(o.x - x, o.z - z) < o.r + c) && groundY(x, z) < .4;
       for (const extra of [0, .1, .2, -.1, .3]) for (let k = 0; k < 13; k++) { const da = (k % 2 ? 1 : -1) * Math.ceil(k / 2) * .14, c = Math.cos(da), sn = Math.sin(da), dx = dir[0] * c - dir[1] * sn, dz = dir[0] * sn + dir[1] * c, x = cross[0] - dx * (back + extra), z = cross[1] - dz * (back + extra);
         if (regId != null && regionAtW(x, z) !== regId && k < 12) continue; if (freeAt(x, z, .1)) return [x, z]; }
-      return [cross[0] - dir[0] * back, cross[1] - dir[1] * back]; }
+      for (let k = 0; k < 40; k++) { const a2 = k * 2.4, rr = .1 + k * .03, x = cross[0] - dir[0] * back + Math.cos(a2) * rr, z = cross[1] - dir[1] * back + Math.sin(a2) * rr; if ((regId == null || regionAtW(x, z) === regId) && freeAt(x, z, .08)) return [x, z]; }
+      return regId != null ? R[regId].yard.slice() : [cross[0] - dir[0] * back, cross[1] - dir[1] * back]; } // لا تجمّع في الماء أبدًا
     function placeColumn(units, crv, len, s, walking, t, retreat = false, hide = false) {
       let off = 0; const out = [];
-      units.forEach((u, i) => { const k = u.userData.kind; const pair = k === 'foot' ? (i % 2 ? .028 : -.028) : 0; if (k !== 'foot' || i % 2 === 0) off += spacing(u) * (i ? 1 : 0);
+      units.forEach((u, i) => { const k = u.userData.kind, narrow = !!crv.narrow; const pair = k === 'foot' && !narrow ? (i % 2 ? .028 : -.028) * SZ.unit : 0; if (k !== 'foot' || i % 2 === 0 || narrow) off += spacing(u) * (i ? 1 : 0);
         if (hide) u.visible = s - off > .002; const ss = clamp((s - off) / len, 0, 1), p = crv.getPointAt(ss), tg = crv.getTangentAt(Math.min(.999, Math.max(.001, ss))); const x = p.x - tg.z * pair, z = p.z + tg.x * pair;
         u.position.set(x, groundY(x, z), z); u.rotation.y = Math.atan2(tg.x, tg.z) + (retreat ? Math.PI : 0); animUnit(u, t, walking, i, false); out.push(u);
-        if (W.audit && u.visible !== false) { const rr = k === 'horse' ? .05 : k === 'cat' ? .06 : .025; blockers().forEach(o => { const dd = Math.hypot(o.x - x, o.z - z) - o.r - rr; if (dd < -.005) W.hits.push([o.k || 'شجرة', +dd.toFixed(3), +x.toFixed(2), +z.toFixed(2), k, +s.toFixed(2)]); }); } });
+        if (W.audit && u.visible !== false && (!onLand(x, z) || coastDist(x, z) < .02)) W.hits.push(['ماء', +coastDist(x, z).toFixed(3), +x.toFixed(2), +z.toFixed(2), k, +s.toFixed(2), i, +ss.toFixed(3), +len.toFixed(2)]);
+        if (W.audit && u.visible !== false) { const rr = k === 'horse' ? .05 : k === 'cat' ? .06 : .025; blockers(null, .5).forEach(o => { const dd = Math.hypot(o.x - x, o.z - z) - o.r - rr; if (dd < -.005) W.hits.push([o.k || 'شجرة', +dd.toFixed(3), +x.toFixed(2), +z.toFixed(2), k, +s.toFixed(2), i, +ss.toFixed(3), +len.toFixed(2)]); }); } });
       return off; }
 
     // مشهد الهجوم الكامل
@@ -715,12 +730,12 @@
       const c0 = crossing(fromId, r), [fx, fz] = at(M.regions[fromId]), dir0 = [c0[0] - fx, c0[1] - fz], dl = Math.hypot(...dir0) || 1, dirB = [dir0[0] / dl, dir0[1] / dl], wallF = !nav && (tgt.type === 'castle' || tgt.type === 'capital') && d != null ? wallFront(r, c0) : null, cross = nav ? nav.cross : wallF ? wallF.p : c0, dir = nav ? nav.dir : wallF ? wallF.dir : dirB;
       const units = army(a, unit, ally, !!nav), colLen = units.reduce((s, u, i) => s + (u.userData.kind !== 'foot' || i % 2 === 0 ? spacing(u) : 0), 0);
       // نقطة التجمّع: خالية تمامًا داخل أرض المهاجم، خلف الحد بطول الصف ومسافة المسير
-      const endP = [cross[0] - dir[0] * .02, cross[1] - dir[1] * .02], start = nav ? nav.shore : wallF ? muster(c0, dirB, colLen + .3, fromId) : muster(cross, dir, colLen + .5, fromId);
-      const full = (nav ? findPath(start, endP, .05) : findPath(start, endP, .08)) || [start, endP];
-      const crv = curve(full), len = crv.getLength(), s0 = colLen + .02, s1 = len;
+      const endP = [cross[0] - dir[0] * .05 * SZ.unit, cross[1] - dir[1] * .05 * SZ.unit], start = nav ? nav.shore : wallF ? muster(c0, dirB, colLen + .3, fromId) : muster(cross, dir, colLen + .5, fromId);
+      let narrow = false; const full = (nav ? findPath(start, endP, .06) : findPath(start, endP, .09)) || (narrow = true, findPath(start, endP, .05)) || [start, endP]; // في الممر الضيق يمشون صفًّا واحدًا
+      const crv = curve(full); crv.narrow = narrow; const colL = narrow ? units.reduce((a2, u, i) => a2 + (i ? spacing(u) : 0), 0) : colLen, len = crv.getLength(), s0 = Math.min(colL + .02, len * .9), s1 = len;
       // المدافعون عند الحد من جهة الهدف (أو الحامية)
       const I = R[r], defs = []; const dO = d;
-      if (dO != null && tgt.type !== 'castle' && tgt.type !== 'capital') { for (let i = 0; i < 6; i++) { const off = (i - 2.5) * .07 * SZ.unit, row = i % 2 ? .07 * SZ.unit : 0; const px = cross[0] + dir[0] * (.08 + row) - dir[1] * off, pz = cross[1] + dir[1] * (.08 + row) + dir[0] * off; if (hitObst(px, pz, .03) || coastDist(px, pz) < .15) continue; const u = soldier(dO); u.position.set(px, groundY(px, pz), pz); u.rotation.y = Math.atan2(-dir[0], -dir[1]); defs.push(u); } }
+      if (dO != null && tgt.type !== 'castle' && tgt.type !== 'capital') { for (let i = 0; i < 6; i++) { const off = (i - 2.5) * .07 * SZ.unit, row = i % 2 ? .075 * SZ.unit : 0; const px = cross[0] + dir[0] * (.09 * SZ.unit + row) - dir[1] * off, pz = cross[1] + dir[1] * (.09 * SZ.unit + row) + dir[0] * off; if (hitObst(px, pz, .03) || coastDist(px, pz) < .15) continue; const u = soldier(dO); u.position.set(px, groundY(px, pz), pz); u.rotation.y = Math.atan2(-dir[0], -dir[1]); defs.push(u); } }
       if (tgt.type === 'castle' || tgt.type === 'capital') { const RG = RING(tgt.type); for (let i = 0; i < 4; i++) { if (dO == null) break; const a2 = Math.atan2(cross[1] - I.z, cross[0] - I.x) + (i - 1.5) * .18; const px = I.x + Math.cos(a2) * (RG.rx - .02), pz = I.z + Math.sin(a2) * (RG.rz - .02); const u = soldier(dO); u.position.set(px, groundY(px, pz) + RG.h, pz); u.rotation.y = a2 + Math.PI / 2 - Math.PI / 2; defs.push(u); } }
       return { nav, fromId, c0, cross, dir, dirB, wallF, units, colLen, endP, start, full, crv, len, s0, s1, I, defs }; }
     W.attack = async (e) => {
@@ -739,7 +754,7 @@
       const chase = () => { const f = units[0].position, q = SZ.unit; return cavShot
         ? (() => { const m = units[Math.min(1, units.length - 1)].position; return { pos: lift(V(m.x + side[0] * 1.55 * q - dir[0] * .35, m.y + .55 * q, m.z + side[1] * 1.55 * q - dir[1] * .35), .3), look: V(m.x + dir[0] * .3, m.y + .04, m.z + dir[1] * .3) }; })()
         : (() => { const p = lift(V(f.x - dir[0] * 1.55 * q + side[0] * .45, f.y + 1.3 * q, f.z - dir[1] * 1.55 * q + side[1] * .45), .45); // لا راية بين الكاميرا والجيش: إن اعترضت راية خط النظر ارتفعت الكاميرا حتى تتجاوزها
-          let need = 0; for (let k = 0; k < 8; k++) { const hit = flags.some(fl => { if (!fl.g || !fl.g.visible) return false; const gx = fl.g.position.x, gz = fl.g.position.z, vx = f.x - p.x, vz = f.z - p.z, L2 = vx * vx + vz * vz || 1, u = clamp(((gx - p.x) * vx + (gz - p.z) * vz) / L2), dx = p.x + vx * u - gx, dz = p.z + vz * u - gz; if (Math.hypot(dx, dz) > .3) return false; const lineY = lerp(p.y, f.y + .1, u); return fl.g.position.y + (fl.h || .6) * (fl.g.scale ? fl.g.scale.y : 1) > lineY - .05; }); if (!hit) break; p.y += .25; need += .25; }
+          let need = 0; for (let k = 0; k < 8; k++) { const hit = flags.some(fl => { if (!fl.g || !fl.g.visible) return false; const gx = fl.g.position.x, gz = fl.g.position.z, vx = f.x - p.x, vz = f.z - p.z, L2 = vx * vx + vz * vz || 1, u = clamp(((gx - p.x) * vx + (gz - p.z) * vz) / L2), dx = p.x + vx * u - gx, dz = p.z + vz * u - gz; if (Math.hypot(dx, dz) > .3) return false; const lineY = lerp(p.y, f.y + .1, u); return fl.g.position.y + (fl.h || .6) * (fl.g.scale ? fl.g.scale.y : 1) > lineY - .05; }); if (!hit && !losBlocked(p, V(f.x, f.y + .04, f.z))) break; p.y += .25; need += .25; }
           p.y -= need; chaseLift += (need - chaseLift) * Math.min(1, Math.max(0, W.time - chaseT) * 2.5); chaseT = W.time; p.y += chaseLift; // الارتفاع فوق الرايات يتغير بنعومة لا قفزًا
           return { pos: p, look: V(f.x + dir[0] * .8, f.y, f.z + dir[1] * .8) }; })(); };
       let chaseLift = 0, chaseT = W.time; const startCam = () => { camTo(chase(), 1.1); camFollow(chase); };
@@ -786,14 +801,17 @@
           if (lt > T.march[1] - 1.4 && lt < T.clash[1] && lt > nextArrow && defs.length) { nextArrow = lt + .11; const fromDef = Math.random() < .7, A = fromDef ? defs[Math.floor(Math.random() * defs.length)] : units[Math.floor(Math.random() * Math.min(5, units.length))], B = fromDef ? units[Math.floor(Math.random() * Math.min(5, units.length))] : defs[Math.floor(Math.random() * defs.length)];
             if (A && B && A.visible !== false && B.visible !== false) { const m = new THREE.Mesh(arrowGeo, arrowMat); scene.add(m); arrows.push({ m, p0: A.position.clone().add(V(0, .05, 0)), p1: B.position.clone().add(V((Math.random() - .5) * .05, .02, (Math.random() - .5) * .05)), t0: lt }); } }
           for (let i = arrows.length - 1; i >= 0; i--) { const ar = arrows[i], q = (lt - ar.t0) / .55; if (q >= 1) { scene.remove(ar.m); arrows.splice(i, 1); continue; } const h = .14 + ar.p0.distanceTo(ar.p1) * .15, P0 = ar.p0.clone().lerp(ar.p1, q), P1 = ar.p0.clone().lerp(ar.p1, Math.min(1, q + .02)); P0.y += Math.sin(q * Math.PI) * h; P1.y += Math.sin(Math.min(1, q + .02) * Math.PI) * h; ar.m.position.copy(P0); ar.m.quaternion.setFromUnitVectors(V(0, 1, 0), P1.sub(P0).normalize()); } }
-        const fight = lt > T.clash[0] && lt < T.clash[1]; if (fight) units.forEach((u, i) => { if (i < 5) { u.position.x += Math.sin(lt * 23 + i) * .006 + dir[0] * .05 * seg(lt, T.clash[0], T.clash[0] + .5); u.position.z += Math.cos(lt * 19 + i) * .006 + dir[1] * .05 * seg(lt, T.clash[0], T.clash[0] + .5); animUnit(u, lt, false, i, true); } });
+        const fight = lt > T.clash[0] && lt < T.clash[1]; if (fight) units.forEach((u, i) => { if (i < 5) { u.position.x += Math.sin(lt * 23 + i) * .005 + dir[0] * .028 * seg(lt, T.clash[0], T.clash[0] + .5); u.position.z += Math.cos(lt * 19 + i) * .005 + dir[1] * .028 * seg(lt, T.clash[0], T.clash[0] + .5); animUnit(u, lt, false, i, true); } });
         if (catU && shot) { const arm = catU.userData.arm, cup = catU.userData.cup, wk = ease(seg(lt, shot.t + .1, shot.rel - .1)), fk = seg(lt, shot.rel, shot.rel + .16);
           arm.rotation.x = lt < shot.rel ? .55 * wk : lerp(.55, -1.2, ease(fk)) * (1 - .6 * seg(lt, shot.rel + .5, shot.rel + 1.4));
           if (lt > shot.t + .45 && lt < shot.rel) { stone.visible = true; cup.getWorldPosition(stone.position); stone.position.y += .008; }
           else if (lt >= shot.rel && lt < shot.hit) { if (!shot.p0) { shot.p0 = V(0, 0, 0); cup.getWorldPosition(shot.p0); } const q = seg(lt, shot.rel + .04, shot.hit), H = .22 + shot.p0.distanceTo(shot.to) * .28; stone.visible = true; stone.position.lerpVectors(shot.p0, shot.to, q); stone.position.y += Math.sin(q * Math.PI) * H; shadow.visible = true; shadow.position.set(stone.position.x, groundY(stone.position.x, stone.position.z) + .006, stone.position.z); shadow.material.opacity = .12 + .2 * q; }
           else { stone.visible = false; shadow.visible = false; }
           if (lt >= shot.hit && !shot.done) { shot.done = true; W.slowUntil = W.time + .45; W.shake(.014, .4); breach(); for (let i = 0; i < 14; i++) puff(shot.to.x + (rnd() - .5) * .12, shot.to.y, shot.to.z + (rnd() - .5) * .12, t + i * .02, { col: '#bdb39b', size: .2 + rnd() * .12, life: 1.1 + rnd() * .4, op: .75 }); }
-          if (lt > shot.t + .2 && lt < shot.rel + .3 && !shot.cam) { shot.cam = true; const mid = catU.position.clone().lerp(shot.to, .32), sep = catU.position.distanceTo(shot.to); camTo(sideView(V(mid.x, groundY(mid.x, mid.z), mid.z), dir, Math.max(1.7, sep * 1.35), Math.max(1.15, sep * .85)), 1.1); } }
+          // لقطة الرامي: من خلف المنجنيق نحو السور، فيرى المتفرج الشدّ والإطلاق والحجر وهو يطير حتى يصيب
+          if (lt > shot.t + .05 && !shot.cam) { shot.cam = true; const cp = catU.position, dx = shot.to.x - cp.x, dz = shot.to.z - cp.z, dl = Math.hypot(dx, dz) || 1, ux = dx / dl, uz = dz / dl, q = SZ.unit;
+            let pos = V(cp.x - ux * .62 * q + uz * .16, groundY(cp.x, cp.z) + .36 * q, cp.z - uz * .62 * q - ux * .16), look = shot.to.clone().lerp(cp, .25); look.y = Math.max(look.y, groundY(look.x, look.z) + .06);
+            for (let k = 0; k < 6 && losBlocked(pos, shot.to); k++) pos.y += .18; camTo({ pos, look }, 1.0); } }
         crumble(t); for (let i = chunks.length - 1; i >= 0; i--) { const c = chunks[i], tt = t - c.t0, gy = groundY(c.m.position.x, c.m.position.z) + .006; if (c.m.position.y <= gy && tt > .1) continue; c.m.position.x += c.v.x * .016; c.m.position.z += c.v.z * .016; c.m.position.y = Math.max(gy, shot.to.y + c.v.y * tt - 1.6 * tt * tt); c.m.rotation.x += .2; }
         // إن صمد المدافع والسور مهدوم: تتساقط بقيته ركامًا (لا يبقى سور قائم بعد ضربة المنجنيق)
         if (shot && shot.fort && !won && lt > T.res[0] + .3 && I.fort && !I.fort.userData.allDown) { I.fort.userData.allDown = true; I.fort.children.forEach((m, i) => { if (m.userData.fallAt == null) { m.userData.fallAt = W.time + .08 * i; m.userData.p0 = m.position.clone(); m.userData.r0 = m.rotation.z; } }); }
@@ -814,7 +832,7 @@
         if (carry) { const q = ease(seg(lt, T.res[0] + .3, T.end - .1)); placeColumn(carry.cu, carry.cc, carry.cl, lerp(.16, Math.max(.17, carry.cl), q), q > 0 && q < 1, lt); }
         if (result === 'loot' && lt > T.res[0] && !looted) { looted = true; W.emit('sfx', { k: 'loot', at: 0 }); for (let i = 0; i < 14; i++) puff(I.x + (rnd() - .5) * .25, groundY(I.x, I.z) + .15, I.z + (rnd() - .5) * .2, t + i * .05, { col: '#ffd24a', size: .07, life: .7, vy: .3, spread: .5, additive: true, op: 1 }); }
         if (lt > T.clash[0] - .15 && !camMoved) { camMoved = true; W.shake(.008, .35); camTo(sideView(focus.clone().lerp(V(I.x, focus.y, I.z), .3), dir, 2.4, 2.2), FIRE ? 1.0 : 1.4); }
-        if (taken && lt > T.res[0] + .9 && !W._top) { W._top = true; const gy = groundY(I.x, I.z); camTo({ pos: V(I.x - dir[0] * .4, gy + 2.5 * K, I.z - dir[1] * .4 + 1.0 * K), look: V(I.x, gy, I.z) }, 1.5); }
+        if (taken && lt > T.res[0] + .9 && !W._top) { W._top = true; const c0p = camNow.pos.clone(), c0l = camNow.look.clone(), lk = c0l.clone().lerp(V(I.x, groundY(I.x, I.z), I.z), .35); camTo({ pos: c0p.clone().add(V(0, .9 * K, 0)).lerp(lk, .08), look: lk }, 1.8); } // ارتفاع هادئ فوق المعركة نفسها ليُرى سريان اللون
         return lt >= T.end || W.skipping; });
       // التنظيف: الجيش يتلاشى بعيدًا عن الكاميرا
       W._top = false; units.forEach(disposeUnit); defs.forEach(disposeUnit); if (stone) scene.remove(stone); if (shadow) scene.remove(shadow); chunks.forEach(c => scene.remove(c.m)); if (shot && shot.fort && e.wallsBroken !== false) setFort(r, false); if (ship) scene.remove(ship); ladders.forEach(l => scene.remove(l)); arrows.forEach(ar => scene.remove(ar.m)); if (carry) carry.cu.forEach(disposeUnit);
@@ -877,7 +895,7 @@
       if (prev[toId] === undefined) return null; const chain = []; for (let x = toId; x !== -1; x = prev[x]) chain.unshift(x);
       const wp = [R[fromId].yard]; for (let i = 0; i + 1 < chain.length; i++) wp.push(crossing(chain[i], chain[i + 1])); wp.push(R[toId].yard);
       const gate = (id, toward) => { const t2 = M.regions[id].type; if (t2 !== 'capital' && t2 !== 'castle') return null; const wf = wallFront(id, toward); return wf ? wf.p : null; }; if (wp.length > 2) { const g0 = gate(fromId, wp[1]), g1 = gate(toId, wp[wp.length - 2]); if (g0) wp[0] = g0; if (g1) wp[wp.length - 1] = g1; }
-      let out = []; for (let i = 0; i + 1 < wp.length; i++) { const seg2 = findPath(wp[i], wp[i + 1], .06) || [wp[i], wp[i + 1]]; out = out.concat(i ? seg2.slice(1) : seg2); } return out; }
+      let out = []; for (let i = 0; i + 1 < wp.length; i++) { const seg2 = findPath(wp[i], wp[i + 1], .09) || findPath(wp[i], wp[i + 1], .06) || [wp[i], wp[i + 1]]; out = out.concat(i ? seg2.slice(1) : seg2); } return out; }
     // لقطة تجمع عاصمتين في الإطار (للتحالف ونقضه)
     function pairView(a, b) { const A = R[M.caps[a]], B = R[M.caps[b]]; if (!A || !B) return overview(); const mx = (A.x + B.x) / 2, mz = (A.z + B.z) / 2, sep = Math.hypot(A.x - B.x, A.z - B.z), d = Math.max(2.8, sep * 1.6 + 1.4), asp = camera.aspect || 1.6, k = asp < 1 ? 1.6 / asp : 1;
       return { pos: V(mx - .2, d * .95 * k, mz + d * .8 * k), look: V(mx, .3, mz - .35) }; }
@@ -910,8 +928,8 @@
         return lt >= (betray ? 3.0 : 2.6) || W.skipping; });
       scene.remove(th.mesh); if (half) scene.remove(half); delete threads[k]; camTo(overview(), 1); sceneDone(); W.busy = false; };
     // المرحلة: تحليق الكاميرا وتبدّل الجو
-    W.phase = async ({ key }) => { W.busy = true; setSky(key, 5); const tw = W.time, o = overview();
-      camTo({ pos: o.pos.clone().multiplyScalar(.82).add(V(4, 0, 0)), look: o.look.clone() }, 2.4); await run(t => t - tw >= 2.6 || W.skipping); camTo(o, 2.2); await run(t => t - tw >= 4.8 || W.skipping); sceneDone(); W.busy = false; };
+    W.phase = async ({ key, hold = 0 }) => { W.busy = true; setSky(key, 5); const tw = W.time, o = overview();
+      camTo({ pos: o.pos.clone().multiplyScalar(.82).add(V(4, 0, 0)), look: o.look.clone() }, 2.4); await run(t => t - tw >= 2.6 || W.skipping); camTo(o, 2.2); await run(t => t - tw >= Math.max(4.8, hold) || W.skipping); sceneDone(); W.busy = false; }; // hold: وقت قراءة ما انفتح
     W.setSky = (key, d = 0) => setSky(key, d);
     W.focusRegion = (r, d = 1.2) => { const I = R[r]; const f = V(I.x, groundY(I.x, I.z), I.z); camTo(nearView(f, 4.6, 3.2), d); };
     W.overview = (d = 1.4) => { W.faceoffEnd(); camTo(overview(), d); };
@@ -933,6 +951,7 @@
       const pose = () => { const tt = W.time - t0, az = Math.sin(tt * .045) * .3, look = V(f[0] + Math.sin(tt * .035) * .5 * K, 0, f[1]); return { pos: V(look.x + Math.sin(az) * Math.cos(el) * dist, Math.sin(el) * dist, look.z + Math.cos(az) * Math.cos(el) * dist), look }; };
       camTo(pose(), 2.6); camFollow(pose); };
     // معلومات القلعة فوقها: صاحبها وجولات أمانه
+    W._dbg = { trees: () => TREES, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
     W.setCastle = (info) => { const k = JSON.stringify(info || {}); if (k === W._ck) return; W._ck = k; W.castleInfo = info || {}; const c = M.regions.find(x => x.type === 'castle'); if (c) makeLabel(c); };
 
     // ---------- الإطار ----------

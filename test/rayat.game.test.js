@@ -15,6 +15,6 @@ for (let seed = 1; seed <= 24; seed++) {
 }
 // لا تسريب للإجابة أثناء السؤال
 { const r = play(99, 3, 2, {}); const g = r.g; ok(true, ''); }
-{ let clock = 1e12; const g = new RayatGame({ now: () => clock, bank: globalThis.RAYAT_BANK, binis: [], teams: [{ name: 'أ', color: '#f00' }, { name: 'ب', color: '#0f0' }] }); g.join('x', 'س', 0); g.join('y', 'ص', 1); g.start(); clock += 7000; g.tick();
+{ let clock = 1e12; const g = new RayatGame({ now: () => clock, bank: globalThis.RAYAT_BANK, binis: [], teams: [{ name: 'أ', color: '#f00' }, { name: 'ب', color: '#0f0' }] }); g.join('x', 'س', 0); g.join('y', 'ص', 1); g.start(); clock += 9000; g.tick(); // بطاقة المرحلة تطول بقدر ما ينفتح (كل سطر قرابة ثانيتين)
   ok(g.s.stage === 'question', 'بعد مشهد المرحلة يأتي السؤال'); const P = g.pub(); ok(P.q && P.q.a === undefined, 'الإجابة الصحيحة لا تُنشر أثناء السؤال'); g.answer('x', P.q.id, 0); g.answer('y', P.q.id, 1); ok(g.s.stage === 'reveal', 'إذا أجاب الجميع يُكشف فورًا'); ok(g.pub().q.a !== undefined, 'الإجابة تُنشر عند الكشف'); }
 console.log(`تدفق رايات: ${pass} نجح، ${fail} فشل`); process.exit(fail ? 1 : 0);

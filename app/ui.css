@@ -240,3 +240,8 @@ body.mapon .ph{padding-top:calc(46vh + 10px)}.pm2d{position:absolute;inset:0}.pm
 .manual .mi .ml{list-style:none;padding:0;margin:6px 0 0}.manual .mi .ml li{margin:3px 0}
 .ph .buzz.locked{background:radial-gradient(circle at 50% 35%,#7d8b93,#4a565d);box-shadow:none;font-size:clamp(22px,7vw,30px);opacity:.92}
 .phase .ccd{display:block;margin-top:4px;font-size:14px;opacity:1;color:var(--gold)}
+.plines{display:flex;flex-direction:column;gap:10px;margin-top:10px;align-items:flex-start}
+.pline{opacity:0;transform:translateY(10px);animation:plin .7s ease forwards;display:flex;gap:12px;align-items:baseline;font-size:24px}
+.pline b{font-family:var(--fd);font-weight:900;font-size:30px;white-space:nowrap}.pline span{color:var(--mut)}
+@keyframes plin{to{opacity:1;transform:none}}
+@media (max-width:900px){.pline{font-size:16px;gap:8px}.pline b{font-size:20px}}

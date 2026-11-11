@@ -93,7 +93,7 @@
     endAfterRound(on = true) { const s = this.s; if (s.stage === 'lobby' || s.stage === 'crown') return; s.endAfter = !!on; this.say(on ? 'تنتهي المسابقة بعد هذه الجولة' : 'أُلغي الإنهاء بعد الجولة'); this.changed(); }
     enterPhase(i) { const s = this.s, P = RR().CFG.PHASES[i]; if (i > 0) RR().setPhase(this.S, i); s.phase = i; s.phaseStart = this.t();
       this.S.events.filter(e => e.t === 'unally' && e.phase === i).forEach(e => this.pushEv({ k: 'unally', a: e.a, b: e.b, betray: false }));
-      s.stage = 'phase'; s.ev = { id: ++s.evSeq, k: 'phase', key: P.key, name: P.name, unlock: P.unlock }; this.sceneTimer(DUR.scene.phase); this.say('بدأت مرحلة ' + P.name, 'big');
+      const nU = (P.unlock || []).filter(k => k !== 'garCav' && k !== 'cap3').length, hold = nU ? 1.2 + nU * 2.2 + 1.6 : 0; s.stage = 'phase'; s.ev = { id: ++s.evSeq, k: 'phase', key: P.key, name: P.name, unlock: P.unlock, hold }; this.sceneTimer(Math.max(DUR.scene.phase, hold)); this.say('بدأت مرحلة ' + P.name, 'big');
       if (P.key === 'crown') { s.vis = this.snapshot(); this.crown(); return; }
       this.changed(); }
     pushEv(e) { this.s.queue.push(e); }

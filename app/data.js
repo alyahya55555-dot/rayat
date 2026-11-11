@@ -140,6 +140,8 @@
     { name: 'الأكواب المقلوبة', desc: 'تُرصّ أكواب نصفها مقلوب، ويقلب كل فريق الأكواب للجهة الأخرى خلال ثلاثين ثانية. الأكثر يفوز.', n: 2 },
     { name: 'المتاهة المغمضة', desc: 'متسابق معصوب العينين يمشي بين عوائق، وزميله يوجهه بالكلام فقط. الأسرع دون لمس العوائق يفوز.', n: 2 }
   ];
-  G.RAYAT_BANK = B; G.RAYAT_BINIS = BINIS;
+  // أسئلة علوم جافة استُبدلت بباب «آيات الخلق» (طلب المستخدم 11 نوفمبر): رموز ووحدات وثوابت لا تضيف للمسابقة. تُحذف بعد إعطاء الأرقام فلا تتغير أرقام بقية الأسئلة.
+  const DROP = new Set(['easy-19', 'easy-22', 'easy-134', 'med-11', 'med-19', 'med-21', 'med-39', 'med-40', 'med-83', 'med-85', 'med-107', 'med-112', 'med-114', 'med-140', 'hard-14', 'hard-19', 'hard-32', 'hard-33', 'hard-69', 'hard-70', 'hard-71', 'hard-73', 'hard-103', 'hard-105', 'hard-111', 'hard-112', 'hard-115', 'hard-118']);
+  G.RAYAT_BANK = B.filter(q => !DROP.has(q.id)); G.RAYAT_BINIS = BINIS;
   if (typeof module !== 'undefined') module.exports = { BANK: B, BINIS };
 })(typeof window !== 'undefined' ? window : globalThis);

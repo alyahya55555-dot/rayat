@@ -173,13 +173,13 @@ input,select,textarea{font-family:var(--fs)}
 /* الشاشات القصيرة (جوال بالعرض) */
 @media (max-height:520px){
   .dsp .top{padding:8px 14px}.brand{font-size:26px}.brand small{display:none}
-  .dom{top:12px}.dom .names{font-size:12px;margin-top:4px}
+  .phase{max-width:30vw}.dom .names{font-size:12px;margin-top:4px}
   .card{padding:12px 18px;border-radius:16px}.qcard{bottom:8px}.banner{bottom:8px}
   .qtext{font-size:clamp(16px,2.6vw,22px);margin:0 0 8px}.qtop{margin-bottom:4px;font-size:12px}
   .opts{grid-template-columns:1fr 1fr;gap:6px}.opt{padding:6px 10px;font-size:15px}.opt .L{width:24px;height:24px;font-size:13px}
   .timer{margin-top:8px}.ptitle{font-size:clamp(34px,7vw,56px)!important}.mid{padding:16px 22px}
   .lobby{grid-template-columns:200px 1fr;text-align:start}.lobby .qr{width:170px}
-  .dom{top:10px;left:150px;right:150px;width:auto;transform:none}
+  .dom{top:10px;left:calc(30vw + 24px);right:110px;width:auto;transform:none}
   .mapctl{top:58px;left:14px;transform:none}.mapctl .need,.mapctl .lbl{display:none}
   .lobby{bottom:8px}
 }
@@ -249,7 +249,7 @@ body.mapon .ph{padding-top:calc(46vh + 10px)}.pm2d{position:absolute;inset:0}.pm
 .manual .mx{background:rgba(242,200,90,.08);border-inline-start:3px solid var(--gold);border-radius:10px;padding:10px 12px}
 .manual .mi .ml{list-style:none;padding:0;margin:6px 0 0}.manual .mi .ml li{margin:3px 0}
 .ph .buzz.locked{background:radial-gradient(circle at 50% 35%,#7d8b93,#4a565d);box-shadow:none;font-size:clamp(22px,7vw,30px);opacity:.92}
-.phase .ccd{display:block;margin-top:4px;font-size:14px;opacity:1;color:var(--gold)}
+.phase .ccd{display:inline;font-size:inherit;opacity:1;color:var(--gold);white-space:nowrap}.camctl{transition:opacity .3s}
 .plines{display:flex;flex-direction:column;gap:10px;margin-top:10px;align-items:flex-start}
 .pline{opacity:0;transform:translateY(10px);animation:plin .7s ease forwards;display:flex;gap:12px;align-items:baseline;font-size:24px}
 .pline b{font-family:var(--fd);font-weight:900;font-size:30px;white-space:nowrap}.pline span{color:var(--mut)}
@@ -8837,11 +8837,11 @@ var qrcode = function() {
       let to = cam.to; if (cam.follow) to = cam.follow();
       const k = camEase(seg(W.time, cam.t0, cam.t0 + cam.d)); camNow.pos.lerpVectors(cam.from.pos, to.pos, k); camNow.look.lerpVectors(cam.from.look, to.look, k);
       // حارس التضاريس: إن حجب جبلٌ أو تلٌّ ما تنظر إليه الكاميرا ترتفع بنعومة حتى يظهر، ثم تعود
-      let need = 0; if (actors.length) { const tg = [camNow.look]; for (const o of scene.children) { if (tg.length > 30) break; if (o.userData && o.userData.kind && o.visible !== false && o.position.distanceToSquared(camNow.look) < 9) tg.push(o.position); }
-        for (const t of tg) for (let h = need; h <= 2.4 && terrBlock(camNow.pos, t, h); h += .1) need = h + .1; } terrLift += (need - terrLift) * Math.min(1, rdt * (need > terrLift ? 9 : 2.5));
+      let need = terrNeed; if (actors.length && (++terrN % 3 === 0)) { need = 0; const tg = [camNow.look]; for (const o of scene.children) { if (tg.length > 30) break; if (o.userData && o.userData.kind && o.visible !== false && o.position.distanceToSquared(camNow.look) < 9) tg.push(o.position); }
+        for (const t of tg) for (let h = need; h <= 2.4 && terrBlock(camNow.pos, t, h); h += .1) need = h + .1; terrNeed = need; } else if (!actors.length) need = terrNeed = 0; terrLift += (need - terrLift) * Math.min(1, rdt * (need > terrLift ? 9 : 2.5));
       camera.position.copy(camNow.pos); camera.position.y += terrLift; camera.lookAt(camNow.look);
       if (shakeA > 0) { const k = 1 - (W.time - shakeT0) / shakeD; if (k <= 0) shakeA = 0; else { const a = shakeA * k * k * K; camera.position.x += Math.sin(W.time * 61) * a; camera.position.y += Math.sin(W.time * 47 + 1) * a * .7; camera.position.z += Math.cos(W.time * 53) * a; } } }
-    let terrLift = 0;
+    let terrLift = 0, terrNeed = 0, terrN = 0; // يُحسب كل ثالث إطار فقط، خفيف على الأداء
     function terrBlock(cp, tp, up) { const L = Math.hypot(cp.x - tp.x, cp.z - tp.z), n = Math.max(6, Math.ceil(L / .08)), cy = cp.y + up;
       for (let i = 1; i < n; i++) { const q = i / n, x = lerp(tp.x, cp.x, q), z = lerp(tp.z, cp.z, q), y = lerp(tp.y + .04, cy, q); if (q > .04 && groundY(x, z) > y) return true; } return false; }
     let camT = 0; const camVel = { pos: V(0, 0, 0), look: V(0, 0, 0) }, _ch = V(0, 0, 0), _tp = V(0, 0, 0), _g1 = V(0, 0, 0), _g2 = V(0, 0, 0);
@@ -9821,12 +9821,12 @@ const Display = {
   reserve() { if (!this.W || !this.root) return; const R = []; const add = el => { if (!el || el.classList.contains('hide') || !el.offsetParent && getComputedStyle(el).position !== 'fixed') return; const b = el.getBoundingClientRect(); if (b.width > 2 && b.height > 2) R.push({ x0: b.left, y0: b.top, x1: b.right, y1: b.bottom }); };
     $$('.dsp .brand, #phase, #dom, #qcard, #banner, #mid, #lobby, .sidelog > div', this.root).forEach(add); const mc = document.getElementById('mapctl'); if (mc && mc.offsetParent) add(mc); const sb = $('.sndbox', this.root); if (sb) add(sb); const cc = $('.camctl', this.root); if (cc) add(cc); this.W.reserved = R; },
   // أزرار المشرف فوق الخريطة تنزل تحت شريط السيطرة إن اتسع، فلا يتراكبان
-  placeCtl() { const mc = document.getElementById('mapctl'); if (!mc || !mc.offsetWidth) return; if (innerWidth <= 900 || innerHeight <= 520) { mc.style.top = ''; return; }
+  placeCtl() { const mc = document.getElementById('mapctl'); if (!mc || !mc.offsetWidth) return; if (innerWidth <= 900 || innerHeight <= 520) { mc.style.top = ''; const r0 = mc.getBoundingClientRect(); let tp = 0; ['#phase', '#dom'].forEach(sel => { const e = $(sel, this.root), b0 = e && e.getBoundingClientRect(); if (b0 && b0.height > 2 && b0.left < r0.right && b0.right > r0.left && b0.top < r0.bottom && b0.bottom > r0.top) tp = Math.max(tp, b0.bottom + 8); }); ['#phase', '#dom'].forEach(sel => { const e = $(sel, this.root), b0 = e && e.getBoundingClientRect(); if (tp && b0 && b0.height > 2 && b0.left < r0.right && b0.right > r0.left && b0.top < tp + r0.height && b0.bottom > tp) tp = Math.max(tp, b0.bottom + 8); }); const v0 = tp ? tp + 'px' : ''; if (mc.style.top !== v0) mc.style.top = v0; return; } // الشاشات الصغيرة: الأزرار تحت اسم المرحلة لا فوقه
     const d = $('#dom', this.root), ph = $('#phase', this.root), db = d ? d.getBoundingClientRect() : null, pb = ph ? ph.getBoundingClientRect() : null; let top = 84;
     if (db && db.height > 2 && db.left < 24 + mc.offsetWidth + 10) top = Math.max(top, db.bottom + 12); if (pb && pb.height > 2) top = Math.max(top, pb.bottom + 10); const v = top + 'px'; if (mc.style.top !== v) mc.style.top = v;
     // أزرار الكاميرا لا تظهر من تحت بطاقة السؤال أو الإعلان (لا شيء فوق شيء)
-    const r = mc.getBoundingClientRect(), hit = ['#qcard', '#banner', '#mid'].some(sel => { const el = $(sel, this.root); if (!el || el.classList.contains('hide')) return false; const c = el.getBoundingClientRect(); return c.width > 2 && c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top; });
-    const op = hit ? '0' : ''; if (mc.style.opacity !== op) { mc.style.opacity = op; mc.style.pointerEvents = hit ? 'none' : ''; } },
+    [mc, document.querySelector('.camctl')].forEach(el0 => { if (!el0) return; const r = el0.getBoundingClientRect(), hit = r.width > 2 && ['#qcard', '#banner', '#mid'].some(sel => { const el = $(sel, this.root); if (!el || el.classList.contains('hide')) return false; const c = el.getBoundingClientRect(); return c.width > 2 && c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top; });
+      const op = hit ? '0' : ''; if (el0.style.opacity !== op) { el0.style.opacity = op; el0.style.pointerEvents = hit ? 'none' : ''; } }); },
   tickUI() { this.placeCtl(); { const P0 = this.P, on = !!(P0 && P0.paused); let pt = $('.pausetag', this.root); if (on && !pt) { pt = document.createElement('div'); pt.className = 'pausetag'; pt.textContent = '⏸ متوقفة مؤقتًا'; $('#dsp', this.root).appendChild(pt); } else if (!on && pt) pt.remove(); if (this.W) this.W.paused = on; if (on) { if (P0.tm) this.endAt = performance.now() + P0.tm.r; SFX.suspend && SFX.suspend(true); } else SFX.suspend && SFX.suspend(false); } if (this.P && this.P.stage === 'crown' && this.P.ribbon && (Math.floor(performance.now() / 12000) % 2 === 1) !== !!this.crownFlip) this.render(); this.reserve(); const t = $('#tbar'); if (t && this.endAt) { const left = Math.max(0, this.endAt - performance.now()); t.style.transform = `scaleX(${left / this.dur})`; const n = $('#tnum'), sec = Math.ceil(left / 1000); if (n && n.textContent !== String(sec)) { n.textContent = sec; n.parentNode.classList.toggle('low', sec <= 5); } } /* الشريط ومعه الثواني بالأرقام (طلب المستخدم) */ const pl = $('#plft'); if (pl && this.P && this.P.phaseLeft != null) pl.textContent = this.P.stage === 'lobby' || this.P.stage === 'crown' ? '' : 'باقي ' + Math.ceil(Math.max(0, this.P.phaseLeft - 0) / 60000) + ' د'; },
   show(id, html) { let changed = false; ['qcard', 'banner', 'mid', 'lobby'].forEach(k => { const el = $('#' + k); if (k === id) { if (html != null && el.dataset.h !== html) { el.innerHTML = html; el.dataset.h = html; changed = true; } if (el.classList.contains('hide')) changed = true; el.classList.remove('hide'); } else el.classList.add('hide'); }); if (changed) this.fit(); },
   // كل بطاقة تُضبط لتسع الشاشة تحت الشريط العلوي: تُختصر ثم تُصغَّر بقدر الحاجة فقط، فلا تفيض ولا تغطي الأعلى
@@ -9838,7 +9838,7 @@ const Display = {
   render() {
     const P = this.P; if (!P) return; const T = P.teams, tn = i => i == null ? 'محايد' : esc(T[i].name), tc = i => i == null ? '#999' : T[i].color;
     // الشريط العلوي: المرحلة والسيطرة
-    $('#phase').innerHTML = P.stage === 'lobby' ? '' : `<b class="k">${esc(P.phaseName || '')}</b><span>الجولة ${P.cycle || 0} · <span id="plft"></span></span>${P.castleIn > 0 && P.castle ? `<span class="ccd">🏰 ${esc(P.castle.name)} تنفتح بعد ${Math.max(1, Math.ceil(P.castleIn / 60000))} د</span>` : ''}`;
+    $('#phase').innerHTML = P.stage === 'lobby' ? '' : `<b class="k">${esc(P.phaseName || '')}</b><span>الجولة ${P.cycle || 0} · <span id="plft"></span>${P.castleIn > 0 && P.castle ? ` · <span class="ccd">🏰 القلعة بعد ${Math.max(1, Math.ceil(P.castleIn / 60000))} د</span>` : ''}</span>`;
     if (this.W && this.W.setCastle && P.castle) this.W.setCastle({ owner: P.castle.owner, safe: P.castle.safe });
     if (P.score) { const tot = (P.nRegions || 1) - 1 + 4; $('#dom').innerHTML = `<div class="bar">${T.map((t, i) => `<i style="flex:${P.score[i]};background:${t.color}"></i>`).join('')}<i style="flex:${Math.max(0, tot - P.score.reduce((a, b) => a + b, 0))};background:rgba(255,255,255,.18)"></i></div><div class="names">${T.map((t, i) => `<span><i class="chip" style="background:${t.color}"></i>${esc(t.name)} <em>${P.score[i]}</em></span>`).join('')}</div>`; }
     else $('#dom').innerHTML = '';

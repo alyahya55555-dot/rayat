@@ -83,7 +83,9 @@ function duelSetup() { const S = R.setup(mini(), TEAMS(2)); rich(S); S.regions.f
 // 8) الحامية
 { const S = duelSetup(); S.regions[3].garrison = 'inf'; R.act(S, 0, { k: 'attack', unit: 'inf', r: 3 }); const res = R.point(S, 'a'); ok(res.garrisonFell && S.regions[3].owner === 1, 'الحامية تسقط بدل الأرض ويرتد المهاجم'); }
 { const S = duelSetup(); S.regions[3].garrison = 'cav'; R.act(S, 0, { k: 'attack', unit: 'inf', r: 3 }); const g = S.teams[1].res.gold, res = R.point(S, 'd'); ok(res.cavLoot === 2 && S.teams[1].res.gold === g + 2, 'حامية الفرسان تأخذ غنيمة إذا صمدت'); }
-{ const S = duelSetup(); S.regions[3].garrison = 'inf'; S.regions[3].walls = true; R.act(S, 0, { k: 'attack', unit: 'cat', r: 3 }); const res = R.point(S, 'a'); ok(res.garrisonFell && S.regions[3].walls, 'المنجنيق لا يكسر الحامية'); }
+{ const S = duelSetup(); S.regions[3].garrison = 'inf'; S.regions[3].walls = true; R.act(S, 0, { k: 'attack', unit: 'cat', r: 3 }); const res = R.point(S, 'a'); ok(res.garrisonFell && S.regions[3].owner === 1 && !S.regions[3].walls && res.wallsBroken, 'المنجنيق لا يكسر الحامية، لكنه يهدم السور'); }
+{ const S = duelSetup(); S.regions[3].walls = true; R.act(S, 0, { k: 'attack', unit: 'cat', r: 3 }); const res = R.point(S, 'd'); ok(res.winner === 'd' && S.regions[3].owner === 1 && !S.regions[3].walls && res.wallsBroken, 'المنجنيق يهدم السور حتى لو صمد المدافع'); }
+{ const S = duelSetup(); S.regions[3].walls = true; R.act(S, 0, { k: 'attack', unit: 'inf', r: 3 }); R.point(S, 'd'); ok(S.regions[3].walls, 'هجوم المشاة الفاشل لا يهدم السور'); }
 { const S = duelSetup(); goPhase(S, 'friction'); throws(() => R.act(S, 0, { k: 'garInf', r: 6 }), 'لا حامية في القلعة'); R.act(S, 0, { k: 'garInf', r: 2 }); throws(() => R.act(S, 0, { k: 'garCav', r: 2 }), 'حامية واحدة لكل أرض'); }
 
 // 9) هجوم واحد في الدورة
@@ -126,4 +128,10 @@ function duelSetup() { const S = R.setup(mini(), TEAMS(2)); rich(S); S.regions.f
 { const S = R.setup(mini(), TEAMS(2)); R.setPhase(S, R.CFG.PHASES.length - 1); ok(S.tie && !S.done && S.tie.teams.length === 2, 'التعادل يفتح مواجهة فاصلة'); ok(R.tiePoint(S, 1) === null && R.tiePoint(S, 0) === null, 'نقطة لكل فريق ولا حسم'); ok(R.tiePoint(S, 1) === 1 && S.done && S.winner === 1, 'أول من يصل نقطتين يُتوَّج'); }
 { const S = R.setup(mini(), TEAMS(2)); S.regions[1].owner = 1; R.setPhase(S, R.CFG.PHASES.length - 1); ok(S.done && S.winner === 1 && !S.tie, 'بلا تعادل يُتوَّج الأكثر أرضًا مباشرة'); }
 ok(R.CFG.CASTLE_POINTS === 4, 'القلعة بأربع أراضٍ (اعتماد المستخدم)');
+// التوسع المتصل (11 نوفمبر): الاحتلال للملاصق فقط، والميناء للجزر الصغيرة فقط
+{ const M = RayatMap.build(4, 7), S = R.setup(M, TEAMS(4)); goPhase(S, 'opening'); S.teams.forEach(T => { T.res.food = 99; });
+  const occ = R.legal(S, 0).filter(o => o.k === 'occupy'); ok(occ.length && occ.every(o => S.regions[o.r].nb.some(j => S.regions[j].owner === 0)), 'كل احتلال ملاصق لأرض الفريق');
+  const port = S.regions.find(r => r.type === 'port' && !r.land); port.owner = 0;
+  const occ2 = R.legal(S, 0).filter(o => o.k === 'occupy'); ok(occ2.every(o => S.regions[o.r].nb.some(j => S.regions[j].owner === 0) || S.regions[o.r].land), 'الميناء لا يفتح احتلال سواحل بعيدة في الجزيرة الكبرى');
+  ok(S.regions.filter(r => r.land && r.owner == null).every(r => occ2.some(o => o.r === r.id)), 'الميناء يوصل لكل أراضي الجزر الصغيرة الفاضية'); }
 console.log(`قواعد رايات: ${pass} نجح، ${fail} فشل`); process.exit(fail ? 1 : 0);

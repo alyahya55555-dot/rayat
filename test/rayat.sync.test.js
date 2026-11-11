@@ -49,6 +49,10 @@ const until = async (fn, ms = 12000, step = 150) => { const t = Date.now(); let 
   ok(await to('buzz', 60000), 'وصلنا إلى الاستباق (' + await stage() + ')');
   // ---- الاستباق: ثلاثة من فريق المهاجم واثنان من المدافع يضغطون معًا من أجهزة مستقلة
   ok(await until(async () => (await Promise.all(ph.slice(0, 5).map(p => p.evaluate(() => !!document.querySelector('[data-buzz]'))))).every(Boolean)), 'زر الاستباق ظاهر لكل أعضاء الفريقين (لا للقادة فقط)'); ok(await ph[5].evaluate(() => !document.querySelector('[data-buzz]')), 'الفريق غير المشارك لا يرى الزر');
+  ok((await Promise.all(ph.slice(0, 5).map(p => p.evaluate(() => { const b = document.querySelector('[data-buzz]'); return !!b && b.disabled && /اقرأ/.test(b.textContent); })))).every(Boolean), 'الجرس مقفل للقراءة بعدّ تنازلي على كل الجوالات');
+  await Promise.all(ph.slice(0, 5).map(p => p.evaluate(() => { const b = document.querySelector('[data-buzz]'); b && b.click(); }))); await sleep(400);
+  ok(await host.evaluate(() => Host.g.s.stage === 'buzz' && !Host.g.s.duel.buzz), 'لا تُقبل ضغطة أثناء القراءة');
+  ok(await until(async () => (await Promise.all(ph.slice(0, 5).map(p => p.evaluate(() => { const b = document.querySelector('[data-buzz]'); return !!b && !b.disabled; })))).every(Boolean), 8000), 'بعد ثلاث ثوانٍ يعمل الجرس');
   await Promise.all(ph.slice(0, 5).map(p => p.evaluate(() => { const b = document.querySelector('[data-buzz]'); b && b.click(); })));
   ok(await until(() => host.evaluate(() => Host.g.s.stage === 'judge' && !!Host.g.s.duel.buzz)), 'اعتُمد ضاغط واحد وانتقلنا للتحكيم'); const bz = await host.evaluate(() => Host.g.s.duel.buzz); await sleep(900);
   ok(await host.evaluate(n => Host.g.s.duel.buzz.name === n, bz.name), 'الأول ثابت بعد وصول بقية الضغطات (' + bz.name + ')');

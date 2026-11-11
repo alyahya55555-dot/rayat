@@ -3,6 +3,8 @@ const path = require('path'), fs = require('fs');
 global.d3 = require(path.join(__dirname, '../r3d/node_modules/d3-delaunay'));
 require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/data.js');
 const RayatGame = require('../app/game.js'), RR = globalThis.RayatRules;
+// قفل القراءة (3 ثوانٍ) مُختبر في rayat.duel.test.js؛ هنا نتخطاه لنختبر ترتيب الفاصلة
+RayatGame.prototype.tieBuzzNow = function (pid) { if (this.s.tie) this.s.tie.openAt = 0; return this.tieBuzz(pid); };
 // guide.js يعرّف دوال عامة (planCheck/CASTLE_AR): نحمّله في نطاق عام
 const gsrc = fs.readFileSync(path.join(__dirname, '../app/guide.js'), 'utf8'); const GD = new Function('RayatRules', gsrc + '; return { planCheck, CASTLE_AR, CASTLE_N, GUIDE };')(RR);
 let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
@@ -16,7 +18,7 @@ for (const winIdx of [1, 2, 0]) { const g = mk(3, 2); g.start(); toStage(g, 'que
   const S = g.S; S.regions.forEach(r => { r.owner = null; }); const free = S.regions.filter(r => r.type !== 'castle'); [0, 1, 2].forEach(t => { for (let k = 0; k < 3; k++) free[t * 3 + k].owner = t; });
   RR.setPhase(S, RR.CFG.PHASES.length - 1); g.s.queue = []; g.crown();
   ok(g.s.stage === 'tie' && g.s.tie.teams.length === 3, `فاصلة: تعادل ثلاثي يفتح مواجهة فاصلة (${g.s.stage})`);
-  for (let k = 0; k < 2; k++) { g.tieBuzz('p' + winIdx + '-0'); g.tieJudge(true); }
+  for (let k = 0; k < 2; k++) { g.tieBuzzNow('p' + winIdx + '-0'); g.tieJudge(true); }
   const P = g.pub();
   ok(g.s.stage === 'crown' && P.winner === winIdx, `فاصلة: الفائز ${NAMES[winIdx]} متوَّج`);
   ok(P.rank[0].team === winIdx, `فاصلة: الفائز ${NAMES[winIdx]} أول الترتيب (كان ${NAMES[P.rank[0].team]})`);
@@ -25,7 +27,7 @@ for (const winIdx of [1, 2, 0]) { const g = mk(3, 2); g.start(); toStage(g, 'que
   const rest = P.rank.slice(1).map(x => x.team); ok(rest[0] < rest[1], 'فاصلة: بقية المتعادلين (بلا نقاط فاصلة ولا فرق موارد) بترتيب الإعداد'); }
 { // نقاط الفاصلة ترتّب الثاني والثالث
   const g = mk(3, 2); g.start(); toStage(g, 'question'); const S = g.S; S.regions.forEach(r => { r.owner = null; }); const free = S.regions.filter(r => r.type !== 'castle'); [0, 1, 2].forEach(t => { for (let k = 0; k < 2; k++) free[t * 2 + k].owner = t; });
-  RR.setPhase(S, RR.CFG.PHASES.length - 1); g.s.queue = []; g.crown(); g.tieBuzz('p2-0'); g.tieJudge(true); g.tieBuzz('p1-0'); g.tieJudge(true); g.tieBuzz('p1-0'); g.tieJudge(true);
+  RR.setPhase(S, RR.CFG.PHASES.length - 1); g.s.queue = []; g.crown(); g.tieBuzzNow('p2-0'); g.tieJudge(true); g.tieBuzzNow('p1-0'); g.tieJudge(true); g.tieBuzzNow('p1-0'); g.tieJudge(true);
   const rk = g.pub().rank.map(x => x.team); ok(rk.join() === '1,2,0', `فاصلة: الفائز ثم صاحب نقطة الفاصلة ثم الباقي (${rk.join()})`); }
 
 // ---------- 2) الإجابات: الرسالة تطابق المحفوظ، والنسبة والأوامر صحيحة، ولا احتساب مرتين ----------

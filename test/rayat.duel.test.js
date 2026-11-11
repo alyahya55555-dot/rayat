@@ -6,7 +6,11 @@ const RayatGame = require('../app/game.js'), RR = globalThis.RayatRules;
 let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
 const NAMES = ['الصقور', 'السهم', 'الرواد', 'الهمّة'], COLORS = ['#2f6fdb', '#1f9d55', '#e07a2e', '#8e4fb8'];
 function mk(n = 3, per = 3) { let clock = 1e12; const g = new RayatGame({ now: () => clock, bank: globalThis.RAYAT_BANK, binis: [], level: 'med', teams: NAMES.slice(0, n).map((x, i) => ({ name: x, color: COLORS[i], mark: x[0] })), mapSeed: 7 });
-  for (let t = 0; t < n; t++) for (let k = 0; k < per; k++) g.join('p' + t + '-' + k, 'لاعب' + t + k, t); g.adv = ms => { clock += ms; g.tick(); }; return g; }
+  for (let t = 0; t < n; t++) for (let k = 0; k < per; k++) g.join('p' + t + '-' + k, 'لاعب' + t + k, t); g.adv = ms => { clock += ms; g.tick(); };
+  // الجرس مقفل 3 ثوانٍ للقراءة: الاختبارات القديمة تقفز فوق القفل، واختبارات القفل تستعمل buzzRaw
+  g.buzzRaw = g.buzz.bind(g); g.tieBuzzRaw = g.tieBuzz.bind(g);
+  const skipLock = o => { if (o && o.openAt > g.t()) clock += o.openAt - g.t(); };
+  g.buzz = (pid, id) => { skipLock(g.s.duel); return g.buzzRaw(pid, id); }; g.tieBuzz = pid => { skipLock(g.s.tie); return g.tieBuzzRaw(pid); }; return g; }
 const toStage = (g, st, max = 400) => { let i = 0; while (g.s.stage !== st && i++ < max) g.adv(500); return g.s.stage === st; };
 // يجهّز هجوم الفريق 0 على أرض للفريق 1 ويصل إلى مرحلة الجرس
 function duel(walls = false) { const g = mk(); g.start(); toStage(g, 'question'); g.reveal(); toStage(g, 'orders', 40); const S = g.S; RR.setPhase(S, 1); g.s.phase = 1; const cap = g.M.caps[0], nb = S.regions[cap].nb.find(j => S.regions[j].owner == null && S.regions[j].type !== 'castle'); S.regions[nb].owner = 1; S.regions[nb].walls = walls;
@@ -26,7 +30,7 @@ const A = 'p0-1', A2 = 'p0-2', Dp = 'p1-0', D2 = 'p1-2', X = 'p2-0';
 { const { g, nb } = duel(); const D = g.s.duel, q0 = D.q.id; g.buzz(Dp, D.id); g.pick(Dp, D.id, wrongOf(D)); g.pick(A, D.id, wrongOf(D)); ok(g.s.stage === 'buzz' && g.s.duel.q.id !== q0, 'أخطأ المدافع ثم المهاجم: سؤال جديد'); ok(g.s.duel.pts.a === 0 && g.s.duel.pts.d === 0 && g.s.duel.wrong.length === 0 && !g.s.duel.tried.length && g.S.regions[nb].owner === 1, 'السؤال الجديد يبدأ نظيفًا بلا نقاط');
   g.buzz(A, D.id); g.pick(A, D.id, g.s.duel.q.a); ok(g.S.regions[nb].owner === 0, 'السؤال الجديد يحسم المواجهة'); }
 { const { g, nb } = duel(); const D = g.s.duel; g.buzz(A, D.id); g.adv(13000); ok(g.s.stage === 'judge' && g.s.duel.buzz.pass && g.s.duel.buzz.side === 'd', 'انتهى وقت الضاغط بلا اختيار: يُعدّ خطأ وينتقل السؤال'); g.adv(13000); ok(g.s.stage === 'scene' && g.S.regions[nb].owner === 0, 'لم يختر المدافع في وقته: يُعدّ خطأ وينفذ الهجوم'); }
-{ const { g, nb } = duel(); g.adv(16000); ok(g.s.stage === 'scene' && g.S.regions[nb].owner === 1, 'لم يضغط أحد الجرس: يصمد المدافع'); }
+{ const { g, nb } = duel(); g.adv(19000); ok(g.s.stage === 'scene' && g.S.regions[nb].owner === 1, 'لم يضغط أحد الجرس: يصمد المدافع'); }
 { const { g } = duel(); const D = g.s.duel; g.buzz(A, D.id); g.pause(true); g.pick(A, D.id, D.q.a); ok(g.s.stage === 'judge', 'الاختيار مرفوض أثناء الإيقاف المؤقت'); g.pause(false); g.pick(A, D.id, D.q.a); ok(g.s.stage === 'scene', 'ويُقبل بعد الاستئناف'); }
 { const { g, nb } = duel(true); const D = g.s.duel; ok(D.need.a === 2, 'أرض محصّنة: المهاجم يحتاج فوزين'); g.buzz(A, D.id); g.pick(A, D.id, D.q.a); ok(g.s.stage === 'point' && g.s.duel.pts.a === 1 && g.pub().duel.ans === D.q.a, 'نقطة أولى للمهاجم، وتُكشف الإجابة الصحيحة عند النقطة'); toStage(g, 'buzz');
   g.buzz(Dp, D.id); g.pick(Dp, D.id, g.s.duel.q.a); ok(g.s.stage === 'scene' && g.S.regions[nb].owner === 1, 'المدافع أجاب صحيحًا في السؤال الثاني: صمد خلف السور'); }
@@ -35,4 +39,10 @@ const A = 'p0-1', A2 = 'p0-2', Dp = 'p1-0', D2 = 'p1-2', X = 'p2-0';
   ok(g.pub().tie.q.a === undefined, 'إجابة الفاصلة لا تُنشر'); const b = 'p' + T.teams[1] + '-0', o = 'p' + T.teams[0] + '-0'; g.tieBuzz(b); g.tiePick(o, T.q.a); ok(g.s.tie.buzz && g.s.tie.pts[1] === 0, 'غير الضاغط لا يختار في الفاصلة');
   const w = T.q.c.map((_, k) => k).find(k => k !== T.q.a); g.tiePick(b, w); ok(!g.s.tie.buzz && g.s.tie.tried.includes(T.teams[1]) && g.pub().tie.wrong.includes(w), 'خطأ في الفاصلة: يُشطب الخيار والفرصة للبقية'); g.tieBuzz(b); ok(!g.s.tie.buzz, 'من أخطأ لا يضغط ثانية في السؤال نفسه');
   g.tieBuzz(o); g.tiePick(o, g.s.tie.q.a); ok(g.s.tie && g.s.tie.pts[0] === 1, 'إجابة صحيحة في الفاصلة: نقطة'); g.tieBuzz(o); g.tiePick(o, g.s.tie.q.a); ok(g.s.stage === 'crown' && g.s.winner === T.teams[0] && g.pub().rank[0].team === T.teams[0], 'نقطتان: بطل الفاصلة في المركز الأول'); }
+// قفل القراءة: لا جرس قبل 3 ثوانٍ، والإيقاف المؤقت يجمّده (اعتمده المستخدم 11 نوفمبر)
+{ const { g } = duel(); const D = g.s.duel; ok(Math.abs(g.pub().duel.lock - 3000) < 5, 'القفل يُنشر للجوالات (3 ثوانٍ)');
+  g.buzzRaw(A, D.id); ok(g.s.stage === 'buzz' && !g.s.duel.buzz, 'ضغطة قبل انتهاء القراءة مرفوضة');
+  g.adv(1500); g.pause(true); g.adv(5000); g.buzzRaw(A, D.id); ok(!g.s.duel.buzz, 'الإيقاف المؤقت يجمّد القفل'); g.pause(false);
+  g.adv(1000); g.buzzRaw(A, D.id); ok(!g.s.duel.buzz, 'بعد 2.5 ثانية لعب ما زال مقفلًا'); g.adv(600); g.buzzRaw(A, D.id); ok(g.s.stage === 'judge' && g.s.duel.buzz.pid === A, 'بعد 3 ثوانٍ يعمل الجرس'); }
+{ const { g } = duel(); const D = g.s.duel; ok(D.q && g.bank.find(q => q.id === D.q.id).d === 3, 'سؤال المواجهة من أصعب درجة في المستوى'); }
 console.log(`المواجهة بالخيارات: ${pass} نجح، ${fail} فشل`); process.exit(fail ? 1 : 0);

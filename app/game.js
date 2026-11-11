@@ -8,7 +8,14 @@
     // مدد المشاهد على شاشة العرض (ثوانٍ) — المشرف يتخطاها بضغطة
     scene: { occupy: 8.6, attack: 11.2, walls: 6.8, tower: 6.8, garInf: 6.8, garCav: 6.8, capital: 5.6, supply: 2.2, ally: 5.8, unally: 3.4, sail: 6.4, batch: 8, phase: 5.2 } };
   const LEVELS = { easy: 'سهل', med: 'متوسط', hard: 'صعب' }, LV_OLD = { mid: 'easy', sec: 'med', uni: 'hard' }, lv = k => LV_OLD[k] || (LEVELS[k] ? k : 'med');
-  const PH_DIFF = { opening: 1, expansion: 1, friction: 2, war: 2, siege: 3, final: 3, crown: 3 };
+  // الصعوبة داخل المستوى المختار (1..3): تبدأ من المتوسطة والعليا وتتصاعد قليلًا؛ والمواجهة دائمًا من الأصعب.
+  // القيمة = نسبة اختيار الدرجة 3 (والباقي درجة 2). اعتمده المستخدم 11 نوفمبر.
+  const PH_HARD = { opening: .25, expansion: .3, friction: .4, war: .5, siege: .7, final: .8, crown: .8 };
+  const DUEL_D = 3, READ_S = 3; // ثلاث ثوانٍ للقراءة قبل أن يعمل الجرس
+  // ذاكرة الأسئلة المعروضة عبر المسابقات (على حاسوب المشرف)، فلا يتكرر سؤال حتى تنفد أسئلة مستواه
+  const SEEN_KEY = 'rayat.seen.v1', memSeen = { ids: [] };
+  const seenLoad = () => { try { const ls = G.localStorage; if (ls) { const v = JSON.parse(ls.getItem(SEEN_KEY) || '[]'); if (Array.isArray(v)) return v; } } catch (e) { } return memSeen.ids; };
+  const seenSave = ids => { memSeen.ids = ids; try { const ls = G.localStorage; if (ls) ls.setItem(SEEN_KEY, JSON.stringify(ids)); } catch (e) { } };
   const clone = o => JSON.parse(JSON.stringify(o));
   const RES_AR = { food: 'طعام', gold: 'ذهب', stone: 'حجر' };
   const UNIT_AR = { inf: 'مشاة', cav: 'فرسان', cat: 'منجنيق' };
@@ -93,16 +100,23 @@
 
     // ---------- السؤال ----------
     // يُختار السؤال من مستوى المسابقة؛ فإن نفد يُستعار من أقرب مستوى آخر قبل أي تكرار (450 سؤالًا تكفي مسابقة كاملة بلا تكرار)
-    pickQuestion(diffWant, forDuel) {
-      const s = this.s, near = { easy: ['easy', 'med', 'hard'], med: ['med', 'easy', 'hard'], hard: ['hard', 'med', 'easy'] }[s.level] || [s.level];
-      let c = [];
-      for (const lv of near) { const pool = this.bank.filter(q => q.level === lv && !s.used.includes(q.id)); if (!pool.length) continue;
-        const shift = lv === s.level ? 0 : (near.indexOf(lv) && ['easy', 'med', 'hard'].indexOf(lv) < ['easy', 'med', 'hard'].indexOf(s.level) ? 2 : -1), want = Math.max(1, Math.min(3, diffWant + (lv === s.level ? 0 : shift)));
-        c = pool.filter(q => q.d === want); if (!c.length) c = pool.filter(q => Math.abs(q.d - want) <= 1); if (!c.length) c = pool; break; }
-      if (!c.length) { s.used = []; c = this.bank.filter(q => q.level === s.level); }
-      if (!c.length) c = this.bank; const q = c[Math.floor(Math.random() * c.length)]; s.used.push(q.id); return q;
+    // اختيار السؤال: من المستوى المختار وبالدرجة المطلوبة، ولا يتكرر داخل المسابقة، ويُقدَّم ما لم يُعرض في مسابقات سابقة.
+    // إذا عُرضت أسئلة المستوى كلها من قبل تُصفَّر ذاكرته فيبدأ دورة جديدة؛ وإذا نفد المستوى داخل المسابقة يُستعار من أقرب مستوى.
+    pickQuestion(diffWant) {
+      const s = this.s, ORD = ['easy', 'med', 'hard'], near = { easy: ['easy', 'med', 'hard'], med: ['med', 'easy', 'hard'], hard: ['hard', 'med', 'easy'] }[s.level] || [s.level];
+      let seen = new Set(seenLoad()), q = null;
+      for (const lv of near) {
+        const pool = this.bank.filter(x => x.level === lv && !s.used.includes(x.id)); if (!pool.length) continue;
+        const want = lv === s.level ? diffWant : ORD.indexOf(lv) < ORD.indexOf(s.level) ? 3 : 1; // المستعار: الأصعب من الأسهل، والأسهل من الأصعب
+        let fresh = pool.filter(x => !seen.has(x.id));
+        if (!fresh.length && lv === s.level) { const keep = [...seen].filter(id => !pool.some(x => x.id === id)); seenSave(keep); seen = new Set(keep); fresh = pool; }
+        const tiers = [fresh.filter(x => x.d === want), fresh.filter(x => Math.abs(x.d - want) <= 1), fresh, pool.filter(x => x.d === want), pool.filter(x => Math.abs(x.d - want) <= 1), pool];
+        const c = tiers.find(t => t.length); q = c[Math.floor(Math.random() * c.length)]; break;
+      }
+      if (!q) { s.used = []; const c = this.bank.filter(x => x.level === s.level); const all = c.length ? c : this.bank; q = all[Math.floor(Math.random() * all.length)]; }
+      s.used.push(q.id); if (!seen.has(q.id)) seenSave([...seen, q.id]); return q;
     }
-    nextQuestion() { const s = this.s, q = this.pickQuestion(PH_DIFF[this.phaseKey()]);
+    nextQuestion() { const s = this.s, q = this.pickQuestion(Math.random() < (PH_HARD[this.phaseKey()] ?? .5) ? 3 : 2);
       s.cycle++; s.q = { id: q.id, text: q.q, c: q.c, a: q.a, topic: q.t || '' }; s.answers = {}; s.stage = 'question'; this.setTimer(DUR.question); this.changed(); }
     answer(pid, qid, choice) { const s = this.s, p = s.players[pid]; if (!p || !s.q || s.q.id !== qid) return;
       if (s.stage === 'question') { if (s.answers[pid] != null) return; s.answers[pid] = { c: +choice, t: this.t() }; this.changed(); if (this.allAnswered()) this.reveal(); return; }
@@ -175,9 +189,9 @@
       if (D.kind === 'garrisonQ') { const q = this.pickQuestion(3, true); s.duel.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.q = s.duel.q; s.stage = 'gq'; this.setTimer(DUR.gq); this.changed(); return; }
       s.stage = 'predict'; this.setTimer(DUR.predict); this.changed(); }
     predict(pid, duelId, side) { const s = this.s, p = s.players[pid], D = s.duel; if (!D || D.id !== duelId || s.stage !== 'predict' || !p || [D.a, D.d, D.ally].includes(p.team) || !['a', 'd'].includes(side)) return; D.preds[pid] = side; this.changed(); }
-    duelQuestion() { const s = this.s, D = s.duel, q = this.pickQuestion(PH_DIFF[this.phaseKey()], true); D.q = { id: q.id, text: q.q, c: q.c, a: q.a }; D.buzz = null; D.tried = []; D.wrong = []; s.stage = 'buzz'; this.setTimer(DUR.buzz); this.changed(); }
+    duelQuestion() { const s = this.s, D = s.duel, q = this.pickQuestion(DUEL_D, true); D.q = { id: q.id, text: q.q, c: q.c, a: q.a }; D.buzz = null; D.tried = []; D.wrong = []; D.openAt = this.t() + READ_S * SEC; s.stage = 'buzz'; this.setTimer(DUR.buzz + READ_S); this.changed(); }
     sideOf(team) { const D = this.s.duel; if (!D) return null; if (team === D.a || (D.ally != null && team === D.ally)) return 'a'; if (team === D.d) return 'd'; return null; }
-    buzz(pid, duelId) { const s = this.s, D = s.duel, p = s.players[pid]; if (!D || D.id !== duelId || s.stage !== 'buzz' || !p) return; const side = this.sideOf(p.team); if (!side || D.tried.includes(side) || D.buzz) return;
+    buzz(pid, duelId) { const s = this.s, D = s.duel, p = s.players[pid]; if (!D || D.id !== duelId || s.stage !== 'buzz' || !p || this.t() < (D.openAt || 0)) return; const side = this.sideOf(p.team); if (!side || D.tried.includes(side) || D.buzz) return;
       D.buzz = { pid, team: p.team, side, name: p.name, t: this.t() }; s.stage = 'judge'; this.setTimer(DUR.pick); this.changed(); }
     // المواجهة بالخيارات (طلب المستخدم 10 نوفمبر): من ضغط الجرس يختار من جواله ويُصحَّح آليًا، فلا يحكم المشرف.
     //  - صحيحة: نقطة لفريقه.  - خاطئة: ينتقل السؤال فورًا للفريق الآخر، وأول عضو فيه يختار.
@@ -236,8 +250,8 @@
     // ---------- التتويج ----------
     crown() { const s = this.s, S = this.S; if (S.tie) { s.stage = 'tie'; s.tie = { teams: S.tie.teams.slice(), pts: S.tie.pts.slice(), buzz: null, tried: [], q: null }; this.tieQuestion(); return; }
       s.winner = S.winner; s.stage = 'crown'; s.endedAt = this.t(); s.rank = RR().ranking(S); this.say(`${this.tn(s.winner)} يتوَّجون أبطالًا للجزيرة`, 'big'); s.deadline = 0; this.changed(); }
-    tieQuestion() { const s = this.s, q = this.pickQuestion(3, true); s.tie.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.tie.buzz = null; s.tie.tried = []; s.tie.wrong = []; this.setTimer(DUR.buzz); this.changed(); }
-    tieBuzz(pid) { const s = this.s, T = s.tie, p = s.players[pid]; if (s.stage !== 'tie' || !T || T.buzz || !p || !T.teams.includes(p.team) || T.tried.includes(p.team)) return; T.buzz = { pid, team: p.team, name: p.name }; this.setTimer(DUR.pick); this.changed(); }
+    tieQuestion() { const s = this.s, q = this.pickQuestion(3, true); s.tie.q = { id: q.id, text: q.q, c: q.c, a: q.a }; s.tie.buzz = null; s.tie.tried = []; s.tie.wrong = []; s.tie.openAt = this.t() + READ_S * SEC; this.setTimer(DUR.buzz + READ_S); this.changed(); }
+    tieBuzz(pid) { const s = this.s, T = s.tie, p = s.players[pid]; if (s.stage !== 'tie' || !T || T.buzz || !p || this.t() < (T.openAt || 0) || !T.teams.includes(p.team) || T.tried.includes(p.team)) return; T.buzz = { pid, team: p.team, name: p.name }; this.setTimer(DUR.pick); this.changed(); }
     tiePick(pid, idx) { const s = this.s, T = s.tie; if (s.stage !== 'tie' || !T || !T.buzz || T.buzz.pid !== pid || !T.q) return; idx = +idx; if (!(idx >= 0 && idx < T.q.c.length) || (T.wrong || []).includes(idx)) return; if (idx !== T.q.a) (T.wrong = T.wrong || []).push(idx); this.tieJudge(idx === T.q.a); }
     tieJudge(ok) { const s = this.s, T = s.tie; if (!T || !T.buzz) return; const team = T.buzz.team;
       if (ok) { const w = RR().tiePoint(this.S, team); T.pts = this.S.tie ? this.S.tie.pts.slice() : T.pts.map((v, i) => T.teams[i] === team ? v + 1 : v); if (w != null) { s.tie = null; s.winner = w; s.stage = 'crown'; s.endedAt = this.t(); s.rank = RR().ranking(this.S); this.say(`${this.tn(w)} يحسمون المواجهة الفاصلة ويتوَّجون`, 'big'); this.changed(); return; } this.tieQuestion(); return; }
@@ -277,14 +291,14 @@
       if (st === 'question' || st === 'reveal') P.answered = Object.keys(s.answers);
       if (st === 'reveal' && s.ans) P.ans = { ...s.ans, by: Object.fromEntries(Object.entries(s.answers).map(([pid, a]) => [pid, a.c])) };
       if (st === 'orders') { P.orderTeams = s.orderTeams; P.opts = {}; s.orderTeams.forEach(t => { P.opts[t] = this.options(t); }); P.ready = s.ready; P.chosen = Object.fromEntries(Object.entries(s.orders).map(([t, l]) => [t, l.length])); P.sug = s.sug; P.ans = s.ans; }
-      if (s.duel) { const D = s.duel; P.duel = { id: D.id, a: D.a, d: D.d, ally: D.ally, r: D.r, rn: S.regions[D.r].name, unit: D.unit, kind: D.kind, kindAr: D.kindAr, need: D.need, pts: D.pts, betray: D.betray, revenge: D.revenge, joint: D.joint, buzz: D.buzz, tried: D.tried, wrong: D.wrong || [], ans: st === 'point' && D.q ? D.q.a : undefined, preds: Object.keys(D.preds).length, last: D.last,
+      if (s.duel) { const D = s.duel; P.duel = { lock: Math.max(0, (D.openAt || 0) - this.t()), id: D.id, a: D.a, d: D.d, ally: D.ally, r: D.r, rn: S.regions[D.r].name, unit: D.unit, kind: D.kind, kindAr: D.kindAr, need: D.need, pts: D.pts, betray: D.betray, revenge: D.revenge, joint: D.joint, buzz: D.buzz, tried: D.tried, wrong: D.wrong || [], ans: st === 'point' && D.q ? D.q.a : undefined, preds: Object.keys(D.preds).length, last: D.last,
         q: D.q ? { id: D.q.id, text: D.q.text, c: D.q.c } : null, gqN: Object.keys(D.gqAns).length };
         if (st === 'gq') P.q = { id: D.q.id, text: D.q.text, c: D.q.c, gq: true }; }
       if (s.lastDuel) P.lastDuel = s.lastDuel;
       if (s.ev) P.ev = s.ev; P.ack = this.ackKey();
       if (st === 'harvest') P.harvest = s.harvest;
       if (s.bini) P.bini = s.bini;
-      if (s.tie) P.tie = { teams: s.tie.teams, pts: s.tie.pts, buzz: s.tie.buzz, tried: s.tie.tried, wrong: s.tie.wrong || [], q: s.tie.q ? { id: s.tie.q.id, text: s.tie.q.text, c: s.tie.q.c } : null };
+      if (s.tie) P.tie = { lock: Math.max(0, (s.tie.openAt || 0) - this.t()), teams: s.tie.teams, pts: s.tie.pts, buzz: s.tie.buzz, tried: s.tie.tried, wrong: s.tie.wrong || [], q: s.tie.q ? { id: s.tie.q.id, text: s.tie.q.text, c: s.tie.q.c } : null };
       if (st === 'crown') { P.winner = s.winner; P.rank = s.rank; P.ribbon = this.ribbon(); }
       return P; }
     // ما يراه المشرف فقط (مفتاح الإجابة)

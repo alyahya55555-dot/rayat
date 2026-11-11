@@ -238,3 +238,4 @@ body.mapon .ph{padding-top:calc(46vh + 10px)}.pm2d{position:absolute;inset:0}.pm
 .manual .mih{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.manual .mih b{font-size:17px}.manual .mih span{font-family:var(--fs);font-weight:700;font-size:14px;color:var(--gold);white-space:nowrap}
 .manual .mx{background:rgba(242,200,90,.08);border-inline-start:3px solid var(--gold);border-radius:10px;padding:10px 12px}
 .manual .mi .ml{list-style:none;padding:0;margin:6px 0 0}.manual .mi .ml li{margin:3px 0}
+.ph .buzz.locked{background:radial-gradient(circle at 50% 35%,#7d8b93,#4a565d);box-shadow:none;font-size:clamp(22px,7vw,30px);opacity:.92}

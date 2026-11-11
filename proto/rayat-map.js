@@ -3,7 +3,21 @@
   const W = 1920, H = 1080;
   const rng = s => () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const NAMES = ['وادي الريح', 'جبل السحاب', 'سهل الذهب', 'مرفأ اللؤلؤ', 'عين الصفا', 'تل الصقر', 'غابة الأرز', 'هضبة الفجر', 'جرف النسور', 'خليج المرجان', 'مروج السنابل', 'بئر الوفاء', 'رأس الريح', 'سفح الغمام', 'واحة النخيل', 'صخرة البحّار', 'كثيب النجم', 'وادي الغيث', 'قمة الشهباء', 'ضفاف الندى', 'حقول الريحان', 'شعاب القمر', 'ربوة الخزامى', 'مرج الحمام', 'منجم الفضة', 'نبع الرمان', 'تلال العنبر', 'سهل الفرسان', 'درب القوافل', 'كهف الصدى', 'أرض السدرة', 'وادي العقيق', 'حمى الأبطال', 'مرسى الأمان'];
-  const ISLE_NAMES = ['جزيرة الياقوت', 'جزيرة المحار', 'صخرة المنارة', 'شاطئ العنبر'];
+  // أسماء من المملكة بمواقعها التقريبية (خط الطول، خط العرض) وطبيعتها، فتُوزَّع على الجزيرة بحسب الجهة والطبيعة:
+  // الشمال للشمال، والساحل الغربي للغرب، ونجد للوسط، والأحساء والقطيف للشرق، والسراة وجازان للجنوب
+  const SA = [
+    ['طريف', 38.66, 31.67, 'village'], ['القريات', 37.34, 31.33, 'village'], ['دومة الجندل', 39.87, 29.81, 'farm'], ['رفحاء', 43.5, 29.63, 'village'], ['طبرجل', 38.25, 30.5, 'farm'], ['تيماء', 38.55, 27.63, 'farm'], ['بقعاء', 42.4, 27.9, 'village'], ['الحائط', 40.35, 25.99, 'quarry'],
+    ['العلا', 37.92, 26.6, 'farm'], ['خيبر', 39.2, 25.7, 'quarry'], ['مهد الذهب', 40.86, 23.5, 'mine'], ['ينبع', 38.06, 24.09, 'port'], ['رابغ', 39.03, 22.8, 'port'], ['أملج', 37.27, 25.03, 'port'], ['الوجه', 36.45, 26.2, 'port'], ['ضباء', 35.7, 27.35, 'port'],
+    ['الليث', 40.28, 20.15, 'port'], ['القنفذة', 41.08, 19.13, 'port'], ['خليص', 39.33, 22.15, 'farm'], ['الجموم', 39.7, 21.6, 'farm'], ['بدر', 38.79, 23.78, 'village'],
+    ['الخرج', 47.33, 24.15, 'farm'], ['شقراء', 45.25, 25.25, 'village'], ['المجمعة', 45.34, 25.9, 'village'], ['الزلفي', 44.8, 26.3, 'village'], ['الدوادمي', 44.4, 24.5, 'mine'], ['عفيف', 42.9, 23.9, 'mine'], ['ضرما', 46.13, 24.6, 'farm'], ['حريملاء', 46.12, 25.13, 'village'],
+    ['ثادق', 45.87, 25.3, 'village'], ['الغاط', 44.95, 26.03, 'village'], ['عنيزة', 43.99, 26.08, 'farm'], ['الرس', 43.5, 25.87, 'village'], ['البكيرية', 43.66, 26.14, 'farm'], ['المذنب', 44.22, 25.86, 'farm'], ['الأفلاج', 46.73, 22.28, 'farm'], ['السليل', 45.58, 20.46, 'village'], ['وادي الدواسر', 44.8, 20.45, 'farm'],
+    ['الأحساء', 49.6, 25.4, 'farm'], ['القطيف', 50.0, 26.56, 'farm'], ['الجبيل', 49.66, 27.0, 'port'], ['الخفجي', 48.5, 28.42, 'port'], ['حفر الباطن', 45.97, 28.43, 'village'], ['النعيرية', 48.49, 27.47, 'village'], ['رأس تنورة', 50.16, 26.64, 'port'],
+    ['بيشة', 42.6, 19.98, 'farm'], ['النماص', 42.12, 19.1, 'quarry'], ['تنومة', 42.13, 18.92, 'quarry'], ['رجال ألمع', 42.27, 18.2, 'village'], ['فيفاء', 43.1, 17.25, 'quarry'], ['أبو عريش', 42.83, 16.97, 'farm'], ['صامطة', 42.94, 16.6, 'farm'], ['محايل', 42.05, 18.53, 'village'],
+    ['شرورة', 47.12, 17.48, 'village'], ['رنية', 42.42, 21.25, 'farm'], ['تربة', 41.65, 21.21, 'farm'], ['الخرمة', 42.05, 21.92, 'village'], ['بلجرشي', 41.56, 19.86, 'quarry'], ['المخواة', 41.43, 19.78, 'quarry'], ['ظهران الجنوب', 44.1, 17.66, 'village'],
+    ['ظلم', 42.17, 22.73, 'mine'], ['الصخيبرات', 42.98, 25.92, 'mine'], ['الأمار', 45.1, 23.8, 'mine'], ['بلغة', 41.4, 24.0, 'mine'], ['القارة', 49.75, 25.42, 'quarry'], ['القويعية', 45.27, 24.06, 'village']];
+  // الجزيرة الشمالية الشرقية في الخليج (تاروت وقراها)، والجنوبية الغربية في البحر الأحمر (أرخبيل فرسان)
+  const ISLE_NAMES = [['سنابس', 'تاروت', 'دارين'], ['السقيد', 'فرسان', 'قماح']];
+  const CASTLE_NAME = 'قلعة المصمك';
   const TYPES = {
     farm: { name: 'مزارع', res: 'food', base: '#9cc45a', icon: '🌾' },
     mine: { name: 'منجم', res: 'gold', base: '#b9935f', icon: '💰' },
@@ -27,8 +41,9 @@
   // بناء الخريطة: الأقاليم ومجاوراتها وأنواعها
   function build(nTeams = 4, seed = 7) {
     const R = rng(seed), main = { c: [930, 600], poly: blob(930, 600, 700, 380, [.07, 1.2, .05, 2.1, .025, .4]) };
-    const isles = [{ c: [1730, 250], poly: blob(1730, 250, 150, 92, [.08, .3, .06, 1, .03, 2]) }, { c: [215, 930], poly: blob(215, 930, 160, 88, [.07, 2, .06, .5, .03, 1]) }];
-    const total = Math.min(40, 6 * nTeams + 8), nIsle = 2 * isles.length, nMain = total - nIsle; // القلعة من ضمن الرئيسية
+    // الجزيرتان الصغيرتان: مساحة كل واحدة ضعف ما كانت (اعتمده المستخدم 11 نوفمبر)، وفي كل واحدة ثلاث أراضٍ بحجم أراضي الكبرى
+    const isles = [{ c: [1715, 245], rx: 212, ry: 130, poly: blob(1715, 245, 212, 130, [.08, .3, .06, 1, .03, 2]) }, { c: [262, 935], rx: 226, ry: 124, poly: blob(262, 935, 226, 124, [.07, 2, .06, .5, .03, 1]) }];
+    const total = Math.min(42, 6 * nTeams + 10), nIsle = 3 * isles.length, nMain = total - nIsle; // القلعة من ضمن الرئيسية
     const seeds = [{ p: main.c.slice(), land: 0, castle: true }];
     const inner = scalePoly(main.poly, main.c, .86), minD = Math.sqrt(700 * 380 * 3.1 / nMain) * .72;
     while (seeds.filter(s => s.land === 0).length < nMain) {
@@ -36,7 +51,7 @@
       for (let k = 0; k < 40; k++) { const p = [main.c[0] + (R() * 2 - 1) * 720, main.c[1] + (R() * 2 - 1) * 400]; if (!inPoly(p, inner) || Math.hypot(p[0] - main.c[0], (p[1] - main.c[1]) * 1.35) < 215) continue; const d = Math.min(...seeds.map(s => Math.hypot(s.p[0] - p[0], (s.p[1] - p[1]) * 1.25))); if (d > bd) { bd = d; best = p; } }
       if (best && bd > minD * .55) seeds.push({ p: best, land: 0 }); else if (best && seeds.length > 400) break;
     }
-    isles.forEach((is, k) => { seeds.push({ p: [is.c[0] - 66, is.c[1] + 14], land: k + 1 }); seeds.push({ p: [is.c[0] + 66, is.c[1] - 14], land: k + 1 }); });
+    isles.forEach((is, k) => { [[-.5, .22], [.5, .22], [0, -.42]].forEach(([fx, fy]) => seeds.push({ p: [is.c[0] + fx * is.rx, is.c[1] + fy * is.ry], land: k + 1 })); });
     const pts = seeds.map(s => s.p), del = d3.Delaunay.from(pts), vor = del.voronoi([-200, -200, W + 200, H + 200]);
     const regions = seeds.map((s, i) => { const poly = vor.cellPolygon(i); return { id: i, seed: s.p, land: s.land, castle: !!s.castle, poly, nb: [] }; });
     regions.forEach(r => { for (const j of del.neighbors(r.id)) if (regions[j].land === r.land) r.nb.push(j); });
@@ -53,14 +68,24 @@
       return vr(cs.map(c => dC[c])) * 8 + vr(share) + vr(cs.map(c => regions[c].nb.length)) * .5; };
     let caps = null, best = 1e9; for (let k = 0; k < 36; k++) for (const [rx, ry] of [[520, 270], [470, 245], [570, 295], [520, 230], [470, 290], [600, 260]]) { const cs = capsAt(-Math.PI * .75 + k * Math.PI * 2 / nTeams / 24, rx, ry); if (!cs) continue; const u = unfair(cs); if (u < best - 1e-9) { best = u; caps = cs; } }
     caps.forEach(id => { regions[id].type = 'capital'; });
-    regions.forEach(r => { if (r.castle) r.type = 'castle'; else if (r.land) r.type = 'rich'; });
+    regions.forEach(r => { if (r.castle) r.type = 'castle'; });
+    // أراضي الجزر: أرض غنية، ومعلم كنز (منجم الذهب في الأولى، والمحجر الكبير في الثانية)، وأرض عامرة
+    isles.forEach((is, k) => { const L = regions.filter(r => r.land === k + 1).sort((a, b) => a.at[0] - b.at[0]); const T = k === 0 ? ['mine', 'rich', 'village'] : ['quarry', 'rich', 'farm']; L.forEach((r, i) => { r.type = T[i % 3]; if (i === 0) r.treasure = k === 0 ? 'goldmine' : 'bigquarry'; }); });
     // موانئ: أقرب إقليم ساحلي لكل جزيرة صغيرة
     const routes = isles.map((is, k) => { let b = null, bd = 1e9; regions.forEach(r => { if (r.land || r.type) return; const d = Math.hypot(r.at[0] - is.c[0], r.at[1] - is.c[1]); if (d < bd) { bd = d; b = r; } }); b.type = 'port'; const to = regions.filter(r => r.land === k + 1).sort((x, y) => Math.hypot(x.at[0] - b.at[0], x.at[1] - b.at[1]) - Math.hypot(y.at[0] - b.at[0], y.at[1] - b.at[1]))[0]; b.nb.push(to.id); to.nb.push(b.id); return { from: b.id, to: to.id }; });
     // بقية الأنواع: توزيع متوازن (دورة ثابتة مخلوطة)
     const cyc = ['farm', 'mine', 'quarry', 'village', 'farm', 'quarry', 'mine', 'village']; let ci = Math.floor(R() * 8);
     regions.filter(r => !r.type).sort((a, b) => Math.atan2(a.at[1] - main.c[1], a.at[0] - main.c[0]) - Math.atan2(b.at[1] - main.c[1], b.at[0] - main.c[0])).forEach(r => { r.type = cyc[ci++ % cyc.length]; });
     const POOL = { farm: ['مروج السنابل', 'حقول الريحان', 'مرج الحمام', 'واحة النخيل', 'ضفاف الندى', 'نبع الرمان', 'وادي الغيث', 'أرض السدرة', 'ربوة الخزامى', 'سهل الخيرات'], mine: ['منجم الفضة', 'جبل السحاب', 'قمة الشهباء', 'جرف النسور', 'كهف الصدى', 'وادي العقيق', 'تلال العنبر', 'جبل الكحل'], quarry: ['صخرة البحّار', 'هضبة الفجر', 'سفح الغمام', 'شعاب القمر', 'رأس الريح', 'كثيب النجم', 'حرّة الصوّان'], village: ['عين الصفا', 'بئر الوفاء', 'تل الصقر', 'درب القوافل', 'غابة الأرز', 'سهل الفرسان', 'حمى الأبطال', 'وادي الريح'], port: ['مرفأ اللؤلؤ', 'خليج المرجان', 'مرسى الأمان', 'ميناء الشراع'], capital: ['العاصمة'] }, used = {};
-    let ii = 0; regions.forEach(r => { if (r.castle) r.name = 'القلعة الكبرى'; else if (r.land) r.name = ISLE_NAMES[ii++]; else { const P = POOL[r.type] || NAMES, k = used[r.type] = (used[r.type] || 0) + 1; r.name = P[(k - 1) % P.length]; } });
+    // الأسماء: كل أرض تأخذ أقرب اسم إلى جهتها على الخريطة، مع مراعاة طبيعتها (مزرعة، منجم، محجر، قرية، ميناء)
+    { const lo = [35.7, 50.16], la = [16.6, 31.67], pos = ([, x, y]) => [((x - lo[0]) / (lo[1] - lo[0])) * 2 - 1, ((la[1] - y) / (la[1] - la[0])) * 2 - 1];
+      const NP = SA.map(n => ({ n: n[0], t: n[3], p: pos(n) })), taken = new Set(), ORDER = { port: 0, mine: 1, quarry: 2, farm: 3, village: 4, rich: 5, capital: 6 };
+      regions.filter(r => !r.land && !r.castle).sort((a, b) => (ORDER[a.type] ?? 9) - (ORDER[b.type] ?? 9) || a.id - b.id).forEach(r => {
+        const q = [(r.at[0] - main.c[0]) / 700, (r.at[1] - main.c[1]) / 380]; let best = null, bc = 1e9;
+        NP.forEach(n => { if (taken.has(n.n)) return; const geo = Math.hypot(n.p[0] - q[0], n.p[1] - q[1]), fit = n.t === r.type || (r.type === 'capital' && n.t !== 'port') || (r.type === 'rich' && n.t === 'mine') ? 0 : n.t === 'port' ? 1.2 : .7; const c = geo + fit; if (c < bc) { bc = c; best = n; } });
+        taken.add(best.n); r.name = best.n; }); }
+    isles.forEach((is, k) => regions.filter(r => r.land === k + 1).sort((a, b) => a.at[0] - b.at[0]).forEach((r, i) => { r.name = ISLE_NAMES[k][i]; }));
+    regions.forEach(r => { if (r.castle) r.name = CASTLE_NAME; });
     return { W, H, main, isles, regions, caps, routes };
   }
 

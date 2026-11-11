@@ -50,7 +50,7 @@
   // map: ناتج RayatMap.build (regions مع nb, type, land, coast, castle, name, at) و caps
   function setup(map, teams, opts = {}) {
     const regions = map.regions.map(r => ({ id: r.id, name: r.name, type: r.type, land: r.land, coast: !!(r.coast || r.land), nb: r.nb.slice(), at: r.at,
-      owner: null, walls: false, tower: false, garrison: null, landmark: null }));
+      owner: null, walls: false, tower: false, garrison: null, landmark: r.treasure || null }));
     const S = { cfg: CFG, cycle: 0, phase: 0, regions, events: [], duel: null, done: false,
       teams: teams.map((t, i) => ({ id: i, name: t.name, color: t.color, cap: map.caps[i], res: { ...CFG.START }, capLevel: 1,
         ally: null, offerFrom: null, endAllyAt: null, revenge: null, attackedThisCycle: false,
@@ -67,7 +67,7 @@
     // أماكن النفوذ: في الوسط المتنازع عليه (أبعد ما يكون عن العواصم)، والمرصد على أرض عالية
     const distCap = r => Math.min(...map.caps.map(c => hop(S, c, r.id)));
     const pickLm = (types, lm) => { const c = S.regions.filter(r => types.includes(r.type) && r.owner == null && !r.land && !r.landmark).sort((a, b) => distCap(b) - distCap(a) || a.id - b.id)[0]; if (c) c.landmark = lm; };
-    pickLm(['mine'], 'goldmine'); pickLm(['quarry'], 'bigquarry'); pickLm(['quarry', 'mine', 'village'], 'observatory');
+    if (!S.regions.some(r => r.landmark === 'goldmine')) pickLm(['mine'], 'goldmine'); if (!S.regions.some(r => r.landmark === 'bigquarry')) pickLm(['quarry'], 'bigquarry'); pickLm(['quarry', 'mine', 'village'], 'observatory');
     S.regions.filter(r => r.type === 'port').forEach(r => { r.landmark = 'port'; });
     log(S, { t: 'start', teams: S.teams.length });
     return S;
@@ -88,6 +88,11 @@
     const r = S.regions[target]; if (r.nb.some(j => S.regions[j].owner === t)) return true;
     return ownsPort(S, t) && r.coast;
   }
+  // الاحتلال متصل (اعتمده المستخدم 11 نوفمبر): الأرض الفاضية تُحتل إذا لامست أرضك، والميناء يوصل للجزر الصغيرة فقط
+  function occupyReach(S, t, target) {
+    const r = S.regions[target]; if (r.nb.some(j => S.regions[j].owner === t)) return true;
+    return !!r.land && ownsPort(S, t);
+  }
   function cavReach(S, t, target) {
     const r = S.regions[target]; if (reachable(S, t, target) && r.nb.some(j => S.regions[j].owner === t)) return true;
     return r.nb.some(x => { const X = S.regions[x]; return (X.owner == null || friendly(S, t, X.owner)) && X.nb.some(j => S.regions[j].owner === t); });
@@ -100,7 +105,7 @@
     const T = S.teams[t], out = [], R = T.res, C = CFG.COST, ok = (k, c = C[k]) => unlocked(S, k) && has(R, c);
     out.push({ k: 'supply', res: 'food' }, { k: 'supply', res: 'gold' }, { k: 'supply', res: 'stone' });
     S.regions.forEach(r => {
-      if (r.owner == null && r.type !== 'castle') { if (ok('occupy') && reachable(S, t, r.id)) out.push({ k: 'occupy', r: r.id }); }
+      if (r.owner == null && r.type !== 'castle') { if (ok('occupy') && occupyReach(S, t, r.id)) out.push({ k: 'occupy', r: r.id }); }
       else if (r.owner === t) {
         if (r.type !== 'capital' && r.type !== 'castle' && !r.walls && ok('walls')) out.push({ k: 'walls', r: r.id });
         if (!r.tower && r.type !== 'castle' && ok('tower')) out.push({ k: 'tower', r: r.id });
@@ -184,6 +189,8 @@
   function finishDuel(S, w) {
     const D = S.duel, r = S.regions[D.r], A = S.teams[D.a], Df = D.d != null ? S.teams[D.d] : null; S.duel = null;
     const res = { winner: w, kind: D.kind, r: D.r, a: D.a, d: D.d };
+    // المنجنيق يهدم السور في كل الأحوال، حتى لو صمد المدافع (اعتمده المستخدم 11 نوفمبر)
+    if (D.unit === 'cat' && r.walls) { r.walls = false; res.wallsBroken = true; }
     if (w === 'd') {
       if (Df) { Df.stats.holds++; if (r.garrison === 'cav') { const n = Math.min(CFG.CAV_GARRISON_LOOT, A.res.gold); A.res.gold -= n; Df.res.gold += n; res.cavLoot = n; } }
       log(S, { t: 'hold', ...res }); return res;

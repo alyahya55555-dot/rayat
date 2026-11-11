@@ -39,7 +39,6 @@ const SFX = {
       case 'raise': this.rec('swish', .7, at); this.rec('land', .35, at + .6); break;
       case 'settle': this.rec('w-steps-grass', .8, at); this.rec('step', .4, at + 1.4); this.rec('land', .4, at + 2.9); break;
       case 'build': ['hammer-a', 'hammer-b', 'hammer-c', 'hammer-d', 'hammer-a', 'hammer-c'].forEach((h, i) => this.rec(h, .8, at + i * .42 + r(-.07, .07), .95 + i * .03)); this.rec('stone', .5, at + 2.6); break;
-      case 'catapult': this.rec('creak', 1, at, .8); this.rec('wood-hit', .7, at + .3, .8); this.rec('swish', 1, at + .4, .55); this.rec('stone', 1, at + .95); this.rec('debris', .7, at + 1.05); break;
       // المنجنيق خطوة خطوة: شدّ الذراع (صرير خشب متقطع)، ثم الإطلاق (ضربة الذراع في العارضة وصفير الحجر)، ثم ارتطامه بالسور وتساقط الحجارة
       case 'catwind': for (let i = 0; i < 4; i++) this.rec('creak', .75 + i * .08, at + i * .26 + r(0, .05), .7 + i * .06); break;
       case 'catfire': this.rec('wood-hit', 1.1, at, .72); this.rec('creak', .6, at + .02, 1.1); this.rec('swish', 1, at + .1, .5); break;

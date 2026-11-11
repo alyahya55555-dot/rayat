@@ -4,7 +4,7 @@ const fs = require('fs'), path = require('path'), { execFileSync } = require('ch
 const ROOT = path.join(__dirname, '..'), DIR = path.join(ROOT, 'assets/sfx'), SR = 22050;
 const sfxSrc = fs.readFileSync(path.join(ROOT, 'app/sfx.js'), 'utf8');
 // مفاتيح play وما تستدعيه من عينات
-const plays = {}; sfxSrc.split('\n').forEach(l => { const m = l.match(/^\s*case '([\w-]+)':(.*)$/); if (!m) return; const names = new Set(); (m[2].match(/'([\w-]+)'/g) || []).forEach(x => names.add(x.slice(1, -1))); plays[m[1]] = [...names]; });
+const plays = {}; { const re = /^\s*case '([\w-]+)':([\s\S]*?)(?=^\s*case '|^\s*default:|^\s*}\s*}\s*catch)/gm; let m; while ((m = re.exec(sfxSrc))) { const names = new Set(); (m[2].match(/'([\w-]+)'/g) || []).forEach(x => names.add(x.slice(1, -1))); plays[m[1]] = [...names]; } } // الحالة قد تمتد عدة أسطر
 const ambientUsed = /rec\('nature'/.test(sfxSrc);
 // أين يُطلب كل مفتاح أثناء اللعب
 const appSrc = ['world.js', 'ui-display.js', 'ui-phone.js', 'ui-host.js', 'game.js'].map(f => [f, fs.readFileSync(path.join(ROOT, 'app', f), 'utf8')]);

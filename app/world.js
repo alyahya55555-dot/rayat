@@ -473,16 +473,16 @@
     function findPath(a, b, clear = .07, extra) {
       const cell = .04, minx = Math.min(a[0], b[0]) - 1, minz = Math.min(a[1], b[1]) - 1, nx = Math.ceil((Math.max(a[0], b[0]) + 1 - minx) / cell), nz = Math.ceil((Math.max(a[1], b[1]) + 1 - minz) / cell);
       const blk = new Uint8Array(nx * nz), obs = blockers(extra);
-      for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) { const x = minx + ix * cell, z = minz + iz * cell; if (coastDist(x, z) < .14 || groundY(x, z) > .45) { blk[iz * nx + ix] = 1; continue; } }
+      for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) { const x = minx + ix * cell, z = minz + iz * cell; if (coastDist(x, z) < .14 || groundY(x, z) > .45 * K) { blk[iz * nx + ix] = 1; continue; } }
       obs.forEach(o => { const rr = o.r + clear, i0 = Math.max(0, Math.floor((o.x - rr - minx) / cell)), i1 = Math.min(nx - 1, Math.ceil((o.x + rr - minx) / cell)), j0 = Math.max(0, Math.floor((o.z - rr - minz) / cell)), j1 = Math.min(nz - 1, Math.ceil((o.z + rr - minz) / cell));
         for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) if (Math.hypot(minx + i * cell - o.x, minz + j * cell - o.z) < rr) blk[j * nx + i] = 1; });
       const toI = p => [clamp(Math.round((p[0] - minx) / cell), 0, nx - 1), clamp(Math.round((p[1] - minz) / cell), 0, nz - 1)];
-      const [sx, sz] = toI(a), [gx, gz] = toI(b); blk[sz * nx + sx] = 0; blk[gz * nx + gx] = 0;
-      const N = nx * nz, gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), open = [[0, sz * nx + sx]]; gs[sz * nx + sx] = 0;
+      const [sx, sz] = toI(a), [gx, gz] = toI(b); [[sx, sz], [gx, gz]].forEach(([cx0, cz0]) => { for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const x2 = cx0 + dx, z2 = cz0 + dz; if (x2 >= 0 && z2 >= 0 && x2 < nx && z2 < nz) blk[z2 * nx + x2] = 0; } }); // مخرج صغير حول البداية والنهاية
+      const N = nx * nz, gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), hp = [], push = (f, i) => { hp.push([f, i]); let k = hp.length - 1; while (k) { const pk = (k - 1) >> 1; if (hp[pk][0] <= hp[k][0]) break; [hp[pk], hp[k]] = [hp[k], hp[pk]]; k = pk; } }, pop = () => { const top = hp[0], last = hp.pop(); if (hp.length) { hp[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r2 = l + 1; let m = k; if (l < hp.length && hp[l][0] < hp[m][0]) m = l; if (r2 < hp.length && hp[r2][0] < hp[m][0]) m = r2; if (m === k) break; [hp[m], hp[k]] = [hp[k], hp[m]]; k = m; } } return top; }; push(0, sz * nx + sx); gs[sz * nx + sx] = 0;
       const H = (i) => Math.hypot(i % nx - gx, Math.floor(i / nx) - gz); let found = false, it = 0;
-      while (open.length && it++ < 60000) { let bi = 0; for (let k = 1; k < open.length; k++) if (open[k][0] < open[bi][0]) bi = k; const [, cur] = open.splice(bi, 1)[0]; if (cur === gz * nx + gx) { found = true; break; }
+      while (hp.length && it++ < 400000) { const [fc, cur] = pop(); if (fc - H(cur) * 1.001 > gs[cur] + 1e-6) continue; if (cur === gz * nx + gx) { found = true; break; }
         const cx = cur % nx, cz = Math.floor(cur / nx); for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dz) continue; const x2 = cx + dx, z2 = cz + dz; if (x2 < 0 || z2 < 0 || x2 >= nx || z2 >= nz) continue; const ni = z2 * nx + x2; if (blk[ni]) continue; if (dx && dz && (blk[cz * nx + x2] || blk[z2 * nx + cx])) continue;
-          const g2 = gs[cur] + Math.hypot(dx, dz); if (g2 < gs[ni]) { gs[ni] = g2; came[ni] = cur; open.push([g2 + H(ni) * 1.001, ni]); } } }
+          const g2 = gs[cur] + Math.hypot(dx, dz); if (g2 < gs[ni]) { gs[ni] = g2; came[ni] = cur; push(g2 + H(ni) * 1.001, ni); } } }
       if (!found) return null;
       let pts = []; for (let c = gz * nx + gx; c !== -1; c = came[c]) pts.push([minx + (c % nx) * cell, minz + Math.floor(c / nx) * cell]); pts.reverse(); pts[0] = a.slice(); pts[pts.length - 1] = b.slice();
       // تبسيط: نقطة إلى أبعد نقطة مرئية بلا عائق
@@ -497,10 +497,27 @@
     const onLand = (x, z) => lands.some(L => { let c = false; for (let i = 0, j = L.length - 1; i < L.length; j = i++) { const [xi, zi] = L[i], [xj, zj] = L[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; });
     function seaRoute(A, B) { const sample = c => { const out = []; for (let i = 0; i <= 40; i++) { const t = i / 40, u = 1 - t; out.push([u * u * A[0] + 2 * u * t * c[0] + t * t * B[0], u * u * A[1] + 2 * u * t * c[1] + t * t * B[1]]); } return out; };
       const mx = (A[0] + B[0]) / 2, mz = (A[1] + B[1]) / 2, dx = B[0] - A[0], dz = B[1] - A[1], L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
-      for (const k of [0, .4, -.4, .9, -.9, 1.5, -1.5, 2.2, -2.2, 3, -3, 4, -4]) { const pts = sample([mx + nx * k, mz + nz * k]); if (pts.slice(2, -2).every(([x, z], i) => !onLand(x, z) && (i < 4 || i > 32 || coastDist(x, z) < -.04))) return curve(pts.filter((_, i) => i % 4 === 0)); }
+      for (const k0 of [0, .4, -.4, .9, -.9, 1.5, -1.5, 2.2, -2.2, 3, -3, 4, -4]) { const k = k0 * K, pts = sample([mx + nx * k, mz + nz * k]); if (pts.slice(2, -2).every(([x, z], i) => !onLand(x, z) && (i < 4 || i > 32 || coastDist(x, z) < -.04))) return curve(pts.filter((_, i) => i % 4 === 0)); }
       // التفاف حول الجزيرة الكبرى على دائرة خارج الساحل
       const L0 = lands[0], cx = L0.reduce((a2, p) => a2 + p[0], 0) / L0.length, cz = L0.reduce((a2, p) => a2 + p[1], 0) / L0.length, R0 = Math.max(...L0.map(p => Math.hypot(p[0] - cx, p[1] - cz)));
       let a1 = Math.atan2(A[1] - cz, A[0] - cx), a2 = Math.atan2(B[1] - cz, B[0] - cx), da = a2 - a1; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI;
+      // مسار بحري عام بالبحث على شبكة الماء (يلتف حول أي جزيرة، ويبقى بعيدًا عن الساحل قليلًا)
+      { const cell = .1 * K, x0 = Math.min(A[0], B[0], ...lands.flat().map(p => p[0])) - 1.5, z0 = Math.min(A[1], B[1], ...lands.flat().map(p => p[1])) - 1.5, x1 = Math.max(A[0], B[0], ...lands.flat().map(p => p[0])) + 1.5, z1 = Math.max(A[1], B[1], ...lands.flat().map(p => p[1])) + 1.5, nx = Math.ceil((x1 - x0) / cell), nz = Math.ceil((z1 - z0) / cell);
+        const blk = new Uint8Array(nx * nz); for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const x = x0 + i * cell, z = z0 + j * cell; if (onLand(x, z) || coastDist(x, z) > -.1) blk[j * nx + i] = 1; }
+        const ti = p => [clamp(Math.round((p[0] - x0) / cell), 0, nx - 1), clamp(Math.round((p[1] - z0) / cell), 0, nz - 1)], [si, sj] = ti(A), [gi, gj] = ti(B); blk[sj * nx + si] = 0; blk[gj * nx + gi] = 0;
+        const gs = new Float32Array(nx * nz).fill(1e9), came = new Int32Array(nx * nz).fill(-1), hp = [], H = i => Math.hypot(i % nx - gi, Math.floor(i / nx) - gj);
+        const push = (f, i) => { hp.push([f, i]); let k = hp.length - 1; while (k) { const pk = (k - 1) >> 1; if (hp[pk][0] <= hp[k][0]) break; [hp[pk], hp[k]] = [hp[k], hp[pk]]; k = pk; } }, pop = () => { const top = hp[0], last = hp.pop(); if (hp.length) { hp[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r2 = l + 1; let m = k; if (l < hp.length && hp[l][0] < hp[m][0]) m = l; if (r2 < hp.length && hp[r2][0] < hp[m][0]) m = r2; if (m === k) break; [hp[m], hp[k]] = [hp[k], hp[m]]; k = m; } } return top; };
+        const S0 = sj * nx + si, G0 = gj * nx + gi; gs[S0] = 0; push(0, S0); let found = false, it = 0;
+        while (hp.length && it++ < 200000) { const [fc, cur] = pop(); if (cur === G0) { found = true; break; } if (fc - H(cur) > gs[cur] + 1e-6) continue; const cxi = cur % nx, czi = Math.floor(cur / nx);
+          for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dz) continue; const x2 = cxi + dx, z2 = czi + dz; if (x2 < 0 || z2 < 0 || x2 >= nx || z2 >= nz) continue; const ni = z2 * nx + x2; if (blk[ni]) continue; const g2 = gs[cur] + Math.hypot(dx, dz); if (g2 < gs[ni]) { gs[ni] = g2; came[ni] = cur; push(g2 + H(ni), ni); } } }
+        if (found) { let pts = []; for (let c = G0; c !== -1; c = came[c]) pts.push([x0 + (c % nx) * cell, z0 + Math.floor(c / nx) * cell]); pts.reverse(); pts[0] = A.slice(); pts[pts.length - 1] = B.slice();
+          const free = (p, q) => { const L = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.ceil(L / (cell * .4)); for (let k = 1; k < n; k++) { const x = lerp(p[0], q[0], k / n), z = lerp(p[1], q[1], k / n); if (onLand(x, z) || coastDist(x, z) > -.06) return false; } return true; };
+          const out = [pts[0]]; let i = 0; while (i < pts.length - 1) { let j = pts.length - 1; while (j > i + 1 && !free(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
+          if (out.length === 2) out.splice(1, 0, [(A[0] + B[0]) / 2, (A[1] + B[1]) / 2]); const c3 = curve(out); if (Array.from({ length: 160 }, (_, i) => c3.getPointAt((i + 4) / 168)).every(v => !onLand(v.x, v.z))) return c3; } }
+      // التفاف حول الجزيرة الكبرى على قطع ناقص يحاذي شكلها (أقرب للساحل من الدائرة، فلا يصطدم بالجزر الصغيرة)
+      const ex = Math.max(...L0.map(p => Math.abs(p[0] - cx))), ez = Math.max(...L0.map(p => Math.abs(p[1] - cz)));
+      for (const mg of [.35, .7, 1.1, 1.6, 2.3]) for (const dd of [da, da > 0 ? da - 2 * Math.PI : da + 2 * Math.PI]) { const n = Math.max(4, Math.ceil(Math.abs(dd) / .2)), pts = [A]; for (let i = 0; i <= n; i++) { const an = a1 + dd * i / n; pts.push([cx + Math.cos(an) * (ex + mg), cz + Math.sin(an) * (ez + mg)]); } pts.push(B);
+        const c2 = curve(pts), ok2 = Array.from({ length: 120 }, (_, i) => c2.getPointAt((i + 4) / 128)).every(v => !onLand(v.x, v.z)); if (ok2) return c2; }
       for (const Rr of [R0 + .35, R0 + .9, R0 + 1.6]) for (const dd of [da, da > 0 ? da - 2 * Math.PI : da + 2 * Math.PI]) { const n = Math.max(3, Math.ceil(Math.abs(dd) / .3)), pts = [A]; for (let i = 0; i <= n; i++) { const an = a1 + dd * i / n; pts.push([cx + Math.cos(an) * Rr, cz + Math.sin(an) * Rr]); } pts.push(B);
         const c2 = curve(pts), ok2 = Array.from({ length: 60 }, (_, i) => c2.getPointAt((i + 3) / 66)).every(v => !onLand(v.x, v.z)); if (ok2) return c2; }
       return null; }
@@ -687,7 +704,7 @@
       units.forEach((u, i) => { const k = u.userData.kind; const pair = k === 'foot' ? (i % 2 ? .028 : -.028) : 0; if (k !== 'foot' || i % 2 === 0) off += spacing(u) * (i ? 1 : 0);
         if (hide) u.visible = s - off > .002; const ss = clamp((s - off) / len, 0, 1), p = crv.getPointAt(ss), tg = crv.getTangentAt(Math.min(.999, Math.max(.001, ss))); const x = p.x - tg.z * pair, z = p.z + tg.x * pair;
         u.position.set(x, groundY(x, z), z); u.rotation.y = Math.atan2(tg.x, tg.z) + (retreat ? Math.PI : 0); animUnit(u, t, walking, i, false); out.push(u);
-        if (W.audit) { const rr = k === 'horse' ? .05 : k === 'cat' ? .06 : .025; blockers().forEach(o => { const dd = Math.hypot(o.x - x, o.z - z) - o.r - rr; if (dd < -.005) W.hits.push([o.k || 'شجرة', +dd.toFixed(3)]); }); } });
+        if (W.audit && u.visible !== false) { const rr = k === 'horse' ? .05 : k === 'cat' ? .06 : .025; blockers().forEach(o => { const dd = Math.hypot(o.x - x, o.z - z) - o.r - rr; if (dd < -.005) W.hits.push([o.k || 'شجرة', +dd.toFixed(3), +x.toFixed(2), +z.toFixed(2), k, +s.toFixed(2)]); }); } });
       return off; }
 
     // مشهد الهجوم الكامل
@@ -816,7 +833,7 @@
       const dir0 = [cross[0] - fx, cross[1] - fz], dl = Math.hypot(...dir0) || 1, dir = [dir0[0] / dl, dir0[1] / dl];
       const nav = !tgt.nb.some(j => (M.regions[j].land || 0) === (tgt.land || 0) && W.owner[j] === team) ? navalPlan(team, null, r) : null;
       const start = nav ? nav.shore : muster(cross, dir, .5, fromId);
-      const p1 = (nav ? findPath(start, goal, .05) : findPath(start, goal, .07)) || [start, goal];
+      const p1 = findPath(start, goal, .085) || findPath(start, goal, .06) || [start, goal]; // خلوص يكفي صف المستوطنين بحجمهم الجديد
       const crv = curve(p1), len = crv.getLength();
       const units = [soldier(team), cart(team), soldier(team)]; const colLen = .2;
       const o2 = nav ? nav.t1 - .2 : 0, wd = clamp((len - (nav ? 0 : colLen)) / SPEED.cart, 1.6, 3.6), we = .8 + o2 + wd, tw = W.time, T = { walk: [.8 + o2, we], plant: [we, we + 1], spread: [we + .8, we + 2.6], end: we + 3.6 };

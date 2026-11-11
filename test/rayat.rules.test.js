@@ -20,7 +20,7 @@ const rich = S => S.teams.forEach(T => { T.res = { food: 50, gold: 50, stone: 50
 // 1) الإعداد على الخرائط الحقيقية لكل عدد فرق
 for (let n = 2; n <= 6; n++) for (const seed of [1, 7, 42]) {
   const M = RayatMap.build(n, seed), S = R.setup(M, TEAMS(n));
-  const want = { 2: 20, 3: 26, 4: 32, 5: 38, 6: 40 }[n];
+  const want = { 2: 22, 3: 28, 4: 34, 5: 40, 6: 42 }[n]; // الجزيرتان الصغيرتان بثلاث أراضٍ لكل واحدة (11 نوفمبر)
   ok(S.regions.length === want, `عدد الأقاليم حسب المواصفات ${n}: ${S.regions.length}`);
   S.teams.forEach((T, i) => ok(S.regions.filter(r => r.owner === i).length === 3, `فريق ${i} يبدأ بالعاصمة + إقليمين (n=${n},s=${seed})`));
   ok(S.teams.every(T => T.res.food === 6 && T.res.gold === 6 && T.res.stone === 6), 'يبدأ كل فريق بـ 6 من كل مورد');

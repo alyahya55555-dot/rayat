@@ -9,8 +9,9 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d2a36}#c{position:fi
 <script src="vendor.min.js"></script><script src="../proto/rayat-map.js"></script><script src="../game/rules.js"></script><script src="world.js"></script>
 <script>
 const TEAMS = [{ name: 'الصقور', color: '#2f6fdb', mark: 'ص' }, { name: 'السهم', color: '#1f9d55', mark: 'س' }, { name: 'الرواد', color: '#e07a2e', mark: 'ر' }, { name: 'الهمّة', color: '#8e4fb8', mark: 'هـ' }];
-const M = RayatMap.build(4, 7), S = RayatRules.setup(M, TEAMS);
-const W = RayatWorld(document.getElementById('c'), M, TEAMS, { seed: 91, capture: true });
+const QS = new URLSearchParams(location.search), NT = +(QS.get('n') || 4), SEED = +(QS.get('seed') || 7), TT = Array.from({ length: NT }, (_, i) => TEAMS[i % TEAMS.length] && i < TEAMS.length ? TEAMS[i] : { name: 'فريق ' + (i + 1), color: ['#c0392b', '#16a085'][i % 2], mark: String(i + 1) });
+const M = RayatMap.build(NT, SEED), S = RayatRules.setup(M, TT);
+const W = RayatWorld(document.getElementById('c'), M, TT, { seed: 91, capture: true });
 window.DEV = { M, S, W, RR: RayatRules, snapshot() { return { regions: S.regions.map(r => ({ id: r.id, owner: r.owner, walls: r.walls, tower: r.tower, garrison: r.garrison })), teams: S.teams.map(t => ({ capLevel: t.capLevel })) }; } };
 DEV.ready = (async () => { await W.fontsReady(); W.setState(DEV.snapshot()); W.resize(innerWidth, innerHeight); return true; })();
 </script></body></html>

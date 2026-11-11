@@ -234,3 +234,7 @@ body.mapon .ph{padding-top:calc(46vh + 10px)}.pm2d{position:absolute;inset:0}.pm
 .manual .steps,.manual ul{margin:4px 0;padding-inline-start:22px}.manual li{margin:4px 0}
 .manual .mt{width:100%;border-collapse:collapse;font-size:15px}.manual .mt td{padding:7px 8px;border-bottom:1px solid var(--line)}.manual .mt td:last-child{font-family:var(--fs);font-weight:700;white-space:nowrap;text-align:left}
 .landing .guidebtn{margin-top:18px}
+.manual .mi{background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:8px 0}.manual .mi p{margin:4px 0 0}
+.manual .mih{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}.manual .mih b{font-size:17px}.manual .mih span{font-family:var(--fs);font-weight:700;font-size:14px;color:var(--gold);white-space:nowrap}
+.manual .mx{background:rgba(242,200,90,.08);border-inline-start:3px solid var(--gold);border-radius:10px;padding:10px 12px}
+.manual .mi .ml{list-style:none;padding:0;margin:6px 0 0}.manual .mi .ml li{margin:3px 0}

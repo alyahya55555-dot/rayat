@@ -152,7 +152,7 @@ const Sign = {
 
 class Mq {
   constructor(net) { this.net = net; this.role = net.role; this.links = []; this.cid = this.role[0] + uid(11); this.code = null; this.active = null; this.key = null; this.stats = { in: 0, out: 0, bad: 0 }; }
-  get multi() { return this.role === 'host'; }
+  get multi() { return true; } /* الجميع يتصل بكل الخوادم: الجوال يستقبل حالة المشرف من أي خادم مشترك، فلا يعلق إن تعطّل خادم واحد عند أحدهما */
   async ensureKey() {
     if (this.key || !Sign.ok) return this.key;
     if (!this._kp) this._kp = this.role === 'host' ? Sign.load(localStorage, 'rayat.hostSign') : Sign.load(sessionStorage, 'rayat.sign');
@@ -178,15 +178,15 @@ class Mq {
   }
   // المشرف: يتصل بكل الخوادم ويجسر بينها، ويعيد المحاولة مع كل خادم وحده
   openHost(b, i) {
-    const l = { b, i, up: false, dead: false, tries: 0 }; this.links[i] = l;
+    const l = { b, i, up: false, dead: false, tries: 0 }; this.links[i] = l; const host = this.role === 'host';
     const connect = () => {
       if (l.dead) return;
       let c; try { c = this.client(b, i, l); } catch (e) { return retry(); }
       l.c = c; c.onConnectionLost = () => { l.up = false; this.net.fire('status'); retry(); };
-      try { c.connect(this.connOpts(b, () => { if (l.dead) { try { c.disconnect(); } catch (e) { } return; } l.up = true; l.tries = 0; c.subscribe(this.base + 'p/+', { qos: 1 }); c.subscribe(this.base + 'h/+', { qos: 1 }); this.net.fire('status'); this.net.fire('mqup'); }, () => { l.up = false; retry(); })); } catch (e) { retry(); }
+      try { c.connect(this.connOpts(b, () => { if (l.dead) { try { c.disconnect(); } catch (e) { } return; } l.up = true; l.tries = 0; if (host) c.subscribe(this.base + 'p/+', { qos: 1 }); c.subscribe(this.base + 'h/+', { qos: 1 }); this.net.fire('status'); this.net.fire('mqup'); }, () => { l.up = false; retry(); })); } catch (e) { retry(); }
     };
-    const retry = () => { if (l.dead) return; clearTimeout(l.t); l.t = setTimeout(connect, Math.min(10000, 800 * Math.pow(1.7, Math.min(l.tries, 6)))); };
-    connect();
+    const retry = () => { if (l.dead) return; clearTimeout(l.t); l.t = setTimeout(connect, Math.min(10000, 800 * Math.pow(1.7, Math.min(l.tries, 6))) + (host ? 0 : Math.random() * 1500)); };
+    if (host) connect(); else l.t = setTimeout(connect, i ? 200 + Math.random() * 1200 : 0); /* الجوالات تتصل بالخوادم متباعدة قليلًا فلا تزدحم شبكة القاعة */
   }
   // الجوال وشاشة العرض: خادم واحد بالأولوية (الأول دائمًا إن كان متاحًا) حتى يصل الجميع عبر الخادم نفسه
   attempt(idx, gen) {
@@ -232,9 +232,9 @@ class Mq {
     const sub = topic.slice(this.base.length);
     let env; try { env = JSON.parse(payload); } catch (e) { return; }
     if (sub.startsWith('p/')) {
-      if (!this.multi) return;
+      if (this.role !== 'host') return;
       const cid = sub.slice(2), peer = 'mq:' + cid;
-      if (env.bye) { this.net.fire('bcbye', peer); return; }
+      if (env.bye) { const t0 = Date.now(); setTimeout(() => { const pv = this.seen && this.seen.get(cid); if (!pv || !pv.at || pv.at < t0) this.net.fire('bcbye', peer); }, 4500); return; } /* وداع من خادم واحد لا يعني الخروج: الجوال قد يكون متصلًا بغيره */
       if (!env.k || !env.s || typeof env.d !== 'string') { this.stats.bad++; return; }
       if (!(await Sign.verify(env.k, env.s, sub + '|' + env.d))) { this.stats.bad++; return; }
       let pr; try { pr = JSON.parse(env.d); } catch (e) { return; }
@@ -242,13 +242,14 @@ class Mq {
       // منع إعادة الإرسال القديم: كل رسالة تحمل عدّادًا متزايدًا
       const last = this.seen || (this.seen = new Map()); const prev = last.get(cid);
       if (prev && prev.k === env.k && typeof pr._n === 'number' && pr._n <= prev.n) return;
-      last.set(cid, { k: env.k, n: pr._n || 0 });
+      last.set(cid, { k: env.k, n: pr._n || 0, at: Date.now() });
       this.net.fire('bcpres', peer, pr, pr.c, fp);
       return;
     }
     if (sub.startsWith('h/')) {
       const t = { 'h/s': 'state', 'h/r': 'roster', 'h/v': 'priv' }[sub]; if (!t) return;
       if (!env.k || !env.s || typeof env.d !== 'string') { this.stats.bad++; return; }
+      if (this.role !== 'host') { const D = this.dupH || (this.dupH = []); if (D.includes(env.s)) return; D.push(env.s); if (D.length > 40) D.shift(); } /* الرسالة نفسها تصل من أكثر من خادم: تُعالج مرة واحدة */
       const fp = await Sign.fp(env.k);
       if (this.role === 'host') { if (this.key && env.k !== this.key.pub && t === 'state') this.net.fire('foreignhost', fp); return; }
       if (!this.net.trustHost(fp)) { this.stats.bad++; return; }

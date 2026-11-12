@@ -97,7 +97,11 @@
       this.S.events.filter(e => e.t === 'unally' && e.phase === i).forEach(e => this.pushEv({ k: 'unally', a: e.a, b: e.b, betray: false }));
       const nU = (P.unlock || []).filter(k => k !== 'garCav' && k !== 'cap3').length, hold = nU ? 1.2 + nU * 2.2 + 1.6 : 0; s.stage = 'phase'; s.ev = { id: ++s.evSeq, k: 'phase', key: P.key, name: P.name, unlock: P.unlock, hold }; s.fresh = nU > 0; this.sceneTimer(Math.max(DUR.scene.phase, hold)); this.say('بدأت مرحلة ' + P.name, 'big');
       if (P.key === 'crown') { s.vis = this.snapshot(); this.crown(); return; }
+      if (i > 0) { s.ev.caps = this.rotateCaptains(); if (s.ev.caps.length) { s.ev.hold = (s.ev.hold || 1.6) + 1.8; this.sceneTimer(Math.max(DUR.scene.phase, s.ev.hold)); } }
       this.changed(); }
+    // القيادة بالتناوب (طلب المستخدم 12 نوفمبر): مع كل مرحلة جديدة تنتقل القيادة لعضو متصل آخر بترتيب الانضمام، فيقود كل طالب مرة على الأقل
+    rotateCaptains() { const s = this.s, out = []; s.teams.forEach((T, t) => { const mem = Object.keys(s.players).filter(pid => s.players[pid].team === t && s.players[pid].online !== false); if (mem.length < 2) return;
+        const cur = s.captains[t], k = mem.indexOf(cur), nx = mem[(k + 1) % mem.length]; if (!nx || nx === cur) return; s.captains[t] = nx; out.push([t, s.players[nx].name]); this.say(`قائد ${this.tn(t)} الآن: ${s.players[nx].name}`); }); return out; }
     pushEv(e) { this.s.queue.push(e); }
 
     // ---------- السؤال ----------

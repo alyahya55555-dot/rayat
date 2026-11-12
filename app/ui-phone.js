@@ -22,6 +22,7 @@ const Phone = {
   pres() { this.net.presence({ r: 's', c: this.code, pid: this.pid, nm: this.me.nm || null, tw: this.me.tw ?? null }); },
   send(f, d) { this.n++; this.SS.set('rayat.n', this.n); this.net.presence({ [f]: Object.assign({ n: this.n }, d) }); },
   onState(P) { if (!P || (this.code && P.code !== this.code)) return; if (!this.code) this.code = P.code; if (this.P && P.v < this.P.v) return;
+    { const t0 = this.P && this.myTeam(), was = t0 != null && this.P.teams[t0] && this.P.teams[t0].cap === this.pid, me1 = P.players && P.players[this.pid], now = !!(me1 && P.teams && P.teams[me1.t] && P.teams[me1.t].cap === this.pid); if (this.P && !was && now && P.stage === 'phase') { toast('👑 أنت قائد فريقك في هذه المرحلة', 4000); try { navigator.vibrate && navigator.vibrate([80, 60, 80]); } catch (e) { } } }
     const prev = this.P; this.P = P; this.lastState = performance.now(); if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d; } else this.endAt = 0;
     { const L = P.stage === 'buzz' && P.duel ? P.duel.lock : P.stage === 'tie' && P.tie ? P.tie.lock : 0; this.lockUntil = P.paused ? Infinity : performance.now() + (L || 0); }
     if (P.mapSeed != null && (!this.M || this.mkey !== P.teams.length + ':' + P.mapSeed)) { this.mkey = P.teams.length + ':' + P.mapSeed; this.M = RayatMap.build(P.teams.length, P.mapSeed); if (this.mapOpen) this.closeMap(); }

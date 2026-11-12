@@ -995,7 +995,7 @@
       const pose = () => { const tt = W.time - t0, az = Math.sin(tt * .045) * .3, look = V(f[0] + Math.sin(tt * .035) * .5 * K, 0, f[1]); return { pos: V(look.x + Math.sin(az) * Math.cos(el) * dist, Math.sin(el) * dist, look.z + Math.cos(az) * Math.cos(el) * dist), look }; };
       camTo(pose(), 2.6); camFollow(pose); };
     // معلومات القلعة فوقها: صاحبها وجولات أمانه
-    W._dbg = { trees: () => TREES, flags: () => flags, terrBlock, groundY, cam: () => cam, lift: () => terrLift, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
+    W._dbg = { sizes: () => { const B = new THREE.Box3(), h = o => { B.setFromObject(o); const v = new THREE.Vector3(); B.getSize(v); return [+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3)]; }; const tmp = new THREE.Group(); const sd = soldier(0), rd = rider(0); house(0, 0, 1, C.roof, 0, tmp); const out = { soldier: h(sd), rider: h(rd), house: h(tmp), UNIT_S, SZ }; const ids = Object.keys(R); const fid = ids.find(i => R[i].fort), tid = ids.find(i => R[i].tower); if (fid) out.fort = h(R[fid].fort); if (tid) out.tower = h(R[tid].tower); const tr = TREES.filter(t => t.s > .5).slice(0, 3).map(t => t.t); out.tree = tr; return out; }, trees: () => TREES, flags: () => flags, terrBlock, groundY, cam: () => cam, lift: () => terrLift, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
     W.setCastle = (info) => { const k = JSON.stringify(info || {}); if (k === W._ck) return; W._ck = k; W.castleInfo = info || {}; const c = M.regions.find(x => x.type === 'castle'); if (c) makeLabel(c); };
 
     // ---------- الإطار ----------

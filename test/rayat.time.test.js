@@ -38,4 +38,11 @@ const mk = (total = 60) => { let clock = 1e12; const g = new RayatGame({ now: ()
     if (g.s.stage === 'question' && g.s.q) Object.keys(g.s.players).forEach(pid => g.answer(pid, g.s.q.id, g.s.q.a)); if (g.s.stage === 'judge') g.judge(true);
     adv(1000); g.tick(); }
   ok(seenNew && seenBase, 'مرّت جولة عادية وجولة أدوات جديدة'); }
+
+{ // القيادة بالتناوب: مع كل مرحلة جديدة تنتقل القيادة لعضو آخر متصل، ويقود كل طالب مرة على الأقل
+  const { g, adv } = mk(60); g.start(); const seen = {}, rec = () => g.s.teams.forEach((T, t) => { const c = g.s.captains[t]; (seen[t] = seen[t] || new Set()).add(c); }); rec(); let ph = g.s.phase, changes = 0, ev = null;
+  for (let i = 0; i < 4000 && g.s.stage !== 'crown'; i++) { if (g.s.stage === 'question' && g.s.q) Object.keys(g.s.players).forEach(pid => g.answer(pid, g.s.q.id, g.s.q.a)); adv(1000); g.tick(); if (g.s.phase !== ph) { ph = g.s.phase; changes++; if (g.s.ev && g.s.ev.k === 'phase' && g.s.ev.key !== 'crown') { ev = ev || g.s.ev; } rec(); } }
+  const per = g.s.teams.map((T, t) => Object.keys(g.s.players).filter(pid => g.s.players[pid].team === t).length);
+  ok(changes >= 3, 'مرّت مراحل (' + changes + ')'); ok(g.s.teams.every((T, t) => seen[t].size === Math.min(per[t], changes + 1)), 'كل عضو قاد مرة على الأقل: ' + JSON.stringify(g.s.teams.map((T, t) => [seen[t].size, per[t]])));
+  ok(ev && Array.isArray(ev.caps) && ev.caps.length === g.s.teams.length, 'بطاقة المرحلة تعلن القادة الجدد'); }
 console.log(`الوقت والمدة: ${pass} نجح، ${fail} فشل`); process.exit(fail ? 1 : 0);

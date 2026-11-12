@@ -1,7 +1,7 @@
 // اختبار الأسئلة (اعتمده المستخدم 11 نوفمبر): لا تكرار بين المسابقات، والمستوى يُحترم من أول سؤال، والمواجهة من الأصعب
 const path = require('path');
 global.d3 = require(path.join(__dirname, '../r3d/node_modules/d3-delaunay'));
-require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/bank-adab.js'); require('../app/bank-plus.js'); require('../app/data.js');
+require('../proto/rayat-map.js'); require('../game/rules.js'); require('../app/bank-more.js'); require('../app/bank-adab.js'); require('../app/bank-plus.js'); require('../app/bank-xhard.js'); require('../app/data.js');
 const RayatGame = require('../app/game.js'), BANK = globalThis.RAYAT_BANK;
 let pass = 0, fail = 0; const ok = (c, m) => { if (c) pass++; else { fail++; console.log('✗', m); } };
 const mk = level => new RayatGame({ bank: BANK, binis: [], level, teams: [{ name: 'أ', color: '#000' }, { name: 'ب', color: '#111' }], mapSeed: 7 });

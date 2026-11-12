@@ -9,7 +9,7 @@ const SFX = {
   setExt(v) { if (this.ext === !!v) return; this.ext = !!v; if (this.master) this.master.gain.value = this.gainNow(); },
   setVol(v) { this.vol = Math.max(0, Math.min(1, v)); if (this.master) this.master.gain.value = this.gainNow(); },
   setOn(v) { this.on = !!v; if (this.master) this.master.gain.value = this.gainNow(); },
-  unlock() { try { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = this.gainNow(); this.master.connect(this.ctx.destination); this.load(); } if (this.ctx.state === 'suspended' && !this.susp) this.ctx.resume().catch(() => { }); } catch (e) { this.fail.push('ctx: ' + (e && e.message)); } },
+  unlock() { try { if (!this.ctx) { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); this.master = this.ctx.createGain(); this.master.gain.value = this.gainNow(); try { const L = this.ctx.createDynamicsCompressor(); L.threshold.value = -10; L.knee.value = 6; L.ratio.value = 8; L.attack.value = .003; L.release.value = .2; this.master.connect(L).connect(this.ctx.destination); } catch (e) { this.master.connect(this.ctx.destination); } /* محدِّد: الضربات المتراكمة (الارتطام والالتحام) لا تتشوّه */ this.load(); } if (this.ctx.state === 'suspended' && !this.susp) this.ctx.resume().catch(() => { }); } catch (e) { this.fail.push('ctx: ' + (e && e.message)); } },
   // فك ترميز كل العينات فور تفعيل الصوت؛ الفشل يُسجَّل في SFX.fail ويظهر في SFX.status()
   load() { if (typeof SFX_DATA !== 'object' || !SFX_DATA) { this.fail.push('لا عينات مضمّنة'); return; }
     Object.entries(SFX_DATA).forEach(([k, b64]) => { try { const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i);
@@ -28,21 +28,21 @@ const SFX = {
   play(k, at = 0, dur = 0, o = {}) { if (!this.ready()) return; const r = (a, b) => a + Math.random() * (b - a); o = o || {};
     try { switch (k) {
       // المشاة: خطوات جماعية بلا صهيل؛ وإن كان معهم قائد راكب (الجيش المختلط) فحوافر خفيفة في الخلفية
-      case 'march': for (let t = 0; t < dur; t += 1.7) this.rec(Math.round(t / 1.7) % 2 ? 'w-march2' : 'w-march1', 1.3, at + t); if (o.mixed) for (let t = .4; t < dur; t += 1.9) this.rec(Math.round(t / 1.9) % 2 ? 'w-hooves2' : 'w-hooves1', .35, at + t); break;
+      case 'march': for (let t = 0; t < dur; t += 1.7) this.rec(Math.round(t / 1.7) % 2 ? 'w-march2' : 'w-march1', 3.2, at + t); for (let t = .35; t < dur; t += r(.75, 1.05)) this.rec(Math.random() < .5 ? 'w-shield1' : 'w-shield2', r(.22, .32), at + t, r(1.1, 1.3)); /* خشخشة دروع خفيفة تميّز المشاة */ if (o.mixed) for (let t = .4; t < dur; t += 1.9) this.rec(Math.round(t / 1.9) % 2 ? 'w-hooves2' : 'w-hooves1', .28, at + t); break;
       // الفرسان: عدو حقيقي متكرر بإيقاع سريع من ثلاث طبقات متداخلة (كأنها سرية)، وصهيل قوي عند الانطلاق، ونفخة عند التوقف
       case 'gallop': { this.rec('w-neigh3', 1.05, at); this.rec('w-neigh1', .7, at + .35, .96);
-        [[0, 1.1, 1], [.14, .8, .96], [.29, .62, 1.05]].forEach(([off, v, rt]) => { for (let t = .25 + off; t < dur; t += .41 * (1 / rt) + r(-.015, .015)) this.rec('gallop', v * r(.9, 1.05), at + t, rt * r(.97, 1.03)); });
+        [[0, 1.0, 1], [.14, .75, .96], [.29, .6, 1.05]].forEach(([off, v, rt]) => { for (let t = .25 + off; t < dur; t += .41 * (1 / rt) + r(-.015, .015)) this.rec('gallop', v * r(.9, 1.05), at + t, rt * r(.97, 1.03)); });
         for (let t = .5; t < dur; t += 1.7) this.rec(Math.round(t / 1.7) % 2 ? 'w-hooves2' : 'w-hooves1', .45, at + t, 1.15);
         if (dur > 1.2) this.rec('w-snort1', .7, at + dur + .1); break; }
-      case 'clash': { const S = ['w-clash1', 'w-clash2', 'w-clash3', 'w-clash4', 'w-sword1', 'w-sword2', 'w-sword3', 'w-shield1', 'w-shield2', 'w-spear1', 'w-spear2']; const L = o.cav ? ['w-spear1', 'w-spear2', 'w-shield1', 'w-shield2', 'w-clash1', 'w-clash3'] : S; for (let t = 0; t < dur; t += r(.14, .3)) this.rec(L[Math.floor(Math.random() * L.length)], r(.9, 1.4) * (o.cav ? 1.12 : 1), at + t, r(.92, 1.08));
+      case 'clash': { const S = ['w-clash1', 'w-clash2', 'w-clash3', 'w-clash4', 'w-sword1', 'w-sword2', 'w-sword3', 'w-shield1', 'w-shield2', 'w-spear1', 'w-spear2']; const L = o.cav ? ['w-spear1', 'w-spear2', 'w-shield1', 'w-shield2', 'w-clash1', 'w-clash3'] : S; this.rec('impact', o.cav ? 1.1 : .85, at, .75); this.rec('hit', .8, at + .04, .8); this.rec(o.cav ? 'w-spear1' : 'w-sword1', 1.3, at + .08); /* لحظة الارتطام الأولى */ for (let t = .12; t < dur; t += r(.1, .22)) this.rec(L[Math.floor(Math.random() * L.length)], r(1.1, 1.6) * (o.cav ? 1.1 : 1), at + t, r(.92, 1.08));
         if (o.cav) { this.rec('w-neigh1', .95, at + .1); this.rec('w-neigh2', .8, at + dur * .55, 1.04); this.rec('w-snort1', .6, at + dur * .8); } else if (o.mixed) this.rec('w-neigh1', .45, at + dur * .5); break; }
       case 'raise': this.rec('swish', .7, at); this.rec('land', .35, at + .6); break;
       case 'settle': this.rec('w-steps-grass', .8, at); this.rec('step', .4, at + 1.4); this.rec('land', .4, at + 2.9); break;
       case 'build': ['hammer-a', 'hammer-b', 'hammer-c', 'hammer-d', 'hammer-a', 'hammer-c'].forEach((h, i) => this.rec(h, .8, at + i * .42 + r(-.07, .07), .95 + i * .03)); this.rec('stone', .5, at + 2.6); break;
       // المنجنيق خطوة خطوة: شدّ الذراع (صرير خشب متقطع)، ثم الإطلاق (ضربة الذراع في العارضة وصفير الحجر)، ثم ارتطامه بالسور وتساقط الحجارة
-      case 'catwind': for (let i = 0; i < 4; i++) this.rec('creak', .75 + i * .08, at + i * .26 + r(0, .05), .7 + i * .06); break;
-      case 'catfire': this.rec('wood-hit', 1.1, at, .72); this.rec('creak', .6, at + .02, 1.1); this.rec('swish', 1, at + .1, .5); break;
-      case 'catimpact': this.rec('impact', 1.1, at, .8); this.rec('stone', 1.1, at + .02); this.rec('stone2', .9, at + .12, .9); this.rec('debris', 1, at + .2); this.rec('stone', .6, at + .45, 1.12); this.rec('debris', .6, at + .7, .9); break;
+      case 'catwind': this.rec('creak', 1.1, at, .55); for (let i = 0; i < 4; i++) this.rec('creak', 1.0 + i * .1, at + .3 + i * .26 + r(0, .05), .7 + i * .06); this.rec('wood-hit', .45, at + 1.35, 1.3); break; /* شدّ الحبل ثم تثبيت الحجر */
+      case 'catfire': this.rec('wood-hit', 1.3, at, .7); this.rec('door-close', .9, at + .02, .8); this.rec('creak', .7, at + .02, 1.1); this.rec('swish', 1.2, at + .1, .5); this.rec('swish', .7, at + .55, .4); break; /* الذراع تضرب العارضة، ثم صفير الحجر في الهواء */
+      case 'catimpact': this.rec('impact', 1, at, .78); this.rec('break', .9, at + .03, .85); this.rec('land', .9, at + .06, .7); this.rec('stone', 1, at + .1); this.rec('stone2', .85, at + .2, .9); this.rec('debris', .95, at + .28); for (let i = 0; i < 6; i++) this.rec(i % 2 ? 'stone2' : 'stone', r(.35, .55), at + .5 + i * .16 + r(0, .05), r(.95, 1.2)); this.rec('debris', .55, at + 1.05, .85); break; /* ارتطام بالسور ثم تساقط الحجارة */
       case 'loot': for (let i = 0; i < 6; i++) this.rec('coin', .5, at + i * .12, .9 + i * .05); this.rec('coins', .7, at + .3); break;
       case 'ally': this.rec('door-open', .6, at); for (let i = 0; i < 3; i++) this.rec('coin', .35, at + .6 + i * .2, 1 + i * .08); break;
       case 'betray': this.rec('break', 1, at); this.rec('kill', .7, at + .1); break;

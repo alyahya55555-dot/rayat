@@ -154,7 +154,7 @@
     const edges = []; { const seen = {}; M.regions.forEach(r => { const p = r.poly; for (let i = 0; i < p.length - 1; i++) { const a = p[i], b = p[i + 1], k = [a, b].map(q => q.map(v => Math.round(v * 10)).join(':')).sort().join('|'); (seen[k] = seen[k] || { a, b, c: [] }).c.push(r.id); } });
       Object.values(seen).forEach(e => { if (e.c.length === 2 && M.regions[e.c[0]].land === M.regions[e.c[1]].land) edges.push(e); }); }
     // النقاط اليابسة من الضلع المشترك بين إقليمين (لعبور الجيوش)
-    const sharedEdge = (i, j) => { const out = []; edges.forEach(e => { if (!(e.c.includes(i) && e.c.includes(j))) return; const [ax, az] = P(...e.a), [bx, bz] = P(...e.b), n = Math.max(2, Math.ceil(Math.hypot(bx - ax, bz - az) / .04)); for (let k = 1; k < n; k++) { const x = lerp(ax, bx, k / n), z = lerp(az, bz, k / n); if (coastDist(x, z) > .18) out.push([x, z]); } }); return out; };
+    const sharedEdge = (i, j, mc = .18) => { const out = []; edges.forEach(e => { if (!(e.c.includes(i) && e.c.includes(j))) return; const [ax, az] = P(...e.a), [bx, bz] = P(...e.b), n = Math.max(2, Math.ceil(Math.hypot(bx - ax, bz - az) / .04)); for (let k = 1; k < n; k++) { const x = lerp(ax, bx, k / n), z = lerp(az, bz, k / n); if (coastDist(x, z) > mc) out.push([x, z]); } }); return out; };
     const borderGrp = new THREE.Group(); scene.add(borderGrp);
     const ribMats = {};
     function ribbon(pts, w, colr, lift = .025) {
@@ -177,14 +177,31 @@
     }
 
     // ---------- الطرق ----------
+    /* طريق في السهل حول الجبال: بحث على شبكة تكلفته ترتفع مع الارتفاع، ثم تنعيم */
+    function roadAround(p0, p2, lim0) { const cell = .06, mg = 1.4 * K, minx = Math.min(p0[0], p2[0]) - mg, minz = Math.min(p0[1], p2[1]) - mg, nx = Math.ceil((Math.max(p0[0], p2[0]) + mg - minx) / cell), nz = Math.ceil((Math.max(p0[1], p2[1]) + mg - minz) / cell), N = nx * nz;
+      const hc = new Float32Array(N); for (let i = 0; i < N; i++) { const x = minx + (i % nx) * cell, z = minz + Math.floor(i / nx) * cell, cd = coastDist(x, z); hc[i] = cd < .12 ? -1 : heightAt(x, z, cd); }
+      const ix = p => clamp(Math.round((p[0] - minx) / cell), 0, nx - 1) + clamp(Math.round((p[1] - minz) / cell), 0, nz - 1) * nx, S0 = ix(p0), G0 = ix(p2), gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), open = [[0, S0]]; gs[S0] = 0;
+      const lim = lim0, cost = i => hc[i] < 0 || hc[i] > lim + .1 ? 1e6 : 1 + Math.max(0, hc[i] - .18 * K) * 40, Hh = i => Math.hypot(i % nx - G0 % nx, Math.floor(i / nx) - Math.floor(G0 / nx));
+      let it = 0; while (open.length && it++ < 60000) { let bi = 0; for (let k = 1; k < open.length; k++) if (open[k][0] < open[bi][0]) bi = k; const [, cur] = open.splice(bi, 1)[0]; if (cur === G0) break; const cx = cur % nx, cz = Math.floor(cur / nx);
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dz) continue; const x2 = cx + dx, z2 = cz + dz; if (x2 < 0 || z2 < 0 || x2 >= nx || z2 >= nz) continue; const ni = z2 * nx + x2, c = cost(ni); if (c >= 1e6 && ni !== G0) continue; const g2 = gs[cur] + Math.hypot(dx, dz) * Math.min(c, 50); if (g2 < gs[ni]) { gs[ni] = g2; came[ni] = cur; open.push([g2 + Hh(ni), ni]); } } }
+      if (came[G0] < 0) return null; let pts = []; for (let c = G0; c !== -1; c = came[c]) pts.push([minx + (c % nx) * cell, minz + Math.floor(c / nx) * cell]); pts.reverse(); pts[0] = p0.slice(); pts[pts.length - 1] = p2.slice();
+      if (Math.max(...pts.slice(2, -2).map(q => heightAt(q[0], q[1])), 0) > lim) return null;
+      for (let r = 0; r < 3; r++) { const o = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; o.push([a[0] * .75 + b[0] * .25, a[1] * .75 + b[1] * .25], [a[0] * .25 + b[0] * .75, a[1] * .25 + b[1] * .75]); } o.push(pts[pts.length - 1]); pts = o; }
+      const L = pts.reduce((s2, q, i) => i ? s2 + Math.hypot(q[0] - pts[i - 1][0], q[1] - pts[i - 1][1]) : 0, 0), n = Math.max(12, Math.round(L / .09)), out = []; let acc = 0, j = 0; for (let k = 0; k <= n; k++) { const want = L * k / n; while (j < pts.length - 2 && acc + Math.hypot(pts[j + 1][0] - pts[j][0], pts[j + 1][1] - pts[j][1]) < want) { acc += Math.hypot(pts[j + 1][0] - pts[j][0], pts[j + 1][1] - pts[j][1]); j++; } const sl = Math.hypot(pts[j + 1][0] - pts[j][0], pts[j + 1][1] - pts[j][1]) || 1, t = clamp((want - acc) / sl, 0, 1); out.push([lerp(pts[j][0], pts[j + 1][0], t), lerp(pts[j][1], pts[j + 1][1], t)]); } return out; }
     const ROADS = []; { const L = M.regions.filter(r => !r.land), E = []; L.forEach(r => r.nb.forEach(j => { if (j > r.id && !M.regions[j].land) { const a = at(r), b = at(M.regions[j]); E.push([Math.hypot(a[0] - b[0], a[1] - b[1]), r.id, j]); } }));
       E.sort((a, b) => a[0] - b[0]); const par = {}, f = i => par[i] == null || par[i] === i ? i : (par[i] = f(par[i])), keep = [];
       E.forEach(e => { const a = f(e[1]), b = f(e[2]); if (a !== b) { par[a] = b; keep.push(e); } });
       const endOff = r => r.type === 'capital' ? .3 * SZ.keep : r.type === 'castle' ? .56 * SZ.keep : r.type === 'village' ? .1 * K : .06;
       keep.forEach(([, i, j], k) => { const A = M.regions[i], B = M.regions[j], [ax, az] = at(A), [bx, bz] = at(B), L2 = Math.hypot(bx - ax, bz - az), dx = (bx - ax) / L2, dz = (bz - az) / L2;
-        const p0 = [ax + dx * endOff(A), az + dz * endOff(A)], p2 = [bx - dx * endOff(B), bz - dz * endOff(B)], bend = (k % 2 ? 1 : -1) * L2 * .08, p1 = [(p0[0] + p2[0]) / 2 - dz * bend, (p0[1] + p2[1]) / 2 + dx * bend], pts = [];
-        for (let t = 0; t <= 1.0001; t += 1 / 22) { const u = 1 - t; pts.push([u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]]); }
-        if (pts.every(q => coastDist(...q) > .08)) ROADS.push(pts); }); }
+        const foot = (c, ux, uz) => { for (let t = 0; t < 1.6 * K; t += .04) { const q = [c[0] + ux * t, c[1] + uz * t]; if (heightAt(q[0], q[1]) < .36 * K) return q; } return c; }; /* طريق المنجم ينتهي عند سفح جبله لا فوق قمته */
+        let p0 = [ax + dx * endOff(A), az + dz * endOff(A)], p2 = [bx - dx * endOff(B), bz - dz * endOff(B)]; const sg = k % 2 ? 1 : -1; if (heightAt(...p0) > .5 * K) p0 = foot(p0, dx, dz); if (heightAt(...p2) > .5 * K) p2 = foot(p2, -dx, -dz);
+        const lim = Math.max(.34 * K, heightAt(...p0) + .06, heightAt(...p2) + .06);
+        /* الطريق يلتف حول الجبل ولا يصعده: نجرّب انحناءات متزايدة ونأخذ أول طريق منخفض، وإن لم يوجد فلا طريق فوق الجبل */
+        const mk = bend => { const p1 = [(p0[0] + p2[0]) / 2 - dz * bend, (p0[1] + p2[1]) / 2 + dx * bend], pts = []; for (let t = 0; t <= 1.0001; t += 1 / 22) { const u = 1 - t; pts.push([u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]]); } return pts; };
+        const hiOf = pts => Math.max(...pts.filter((q, i) => i > 3 && i < pts.length - 4).map(q => heightAt(q[0], q[1])), 0);
+        let pick = null; for (const m of [.08, -.08, .2, -.2]) { const pts = mk(sg * m * L2); if (!pts.every(q => coastDist(...q) > .08)) continue; if (hiOf(pts) < lim) { pick = pts; break; } }
+        if (!pick) pick = roadAround(p0, p2, lim); /* لا انحناء بسيط يتجنب الجبل: طريق يدور حوله في السهل */
+        if (pick && pick.every(q => coastDist(...q) > .08)) ROADS.push(pick); }); }
 
     // ---------- العوائق والمواضع الخالية ----------
     const C = { roof: '#c4553a', roof2: '#a9452f', wall: '#f4ecdc', stone: '#d6cdb7', stone2: '#bdb39b', wood: '#8a6240', gold: '#f4c430' };
@@ -484,7 +501,7 @@
 
     // ---------- إيجاد المسارات (A*) بعيدًا عن كل العوائق ----------
     const blockers = (extra, minS = .05) => [...OBST.filter(o => !o.soft), ...TREES.filter(o => o.s > minS), ...flags.filter(f => f.g && f.g.visible !== false && f.lift > .05).map(f => ({ k: 'راية', x: f.g.position.x, z: f.g.position.z, r: .07 })), ...(extra || [])]; // والرايات أيضًا: لا يقف جيش ولا منجنيق على سارية // المسار يتجنب حتى الشجرة التي تنمو من جديد
-    function findPath(a, b, clear = .07, extra, hiOK = false) {
+    function findPath(a, b, clear = .07, extra, hiOK = false, pref = null) { /* pref: أراضٍ يُفضَّل المشي فيها (أرض المهاجم والهدف)، والمرور بغيرها أغلى ثلاث مرات */
       const mg = 1.6 * K, cell = .04, minx = Math.min(a[0], b[0]) - mg, minz = Math.min(a[1], b[1]) - mg, nx = Math.ceil((Math.max(a[0], b[0]) + mg - minx) / cell), nz = Math.ceil((Math.max(a[1], b[1]) + mg - minz) / cell);
       const blk = new Uint8Array(nx * nz), obs = blockers(extra);
       for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) { const x = minx + ix * cell, z = minz + iz * cell; if (coastDist(x, z) < .14 || (!hiOK && groundY(x, z) > .45 * K)) { blk[iz * nx + ix] = 1; continue; } }
@@ -494,14 +511,14 @@
       const [sx, sz] = toI(a), [gx, gz] = toI(b); [[sx, sz], [gx, gz]].forEach(([cx0, cz0]) => { if (!blk[cz0 * nx + cx0]) return; let best = null; for (let r3 = 1; r3 <= 14 && !best; r3++) for (let dz = -r3; dz <= r3 && !best; dz++) for (let dx = -r3; dx <= r3; dx++) { const x2 = cx0 + dx, z2 = cz0 + dz; if (x2 >= 0 && z2 >= 0 && x2 < nx && z2 < nz && !blk[z2 * nx + x2]) { best = [x2, z2]; break; } }
         if (!best) return; const n3 = Math.max(Math.abs(best[0] - cx0), Math.abs(best[1] - cz0)); for (let k = 0; k <= n3; k++) { const x2 = Math.round(lerp(cx0, best[0], k / n3)), z2 = Math.round(lerp(cz0, best[1], k / n3)); blk[z2 * nx + x2] = 0; } }); // مخرج قصير من البداية أو النهاية إلى أقرب خلية حرة
       const N = nx * nz, gs = new Float32Array(N).fill(1e9), came = new Int32Array(N).fill(-1), hp = [], push = (f, i) => { hp.push([f, i]); let k = hp.length - 1; while (k) { const pk = (k - 1) >> 1; if (hp[pk][0] <= hp[k][0]) break; [hp[pk], hp[k]] = [hp[k], hp[pk]]; k = pk; } }, pop = () => { const top = hp[0], last = hp.pop(); if (hp.length) { hp[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r2 = l + 1; let m = k; if (l < hp.length && hp[l][0] < hp[m][0]) m = l; if (r2 < hp.length && hp[r2][0] < hp[m][0]) m = r2; if (m === k) break; [hp[m], hp[k]] = [hp[k], hp[m]]; k = m; } } return top; }; push(0, sz * nx + sx); gs[sz * nx + sx] = 0;
-      const H = (i) => Math.hypot(i % nx - gx, Math.floor(i / nx) - gz); let found = false, it = 0;
+      const H = (i) => Math.hypot(i % nx - gx, Math.floor(i / nx) - gz); let found = false, it = 0; const foreign = pref ? new Int8Array(N).fill(-1) : null, fw = i => { if (!foreign) return 1; if (foreign[i] < 0) { const rg = regionAtW(minx + (i % nx) * cell, minz + Math.floor(i / nx) * cell); foreign[i] = pref.includes(rg) ? 0 : 1; } return foreign[i] ? 3 : 1; };
       while (hp.length && it++ < 400000) { const [fc, cur] = pop(); if (fc - H(cur) * 1.001 > gs[cur] + 1e-6) continue; if (cur === gz * nx + gx) { found = true; break; }
         const cx = cur % nx, cz = Math.floor(cur / nx); for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dz) continue; const x2 = cx + dx, z2 = cz + dz; if (x2 < 0 || z2 < 0 || x2 >= nx || z2 >= nz) continue; const ni = z2 * nx + x2; if (blk[ni]) continue; if (dx && dz && (blk[cz * nx + x2] || blk[z2 * nx + cx])) continue;
-          const g2 = gs[cur] + Math.hypot(dx, dz); if (g2 < gs[ni]) { gs[ni] = g2; came[ni] = cur; push(g2 + H(ni) * 1.001, ni); } } }
+          const g2 = gs[cur] + Math.hypot(dx, dz) * fw(ni); if (g2 < gs[ni]) { gs[ni] = g2; came[ni] = cur; push(g2 + H(ni) * 1.001, ni); } } }
       if (!found) return null;
       let pts = []; for (let c = gz * nx + gx; c !== -1; c = came[c]) pts.push([minx + (c % nx) * cell, minz + Math.floor(c / nx) * cell]); pts.reverse(); pts[0] = a.slice(); pts[pts.length - 1] = b.slice();
       // تبسيط: نقطة إلى أبعد نقطة مرئية بلا عائق
-      const free = (p, q) => { const L = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.ceil(L / (cell * .5)); for (let k = 0; k <= n; k++) { const x = lerp(p[0], q[0], k / n), z = lerp(p[1], q[1], k / n), [i, j] = toI([x, z]); if (blk[j * nx + i]) return false; } return true; };
+      const free = (p, q) => { const L = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.ceil(L / (cell * .5)); for (let k = 0; k <= n; k++) { const x = lerp(p[0], q[0], k / n), z = lerp(p[1], q[1], k / n), [i, j] = toI([x, z]); if (blk[j * nx + i] || (foreign && fw(j * nx + i) > 1 && fw(toI(p)[1] * nx + toI(p)[0]) === 1 && fw(toI(q)[1] * nx + toI(q)[0]) === 1)) return false; } return true; }; /* التبسيط لا يقطع زاوية أرض أخرى */
       const out = [pts[0]]; let i = 0; while (i < pts.length - 1) { let j = pts.length - 1; while (j > i + 1 && !free(pts[i], pts[j])) j--; out.push(pts[j]); i = j; }
       return out;
     }
@@ -590,7 +607,7 @@
             const fits = landPts.every(([x, z]) => { pv.set(x, .02, z).project(tc); return Math.abs(pv.x) < .955 && pv.y < .9 && pv.y > -.93; }); if (fits) hi = d; else lo = d; }
           if (!best || hi < best.d) best = { d: hi, look }; }
         ovCache[key] = best; }
-      const o = ovCache[key], d = o.d * SZ.frame; return { pos: o.look.clone().addScaledVector(OVD, d), look: o.look.clone().add(V(0, 0, SZ.lookZ)) }; };
+      const o = ovCache[key], d = o.d * SZ.frame; return { pos: o.look.clone().addScaledVector(OVD, d), look: o.look.clone().add(V(0, 0, SZ.lookZ)), ov: true }; };
     let cam = { from: overview(), to: overview(), t0: 0, d: 0, follow: null };
     const camNow = { pos: overview().pos.clone(), look: overview().look.clone() };
     // مدة الانتقال تطول مع المسافة (فلا تندفع الكاميرا في لقطة بعيدة)، والتسارع والتهدئة ناعمان
@@ -627,11 +644,11 @@
       return () => { el.removeEventListener('pointerdown', down); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); el.removeEventListener('wheel', wheel); el.removeEventListener('contextmenu', ctx); }; };
     function updateCam(rdt = .016) { if (window.__cam) { camera.position.set(...window.__cam[0]); camera.lookAt(...window.__cam[1]); return; }
       if (man.on) { const to = manPose(), k = 1 - Math.exp(-Math.min(.1, rdt) * 11); camNow.pos.lerp(to.pos, k); camNow.look.lerp(to.look, k); camera.position.copy(camNow.pos); camera.lookAt(camNow.look); return; }
-      let to = cam.to; if (cam.follow) to = cam.follow();
+      let to = cam.to; if (cam.follow) to = cam.follow(); if (camera.aspect < 1.25 && to && !to.ov) { const f = Math.min(2.2, Math.sqrt(1.7 / camera.aspect)); to = { pos: to.look.clone().addScaledVector(to.pos.clone().sub(to.look), f), look: to.look }; } /* شاشة طولية (جوال): اللقطة القريبة تبتعد على خطها نفسه فيتسع ما يُرى عرضًا ولا يملأ بيتٌ الصورة */
       const k = camEase(seg(W.time, cam.t0, cam.t0 + cam.d)); camNow.pos.lerpVectors(cam.from.pos, to.pos, k); camNow.look.lerpVectors(cam.from.look, to.look, k);
       // حارس التضاريس: إن حجب جبلٌ أو تلٌّ ما تنظر إليه الكاميرا ترتفع بنعومة حتى يظهر، ثم تعود
       let need = terrNeed; if (actors.length && (++terrN % 3 === 0)) { need = 0; const tg = [camNow.look]; for (const o of scene.children) { if (tg.length > 30) break; if (o.userData && o.userData.kind && o.visible !== false && o.position.distanceToSquared(camNow.look) < 9) tg.push(o.position); }
-        for (const t of tg) for (let h = need; h <= 2.4 && terrBlock(camNow.pos, t, h); h += .1) need = h + .1; terrNeed = need; } else if (!actors.length) need = terrNeed = 0; terrLift += (need - terrLift) * Math.min(1, rdt * (need > terrLift ? 9 : 2.5));
+        for (const t of tg) for (let h = need; h <= 2.4 && terrBlock(camNow.pos, t, h); h += .1) need = h + .18; /* هامش أوسع: لا لقطة واحدة يلامس فيها الجبل الجنود */ terrNeed = need; } else if (!actors.length) need = terrNeed = 0; terrLift += (need - terrLift) * Math.min(1, rdt * (need > terrLift ? 9 : 2.5));
       camera.position.copy(camNow.pos); camera.position.y += terrLift; camera.lookAt(camNow.look);
       if (shakeA > 0) { const k = 1 - (W.time - shakeT0) / shakeD; if (k <= 0) shakeA = 0; else { const a = shakeA * k * k * K; camera.position.x += Math.sin(W.time * 61) * a; camera.position.y += Math.sin(W.time * 47 + 1) * a * .7; camera.position.z += Math.cos(W.time * 53) * a; } } }
     let terrLift = 0, terrNeed = 0, terrN = 0; // يُحسب كل ثالث إطار فقط، خفيف على الأداء
@@ -661,7 +678,7 @@
     const _fc = new THREE.PerspectiveCamera(), _fv = new THREE.Vector3();
     function frameClutter(pos, look, fr = .55) { _fc.fov = camera.fov; _fc.aspect = camera.aspect || 1.78; _fc.updateProjectionMatrix(); _fc.position.copy(pos); _fc.lookAt(look); _fc.updateMatrixWorld(); const D = pos.distanceTo(look) * fr;
       const test = (x, y, z) => { if (Math.hypot(x - pos.x, y - pos.y, z - pos.z) > D) return false; _fv.set(x, y, z).project(_fc); return _fv.z < 1 && Math.abs(_fv.x) < .95 && Math.abs(_fv.y) < .95; };
-      if (flags.some(f => f.g && f.g.visible !== false && test(f.g.position.x + Math.cos(.35) * f.W / 2, f.g.position.y + (f.h || .5) - (f.Hh || .15) / 2, f.g.position.z - Math.sin(.35) * f.W / 2))) return true;
+      if (flags.some(f => f.g && f.g.visible !== false && (test(f.g.position.x + Math.cos(.35) * f.W / 2, f.g.position.y + (f.h || .5) - (f.Hh || .15) / 2, f.g.position.z - Math.sin(.35) * f.W / 2) || [.25, .55, .85].some(q => test(f.g.position.x, f.g.position.y + (f.h || .5) * q, f.g.position.z))))) return true; /* والسارية نفسها، لا القماش فقط */
       if (OBST.some(o => !o.soft && (o.k === 'بيت' || o.k === 'برج') && test(o.x, groundY(o.x, o.z) + .1 * SZ.house, o.z))) return true;
       return TREES.some(o => o.s > .5 && o.t[3] > .6 && test(o.x, o.t[1] + .15 * o.t[3], o.z)); }
     function clearView(focus, prefAz, dist, h, extra = [], tries = 0) { let best = null, bestN = -1, bestPos = null;
@@ -733,13 +750,14 @@
     function sceneDone() { W.skipping = false; W.snapping = false; }
     // نقطة عبور الحد بين إقليمين ومكان التجمع ونقطة الالتحام، مع خلوّ المسار
     function crossing(fromId, toId) {
-      const pts0 = sharedEdge(fromId, toId), [ax, az] = at(M.regions[fromId]), [bx, bz] = at(M.regions[toId]);
+      let pts0 = sharedEdge(fromId, toId); if (!pts0.length) pts0 = sharedEdge(fromId, toId, .06); /* حدٌّ قصير قرب الشاطئ: يبقى العبور على الحد نفسه لا في منتصف أرض ثالثة */ const [ax, az] = at(M.regions[fromId]), [bx, bz] = at(M.regions[toId]);
       // نقاط كثيفة على طول الحد (لا رؤوس الحد فقط)، فيوجد ممر خالٍ ولو ازدحمت الأرض ببيوت وحقول وأشجار
       const pts = []; pts0.forEach((p, i) => { pts.push(p); const q = pts0[i + 1]; if (q) { const L = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.floor(L / .05); for (let k = 1; k < n; k++) pts.push([lerp(p[0], q[0], k / n), lerp(p[1], q[1], k / n)]); } });
       const mid = pts.length ? pts.reduce((s, p) => [s[0] + p[0] / pts.length, s[1] + p[1] / pts.length], [0, 0]) : [(ax + bx) / 2, (az + bz) / 2];
       const cand = (pts.length ? pts : [mid]).map(p => ({ p, d: Math.hypot(p[0] - mid[0], p[1] - mid[1]) })).sort((x, y) => x.d - y.d);
-      for (const c of cand) { const p = c.p; if (coastDist(p[0], p[1]) < .28 || groundY(p[0], p[1]) > .36 * K || hitObst(p[0], p[1], .1) || TREES.some(o => o.s > .5 && Math.hypot(o.x - p[0], o.z - p[1]) < o.r + .08)) continue; return p; }
-      for (const c of cand) { const p = c.p; if (coastDist(p[0], p[1]) < .18 || groundY(p[0], p[1]) > .42 * K || hitObst(p[0], p[1], .08)) continue; return p; } // نقطة العبور بعيدة عن الشاطئ
+      const nx = bx - ax, nz = bz - az, nl = Math.hypot(nx, nz) || 1, side = p => regionAtW(p[0] - nx / nl * .1, p[1] - nz / nl * .1) === fromId && regionAtW(p[0] + nx / nl * .1, p[1] + nz / nl * .1) === toId; /* الالتحام على الحد بين الأرضين: المهاجم خلفه والهدف أمامه */
+      for (const pass of [0, 1]) { for (const c of cand) { const p = c.p; if (!pass && !side(p)) continue; if (coastDist(p[0], p[1]) < .28 || groundY(p[0], p[1]) > .36 * K || hitObst(p[0], p[1], .1) || TREES.some(o => o.s > .5 && Math.hypot(o.x - p[0], o.z - p[1]) < o.r + .08)) continue; return p; }
+        for (const c of cand) { const p = c.p; if (!pass && !side(p)) continue; if (coastDist(p[0], p[1]) < .18 || groundY(p[0], p[1]) > .42 * K || hitObst(p[0], p[1], .08)) continue; return p; } } /* نقطة العبور بعيدة عن الشاطئ */
       return cand[0].p;
     }
     // ترتيب الجيش حسب نوع الوحدة
@@ -775,11 +793,13 @@
     function geom(e) { const { a, d, r, unit = 'inf', ally, from } = e, tgt = M.regions[r], Lr = tgt.land || 0;
       const nav = (e.naval || (unit !== 'cav' && !tgt.nb.some(j => (M.regions[j].land || 0) === Lr && (W.owner[j] === a || (ally != null && W.owner[j] === ally))))) ? navalPlan(a, ally, r) : null; // الفرسان تعبر البر فوق أرض، لا بحرًا
       const fromId = from != null ? from : (tgt.nb.find(j => W.owner[j] === a) ?? tgt.nb.find(j => W.owner[j] === ally) ?? M.caps[a]);
-      const c0 = crossing(fromId, r), [fx, fz] = at(M.regions[fromId]), dir0 = [c0[0] - fx, c0[1] - fz], dl = Math.hypot(...dir0) || 1, dirB = [dir0[0] / dl, dir0[1] / dl], wallF = !nav && (tgt.type === 'castle' || tgt.type === 'capital') && d != null ? wallFront(r, c0) : null, cross = nav ? nav.cross : wallF ? wallF.p : c0, dir = nav ? nav.dir : wallF ? wallF.dir : dirB;
+      /* الفرسان من أرض تبعد إقليمين: يعبرون أرضًا وسطى (صديقة أو محايدة، لا القلعة) والالتحام على حد الهدف نفسه لا في الأرض الوسطى */
+      let via = null; if (!nav && fromId != null && !tgt.nb.includes(fromId)) { const dd = j => { const p = at(M.regions[j]), q = at(M.regions[fromId]), t = at(tgt); return Math.hypot(p[0] - q[0], p[1] - q[1]) + Math.hypot(p[0] - t[0], p[1] - t[1]); }, mids = tgt.nb.filter(j => M.regions[fromId].nb.includes(j) && (M.regions[j].land || 0) === Lr).sort((x, y) => (M.regions[x].type === 'castle') - (M.regions[y].type === 'castle') || dd(x) - dd(y)); via = mids.find(j => W.owner[j] == null || W.owner[j] === a || (ally != null && W.owner[j] === ally)) ?? mids[0] ?? null; } /* القلعة آخر خيار للعبور، ويمرّون حول أسوارها لا داخلها */
+      const c0 = crossing(via ?? fromId, r), [fx, fz] = at(M.regions[via ?? fromId]), dir0 = [c0[0] - fx, c0[1] - fz], dl = Math.hypot(...dir0) || 1, dirB = [dir0[0] / dl, dir0[1] / dl], wallF = !nav && (tgt.type === 'castle' || tgt.type === 'capital') && d != null ? wallFront(r, c0) : null, cross = nav ? nav.cross : wallF ? wallF.p : c0, dir = nav ? nav.dir : wallF ? wallF.dir : dirB;
       const units = army(a, unit, ally, !!nav), colLen = units.reduce((s, u, i) => s + (u.userData.kind !== 'foot' || i % 2 === 0 ? spacing(u) : 0), 0);
       // نقطة التجمّع: خالية تمامًا داخل أرض المهاجم، خلف الحد بطول الصف ومسافة المسير
-      const endP = [cross[0] - dir[0] * .05 * SZ.unit, cross[1] - dir[1] * .05 * SZ.unit], start = nav ? nav.shore : wallF ? muster(c0, dirB, colLen + .3, fromId) : muster(cross, dir, colLen + .5, fromId);
-      let narrow = false; const full = (nav ? findPath(start, endP, .06) : findPath(start, endP, .09)) || (narrow = true, findPath(start, endP, .05)) || [start, endP]; // في الممر الضيق يمشون صفًّا واحدًا
+      const endP = [cross[0] - dir[0] * .05 * SZ.unit, cross[1] - dir[1] * .05 * SZ.unit], start = nav ? nav.shore : via != null ? (() => { const cv = crossing(fromId, via), [ux, uz] = at(M.regions[fromId]), dv = [cv[0] - ux, cv[1] - uz], l2 = Math.hypot(...dv) || 1; return muster(cv, [dv[0] / l2, dv[1] / l2], colLen + .3, fromId); })() : wallF ? muster(c0, dirB, colLen + .3, fromId) : muster(cross, dir, colLen + .5, fromId);
+      let narrow = false; const pref = nav ? null : [fromId, r, ...(via != null ? [via] : []), ...M.regions.filter(q => W.owner[q.id] === a || (ally != null && W.owner[q.id] === ally)).map(q => q.id)]; const full = (nav ? findPath(start, endP, .06) : findPath(start, endP, .09, null, false, pref)) || (narrow = true, findPath(start, endP, .05, null, false, pref)) || (nav ? null : findPath(start, endP, .04) || findPath(start, endP, .06, null, true)) || [start, endP]; /* لا خط مستقيم يخترق القلعة أو البيوت إلا إن لم يوجد طريق أبدًا */ // في الممر الضيق يمشون صفًّا واحدًا
       const crv = curve(full); crv.narrow = narrow; const colL = narrow ? units.reduce((a2, u, i) => a2 + (i ? spacing(u) : 0), 0) : colLen, len = crv.getLength(), s0 = Math.min(colL + .02, len * .9), s1 = len;
       // المدافعون عند الحد من جهة الهدف (أو الحامية)
       const I = R[r], defs = []; const dO = d;
@@ -888,7 +908,7 @@
         if (carry) { const q = ease(seg(lt, T.res[0] + .3, T.end - .1)); placeColumn(carry.cu, carry.cc, carry.cl, lerp(.16, Math.max(.17, carry.cl), q), q > 0 && q < 1, lt); }
         if (result === 'loot' && lt > T.res[0] && !looted) { looted = true; W.emit('sfx', { k: 'loot', at: 0 }); for (let i = 0; i < 14; i++) puff(I.x + (rnd() - .5) * .25, groundY(I.x, I.z) + .15, I.z + (rnd() - .5) * .2, t + i * .05, { col: '#ffd24a', size: .07, life: .7, vy: .3, spread: .5, additive: true, op: 1 }); }
         if (lt > T.clash[0] - .15 && !camMoved) { camMoved = true; W.shake(.008, .35); const ex = []; { const sA = Math.max(0, s1 - colLen - (won ? 0 : .6)); for (let q = 0; q <= 6; q++) { const p = crv.getPointAt(clamp(lerp(sA, s1, q / 6) / len, 0, 1)); ex.push(V(p.x, groundY(p.x, p.z) + .05, p.z)); } } camTo(sideView(focus.clone().lerp(V(I.x, focus.y, I.z), .3), dir, 2.4, 2.2, ex), FIRE ? 1.0 : 1.4); } /* الجيش كله يُرى عند الالتحام، وإن ارتدّ فطريق ارتداده أيضًا، فلا يختفي خلف جبل */
-        if (taken && lt > T.res[0] + .9 && !W._top) { W._top = true; const c0p = camNow.pos.clone(), c0l = camNow.look.clone(), lk = c0l.clone().lerp(V(I.x, groundY(I.x, I.z), I.z), .35); camTo({ pos: c0p.clone().add(V(0, .9 * K, 0)).lerp(lk, .08), look: lk }, 1.8); } // ارتفاع هادئ فوق المعركة نفسها ليُرى سريان اللون
+        if (taken && lt > T.res[0] + .9 && !W._top) { W._top = true; const c0p = camNow.pos.clone(), c0l = camNow.look.clone(), lk = c0l.clone().lerp(V(I.x, groundY(I.x, I.z), I.z), .35); camTo({ pos: c0p.clone().add(V(0, .9 * K, 0)).lerp(lk, .08), look: lk, ov: true }, 1.8); } // ارتفاع هادئ فوق المعركة نفسها ليُرى سريان اللون
         return lt >= T.end || W.skipping; });
       // التنظيف: الجيش يتلاشى بعيدًا عن الكاميرا
       W._top = false; units.forEach(disposeUnit); defs.forEach(disposeUnit); if (stone) scene.remove(stone); if (shadow) scene.remove(shadow); chunks.forEach(c => scene.remove(c.m)); if (shot && shot.fort && e.wallsBroken !== false) setFort(r, false); if (ship) scene.remove(ship); ladders.forEach(l => scene.remove(l)); arrows.forEach(ar => scene.remove(ar.m)); if (carry) carry.cu.forEach(disposeUnit);
@@ -1009,7 +1029,7 @@
       const pose = () => { const tt = W.time - t0, az = Math.sin(tt * .045) * .3, look = V(f[0] + Math.sin(tt * .035) * .5 * K, 0, f[1]); return { pos: V(look.x + Math.sin(az) * Math.cos(el) * dist, Math.sin(el) * dist, look.z + Math.cos(az) * Math.cos(el) * dist), look }; };
       camTo(pose(), 2.6); camFollow(pose); };
     // معلومات القلعة فوقها: صاحبها وجولات أمانه
-    W._dbg = { landRoute, crossing, R: () => R, findPath, blockers, seaRoute, onLand, coastDist, sizes: () => { const B = new THREE.Box3(), h = o => { B.setFromObject(o); const v = new THREE.Vector3(); B.getSize(v); return [+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3)]; }; const tmp = new THREE.Group(); const sd = soldier(0), rd = rider(0); house(0, 0, 1, C.roof, 0, tmp); const out = { soldier: h(sd), rider: h(rd), house: h(tmp), UNIT_S, SZ }; const ids = Object.keys(R); const fid = ids.find(i => R[i].fort), tid = ids.find(i => R[i].tower); if (fid) out.fort = h(R[fid].fort); if (tid) out.tower = h(R[tid].tower); const tr = TREES.filter(t => t.s > .5).slice(0, 3).map(t => t.t); out.tree = tr; return out; }, trees: () => TREES, flags: () => flags, terrBlock, groundY, cam: () => cam, lift: () => terrLift, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
+    W._dbg = { roads: () => ROADS, geom, sharedEdge, regionAtW, landRoute, crossing, R: () => R, findPath, blockers, seaRoute, onLand, coastDist, sizes: () => { const B = new THREE.Box3(), h = o => { B.setFromObject(o); const v = new THREE.Vector3(); B.getSize(v); return [+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3)]; }; const tmp = new THREE.Group(); const sd = soldier(0), rd = rider(0); house(0, 0, 1, C.roof, 0, tmp); const out = { soldier: h(sd), rider: h(rd), house: h(tmp), UNIT_S, SZ }; const ids = Object.keys(R); const fid = ids.find(i => R[i].fort), tid = ids.find(i => R[i].tower); if (fid) out.fort = h(R[fid].fort); if (tid) out.tower = h(R[tid].tower); const tr = TREES.filter(t => t.s > .5).slice(0, 3).map(t => t.t); out.tree = tr; return out; }, trees: () => TREES, flags: () => flags, terrBlock, groundY, cam: () => cam, lift: () => terrLift, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
     W.setCastle = (info) => { const k = JSON.stringify(info || {}); if (k === W._ck) return; W._ck = k; W.castleInfo = info || {}; const c = M.regions.find(x => x.type === 'castle'); if (c) makeLabel(c); };
 
     // ---------- الإطار ----------
@@ -1035,7 +1055,7 @@
       for (let i = actors.length - 1; i >= 0; i--) { const a = actors[i]; let done = false; try { done = a.fn(W.time); } catch (e) { console.error(e); done = true; } if (done) { actors.splice(i, 1); a.res(); } }
       if (W.audit && actors.length && !W.skipping && (++occN % 5 === 0)) occAudit();
       updatePuffs(W.time); if (draw) { waveFlags(W.time); updateSky(); updateCam(rdt); declutter(rdt); renderer.render(scene, camera); } else { updateSky(); updateCam(rdt); camera.updateMatrixWorld(); } };
-    W.resize = (w, h) => { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); if (!actors.length) { const o = overview(); camNow.pos.copy(o.pos); camNow.look.copy(o.look); camVel.pos.set(0, 0, 0); camVel.look.set(0, 0, 0); cam = { from: o, to: o, t0: 0, d: .01 }; } };
+    W.resize = (w, h) => { renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); { const od = overview().pos.distanceTo(overview().look); scene.fog.near = Math.max(20 * SZ.island, od * .95); scene.fog.far = Math.max(40 * SZ.island, od * 1.9); } /* شاشة طولية (جوال) تبعد الكاميرا لتسع الجزيرة، فيبتعد الضباب معها ولا تبهت الخريطة */ if (!actors.length) { const o = overview(); camNow.pos.copy(o.pos); camNow.look.copy(o.look); camVel.pos.set(0, 0, 0); camVel.look.set(0, 0, 0); cam = { from: o, to: o, t0: 0, d: .01 }; } };
     // جودة تلقائية: إن هبط الأداء عن ~42 إطارًا في الثانية تُخفَّض الدقة ثم الظلال خطوة خطوة، بلا قفزات ظاهرة
     W.quality = 0; let fAcc = 0, fN = 0;
     W.degrade = () => { if (W.quality >= 3) return; W.quality++; const q = W.quality, el = renderer.domElement;

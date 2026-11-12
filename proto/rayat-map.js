@@ -54,9 +54,15 @@
     isles.forEach((is, k) => { [[-.5, .22], [.5, .22], [0, -.42]].forEach(([fx, fy]) => seeds.push({ p: [is.c[0] + fx * is.rx, is.c[1] + fy * is.ry], land: k + 1 })); });
     const pts = seeds.map(s => s.p), del = d3.Delaunay.from(pts), vor = del.voronoi([-200, -200, W + 200, H + 200]);
     const regions = seeds.map((s, i) => { const poly = vor.cellPolygon(i); return { id: i, seed: s.p, land: s.land, castle: !!s.castle, poly, nb: [] }; });
-    regions.forEach(r => { for (const j of del.neighbors(r.id)) if (regions[j].land === r.land) r.nb.push(j); });
-    // مركز مرئي للإقليم داخل اليابسة: نقطة البذرة مسحوبة قليلًا نحو مركز الخلية
     const landPoly = l => l === 0 ? main.poly : isles[l - 1].poly;
+    /* الجيرة = حدٌّ مشترك على اليابسة. أرضان لا تلتقيان إلا في البحر (أو عند رأس واحد) ليستا جارتين، فلا يمرّ هجوم بينهما عبر أرض ثالثة.
+       إلا إذا انقطعت اليابسة بدونه، فيبقى الرابط الأقصر ليظل كل شيء متصلًا */
+    { const LP = regions.map(r => scalePoly(landPoly(r.land), r.land ? isles[r.land - 1].c : main.c, .97)), eq = (p, q) => Math.abs(p[0] - q[0]) < 1e-6 && Math.abs(p[1] - q[1]) < 1e-6;
+      const touch = (i, j) => { const A = regions[i].poly, B = regions[j].poly; if (!A || !B) return false; const com = []; A.forEach(p => { if (B.some(q => eq(p, q)) && !com.some(c => eq(c, p))) com.push(p); }); if (com.length < 2) return false; const [p, q] = com; for (let k = 1; k < 24; k++) { const t = k / 24; if (inPoly([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t], LP[i])) return true; } return false; };
+      const sea = []; regions.forEach(r => { for (const j of del.neighbors(r.id)) { if (regions[j].land !== r.land) continue; if (touch(r.id, j)) r.nb.push(j); else if (j > r.id) sea.push([r.id, j, Math.hypot(r.seed[0] - regions[j].seed[0], r.seed[1] - regions[j].seed[1])]); } });
+      const root = regions.map((_, i) => i), f = x => root[x] === x ? x : (root[x] = f(root[x])); regions.forEach(r => r.nb.forEach(j => { root[f(j)] = f(r.id); }));
+      sea.sort((x, y) => x[2] - y[2]).forEach(([i, j]) => { if (f(i) !== f(j)) { root[f(j)] = f(i); regions[i].nb.push(j); regions[j].nb.push(i); } }); }
+    // مركز مرئي للإقليم داخل اليابسة: نقطة البذرة مسحوبة قليلًا نحو مركز الخلية
     regions.forEach(r => { const c = centroid(r.poly); let p = [(c[0] + r.seed[0] * 2) / 3, (c[1] + r.seed[1] * 2) / 3]; if (!inPoly(p, scalePoly(landPoly(r.land), r.land ? isles[r.land - 1].c : main.c, .9))) p = r.seed.slice(); r.at = p; r.coast = !inPoly(c, scalePoly(landPoly(r.land), r.land ? isles[r.land - 1].c : main.c, .97)) || Math.hypot(...[0, 1].map(k => r.seed[k] - (r.land ? isles[r.land - 1].c : main.c)[k])) > 260; });
     // العواصم: موزعة بالتساوي حول المركز
     // نجرّب زوايا دوران عدة ونختار الأعدل: نفس البعد عن القلعة، ونفس نصيب الأرض القريبة، ونفس عدد الجيران

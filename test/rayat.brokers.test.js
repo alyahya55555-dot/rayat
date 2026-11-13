@@ -44,6 +44,17 @@ const L = (p, n) => `{h:'localhost',p:${p},path:'/',ssl:false,n:'${n}'}`;
   ok(await until(() => p1.evaluate(v => Phone.P && Phone.P.v > v, st0)), 'سقط خادم B أثناء اللعب، والجوال يكمل عبر C');
   // الوداع من خادم واحد لا يُخرج الجوال: الجوال الأول ما زال متصلًا عند المشرف
   await sleep(6000); ok(await host.evaluate(() => { const p = Object.values(Host.g.s.players).find(x => x.name === 'سعد'); return p && p.online !== false; }), 'سقوط خادم واحد لا يُظهر الجوال منقطعًا');
+  // انقطاع الشبكة عن جوال (مثل قفل الشاشة أو تبدّل الشبكة) ثم عودتها: يلحق بآخر حالة وحده بلا تحديث للصفحة
+  await p1.context().setOffline(true); await sleep(4000); await host.evaluate(() => { Host.g.s.v += 3; Host.changed(); }); await sleep(26000);
+  await p1.context().setOffline(false); const vNow = await host.evaluate(() => Host.g.s.v); const tBack = Date.now();
+  ok(await until(() => p1.evaluate(v => Phone.P && Phone.P.v >= v, vNow), 25000), 'بعد انقطاع الشبكة 30 ثانية يلحق الجوال بآخر حالة وحده (' + Math.round((Date.now() - tBack) / 1000) + ' ث)');
+  // الرجوع للصفحة بعد إخفائها يعيد الاتصال فورًا إن كان صامتًا
+  const r0 = await p1.evaluate(() => Phone.net.mq.restarts || 0); await p1.evaluate(() => { Phone.net.mq.lastRestart = 0; Phone.net.mq.lastIn = performance.now() - 20000; Object.defineProperty(document, 'hidden', { value: false, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); });
+  ok(await until(() => p1.evaluate(r => (Phone.net.mq.restarts || 0) > r, r0), 5000), 'العودة للصفحة بعد صمت تعيد الاتصال فورًا');
+  const v2 = await host.evaluate(() => { Host.g.s.v++; Host.changed(); return Host.g.s.v; }); ok(await until(() => p1.evaluate(v => Phone.P && Phone.P.v >= v, v2), 15000), 'وبعدها تصل الحالة الجديدة');
+  // المشرف أُعيد فتحه (رقم الحالة يصغر): الجوال يقبل الجلسة الجديدة ولا يعلق
+  const old = await p1.evaluate(() => Phone.P.v); await host.evaluate(() => { Host.hs = 'newsession'; Host.g.s.v = 5; Host.changed(); });
+  ok(await until(() => p1.evaluate(() => Phone.P && Phone.P.hs === 'newsession'), 10000), 'إعادة فتح المشرف برقم أصغر لا تعلّق الجوال (كان ' + old + ')');
   // الخروج الحقيقي يُرى: نغلق الجوال الثاني
   await p2.context().close(); ok(await until(() => host.evaluate(() => { const p = Object.values(Host.g.s.players).find(x => x.name === 'فهد'); return p && p.online === false; }), 30000), 'خروج الجوال فعلًا يُرى عند المشرف');
   ok(!errs.length, 'لا أخطاء في الصفحات ' + JSON.stringify(errs.slice(0, 3)));

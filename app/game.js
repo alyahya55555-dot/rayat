@@ -41,7 +41,7 @@
     setTimer(sec) { this.s.dur = sec * SEC; this.s.deadline = this.t() + sec * SEC; }
     left() { return Math.max(0, this.s.deadline - this.t()); }
     // المشاهد: إن كانت شاشة عرض متصلة ينتظر المشرف إشارتها «انتهى المشهد» (بسقف زمني)، فلا يُقطع مشهد ولا يُسرَّع؛ وإلا فالمدة الاسمية
-    sceneTimer(d) { const wait = !!(this.hasDisplay && this.hasDisplay()); this.s.sceneNom = d; this.setTimer(wait ? d * 1.6 + 4 : d); }
+    sceneTimer(d) { const wait = !!(this.hasDisplay && this.hasDisplay()); this.s.sceneNom = d; this.setTimer(wait ? (this.s.stage === 'phase' ? d + 2.5 : d * 1.6 + 4) : d); } /* المرحلة بطاقة ثابتة الطول: لا تنتظر الشاشة طويلًا */
     ackKey() { const s = this.s; return ['scene', 'phase', 'harvest'].includes(s.stage) ? s.stage + ':' + (s.ev ? s.ev.id : 'c' + s.cycle) : null; }
     sceneAck(key) { const s = this.s; if (s.paused || !key || key !== this.ackKey() || !s.deadline) return; if (s.stage === 'harvest' && this.s.dur - this.left() < 2500) { s.deadline = this.t() + 2500 - (s.dur - this.left()); this.changed(); return; } s.deadline = this.t(); this.tick(); }
     say(text, kind = 'info') { const s = this.s; s.log.push({ t: this.t(), text, kind }); if (s.log.length > 60) s.log.shift(); if (kind === 'big') { (s.chron = s.chron || []).push({ p: s.phase || 0, c: s.cycle || 0, text }); if (s.chron.length > 300) s.chron.shift(); } }

@@ -8157,7 +8157,7 @@ var qrcode = function() {
     setTimer(sec) { this.s.dur = sec * SEC; this.s.deadline = this.t() + sec * SEC; }
     left() { return Math.max(0, this.s.deadline - this.t()); }
     // المشاهد: إن كانت شاشة عرض متصلة ينتظر المشرف إشارتها «انتهى المشهد» (بسقف زمني)، فلا يُقطع مشهد ولا يُسرَّع؛ وإلا فالمدة الاسمية
-    sceneTimer(d) { const wait = !!(this.hasDisplay && this.hasDisplay()); this.s.sceneNom = d; this.setTimer(wait ? d * 1.6 + 4 : d); }
+    sceneTimer(d) { const wait = !!(this.hasDisplay && this.hasDisplay()); this.s.sceneNom = d; this.setTimer(wait ? (this.s.stage === 'phase' ? d + 2.5 : d * 1.6 + 4) : d); } /* المرحلة بطاقة ثابتة الطول: لا تنتظر الشاشة طويلًا */
     ackKey() { const s = this.s; return ['scene', 'phase', 'harvest'].includes(s.stage) ? s.stage + ':' + (s.ev ? s.ev.id : 'c' + s.cycle) : null; }
     sceneAck(key) { const s = this.s; if (s.paused || !key || key !== this.ackKey() || !s.deadline) return; if (s.stage === 'harvest' && this.s.dur - this.left() < 2500) { s.deadline = this.t() + 2500 - (s.dur - this.left()); this.changed(); return; } s.deadline = this.t(); this.tick(); }
     say(text, kind = 'info') { const s = this.s; s.log.push({ t: this.t(), text, kind }); if (s.log.length > 60) s.log.shift(); if (kind === 'big') { (s.chron = s.chron || []).push({ p: s.phase || 0, c: s.cycle || 0, text }); if (s.chron.length > 300) s.chron.shift(); } }
@@ -8501,7 +8501,14 @@ var qrcode = function() {
     const coastSegs = []; [M.main.poly, ...M.isles.map(i => i.poly)].forEach(L => L.forEach((p, i) => { const q = L[(i + 1) % L.length], [ax, az] = P(...p), [bx, bz] = P(...q); coastSegs.push([ax, az, bx, bz]); }));
     const lands = [M.main.poly, ...M.isles.map(i => i.poly)].map(L => L.map(p => P(...p)));
     const inPoly = (x, z, L) => { let c = false; for (let i = 0, j = L.length - 1; i < L.length; j = i++) { const [xi, zi] = L[i], [xj, zj] = L[j]; if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; } return c; };
-    function coastDist(x, z) { let m = 1e9; for (const [ax, az, bx, bz] of coastSegs) { const dx = bx - ax, dz = bz - az, t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)), px = ax + t * dx - x, pz = az + t * dz - z, d = px * px + pz * pz; if (d < m) m = d; } m = Math.sqrt(m); return lands.some(L => inPoly(x, z, L)) ? m : -m; }
+    /* بُعد الشاطئ بفهرس مكاني: لكل خلية قائمة المقاطع التي يمكن أن تكون الأقرب لأي نقطة فيها (حساب مسبق مرة واحدة)، فالسؤال يمر على مقاطع قليلة بدل كل الساحل. كان أثقل ما في بناء الخريطة فيتجمد الجوال عند فتحها */
+    const CB = .25, HB = CB * Math.SQRT1_2, cbx0 = Math.min(...coastSegs.map(g => Math.min(g[0], g[2]))) - 3, cbz0 = Math.min(...coastSegs.map(g => Math.min(g[1], g[3]))) - 3, cnx = Math.ceil((Math.max(...coastSegs.map(g => Math.max(g[0], g[2]))) + 3 - cbx0) / CB), cnz = Math.ceil((Math.max(...coastSegs.map(g => Math.max(g[1], g[3]))) + 3 - cbz0) / CB);
+    const segD = (x, z, g) => { const [ax, az, bx, bz] = g, dx = bx - ax, dz = bz - az, t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz)), px = ax + t * dx - x, pz = az + t * dz - z; return px * px + pz * pz; };
+    const cand = new Array(cnx * cnz), dsb = new Float64Array(coastSegs.length), candAt = (i, j) => { const ix = j * cnx + i; let L = cand[ix]; if (L) return L; const cx = cbx0 + (i + .5) * CB, cz = cbz0 + (j + .5) * CB; let mn = 1e9; for (let k = 0; k < coastSegs.length; k++) { dsb[k] = Math.sqrt(segD(cx, cz, coastSegs[k])); if (dsb[k] < mn) mn = dsb[k]; } const lim = mn + 2 * HB + 1e-9; L = []; for (let k = 0; k < coastSegs.length; k++) if (dsb[k] <= lim) L.push(coastSegs[k]); return (cand[ix] = L); }; /* تُحسب الخلية عند أول سؤال عنها فقط */
+    const RB = .2, rows = new Map(); lands.forEach(L => L.forEach((p, i) => { const q = L[(i + 1) % L.length], r0 = Math.floor(Math.min(p[1], q[1]) / RB), r1 = Math.floor(Math.max(p[1], q[1]) / RB); for (let r = r0; r <= r1; r++) { if (!rows.has(r)) rows.set(r, []); rows.get(r).push([p[0], p[1], q[0], q[1]]); } }));
+    const onLandFast = (x, z) => { const R = rows.get(Math.floor(z / RB)); if (!R) return false; let c = false; for (const [xi, zi, xj, zj] of R) if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c; return c; }; /* الجزر لا تتداخل، فعدد التقاطعات الكلي يكفي */
+    function coastDist(x, z) { const i = Math.floor((x - cbx0) / CB), j = Math.floor((z - cbz0) / CB); const L = i >= 0 && j >= 0 && i < cnx && j < cnz ? candAt(i, j) : coastSegs; let m = 1e9; for (let k = 0; k < L.length; k++) { const d = segD(x, z, L[k]); if (d < m) m = d; } m = Math.sqrt(m); return onLandFast(x, z) ? m : -m; }
+    const coastDistSlow = (x, z) => { let m = 1e9; for (const g of coastSegs) { const d = segD(x, z, g); if (d < m) m = d; } m = Math.sqrt(m); return lands.some(L => inPoly(x, z, L)) ? m : -m; }; /* للفحص فقط */
     const feats = [];
     M.regions.forEach(r => { const [x, z] = at(r);
       if (r.type === 'mine') { feats.push({ x: x - .12 * K, z: z - .05 * K, h: .95 * K, r: .42 * K, k: 'm' }); feats.push({ x: x + .26 * K, z: z + .08 * K, h: .62 * K, r: .32 * K, k: 'm' }); }
@@ -9482,7 +9489,7 @@ var qrcode = function() {
       const pose = () => { const tt = W.time - t0, az = Math.sin(tt * .045) * .3, look = V(f[0] + Math.sin(tt * .035) * .5 * K, 0, f[1]); return { pos: V(look.x + Math.sin(az) * Math.cos(el) * dist, Math.sin(el) * dist, look.z + Math.cos(az) * Math.cos(el) * dist), look }; };
       camTo(pose(), 2.6); camFollow(pose); };
     // معلومات القلعة فوقها: صاحبها وجولات أمانه
-    W._dbg = { roads: () => ROADS, geom, sharedEdge, regionAtW, landRoute, crossing, R: () => R, findPath, blockers, seaRoute, onLand, coastDist, sizes: () => { const B = new THREE.Box3(), h = o => { B.setFromObject(o); const v = new THREE.Vector3(); B.getSize(v); return [+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3)]; }; const tmp = new THREE.Group(); const sd = soldier(0), rd = rider(0); house(0, 0, 1, C.roof, 0, tmp); const out = { soldier: h(sd), rider: h(rd), house: h(tmp), UNIT_S, SZ }; const ids = Object.keys(R); const fid = ids.find(i => R[i].fort), tid = ids.find(i => R[i].tower); if (fid) out.fort = h(R[fid].fort); if (tid) out.tower = h(R[tid].tower); const tr = TREES.filter(t => t.s > .5).slice(0, 3).map(t => t.t); out.tree = tr; return out; }, trees: () => TREES, flags: () => flags, terrBlock, groundY, cam: () => cam, lift: () => terrLift, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
+    W._dbg = { coastDistSlow, roads: () => ROADS, geom, sharedEdge, regionAtW, landRoute, crossing, R: () => R, findPath, blockers, seaRoute, onLand, coastDist, sizes: () => { const B = new THREE.Box3(), h = o => { B.setFromObject(o); const v = new THREE.Vector3(); B.getSize(v); return [+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3)]; }; const tmp = new THREE.Group(); const sd = soldier(0), rd = rider(0); house(0, 0, 1, C.roof, 0, tmp); const out = { soldier: h(sd), rider: h(rd), house: h(tmp), UNIT_S, SZ }; const ids = Object.keys(R); const fid = ids.find(i => R[i].fort), tid = ids.find(i => R[i].tower); if (fid) out.fort = h(R[fid].fort); if (tid) out.tower = h(R[tid].tower); const tr = TREES.filter(t => t.s > .5).slice(0, 3).map(t => t.t); out.tree = tr; return out; }, trees: () => TREES, flags: () => flags, terrBlock, groundY, cam: () => cam, lift: () => terrLift, landRoute: (a, b) => landRoute(a, b), crossing: (a, b) => crossing(a, b), findPath: (a, b, c) => findPath(a, b, c), blockers: () => blockers() };
     W.setCastle = (info) => { const k = JSON.stringify(info || {}); if (k === W._ck) return; W._ck = k; W.castleInfo = info || {}; const c = M.regions.find(x => x.type === 'castle'); if (c) makeLabel(c); };
 
     // ---------- الإطار ----------
@@ -9516,8 +9523,10 @@ var qrcode = function() {
       if (q === 2) { if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; } sun.shadow.mapSize.set(1024, 1024); }
       if (q === 3) renderer.setPixelRatio(.8);
       W.resize(el.clientWidth || innerWidth, el.clientHeight || innerHeight); };
-    W.start = () => { W.running = true; const loop = now => { if (!W.running) return; const dt = last == null ? 0 : Math.min(.05, (now - last) / 1000); last = now; W.step(dt);
-        if (!document.hidden && dt > 0) { fAcc += dt; fN++; if (fAcc > 3) { const fps = fN / fAcc; W.fps = fps; fAcc = 0; fN = 0; if (fps < 42) W.degrade(); } }
+    /* maxFps: سقف للرسم (الجوال يرسم أقل وقت الأسئلة فلا يثقل)، وdtCap: الجهاز البطيء لا يعرض المشهد بالتصوير البطيء فيتأخر عن الجميع */
+    W.maxFps = 0; W.dtCap = .05; let loopGen = 0; W.stop = () => { W.running = false; loopGen++; last = null; };
+    W.start = () => { if (W.running) return; W.running = true; const gen = ++loopGen; const loop = now => { if (!W.running || gen !== loopGen) return; if (W.maxFps && last != null && now - last < 1000 / W.maxFps - 2) { requestAnimationFrame(loop); return; } const dt = last == null ? 0 : Math.min(W.dtCap, (now - last) / 1000); last = now; W.step(dt);
+        if (!document.hidden && dt > 0) { fAcc += dt; fN++; if (fAcc > 3) { const fps = fN / fAcc; W.fps = fps; fAcc = 0; fN = 0; if (fps < (W.maxFps ? W.maxFps * .7 : 42)) W.degrade(); } } /* مع سقف الرسم يُقاس على السقف لا على 60 */
         requestAnimationFrame(loop); }; requestAnimationFrame(loop); };
     // إغلاق نظيف (خريطة الطالب تُفتح وتُغلق مرارًا): إيقاف الحلقة وتحرير الهندسة والخامات وسياق الرسم
     W.dispose = () => { W.running = false; try { scene.traverse(o => { if (o.geometry) o.geometry.dispose(); const m = o.material; if (m) (Array.isArray(m) ? m : [m]).forEach(x => { if (x.map) x.map.dispose(); x.dispose(); }); }); renderer.dispose(); if (renderer.forceContextLoss) renderer.forceContextLoss(); } catch (e) { } };
@@ -9701,10 +9710,17 @@ class Mq {
   start(code) {
     if (typeof Paho === 'undefined' || !Paho.Client) { this.failed = 'no-lib'; this.net.fire('status'); return; }
     if (this.code === code && this.links.length) return;
-    this.stop(); this.code = code; this.base = TOPIC_ROOT + code + '/'; this.gen = (this.gen || 0) + 1;
+    this.stop(); this.code = code; this.base = TOPIC_ROOT + code + '/'; this.gen = (this.gen || 0) + 1; this.guard(); this.lastIn = Math.max(this.lastIn || 0, performance.now());
     const gen = this.gen;
     this.ensureKey().then(() => { if (gen !== this.gen) return; if (this.multi) BROKERS.forEach((b, i) => this.openHost(b, i)); else this.attempt(0, gen); });
   }
+  /* إعادة اتصال كاملة بالخوادم: عند العودة للصفحة بعد قفل الشاشة أو تبديل التطبيق (الجوال يقتل الاتصال بصمت)، أو إن انقطعت الرسائل والمشرف يبث كل ثانيتين ونصف */
+  restart(why) { const c = this.code; if (!c) return; this.restarts = (this.restarts || 0) + 1; this.lastRestart = performance.now(); this.code = null; this.stop(); this.start(c); this.net.fire('status'); }
+  guard() { if (this.guardOn || this.role === 'host') return; this.guardOn = true; this.lastIn = performance.now();
+    const stale = ms => this.code && performance.now() - (this.lastIn || 0) > ms && performance.now() - (this.lastRestart || 0) > 6000;
+    const wake = () => { if (!document.hidden && stale(3500)) this.restart('wake'); };
+    document.addEventListener('visibilitychange', wake); addEventListener('pageshow', wake); addEventListener('online', () => setTimeout(() => { if (stale(1500)) this.restart('online'); }, 600)); addEventListener('focus', wake);
+    setInterval(() => { if (!document.hidden && stale(9000)) this.restart('silent'); }, 2500); }
   stop() { this.gen = (this.gen || 0) + 1; this.links.forEach(l => { if (!l) return; l.dead = true; clearTimeout(l.t); try { l.c && l.c.disconnect(); } catch (e) { } }); this.links = []; this.active = null; }
   client(b, i, l) {
     const c = new Paho.Client(b.h, b.p, b.path || '/mqtt', this.cid + '-' + i + '-' + (l.tries++));
@@ -9712,7 +9728,7 @@ class Mq {
     return c;
   }
   connOpts(b, onSuccess, onFailure) {
-    const o = { useSSL: !!b.ssl, timeout: 6, keepAliveInterval: 20, cleanSession: true, mqttVersion: 4, onSuccess, onFailure };
+    const o = { useSSL: !!b.ssl, timeout: 8, keepAliveInterval: 45, cleanSession: true, mqttVersion: 4, onSuccess, onFailure };
     if (this.role !== 'host') { const w = new Paho.Message(JSON.stringify({ bye: 1 })); w.destinationName = this.base + 'p/' + this.cid; w.qos = 0; o.willMessage = w; }
     return o;
   }
@@ -9767,7 +9783,7 @@ class Mq {
     return targets.length;
   }
   async onMsg(topic, payload, link) {
-    this.stats.in++;
+    this.stats.in++; this.lastIn = performance.now();
     if (!topic.startsWith(this.base)) return;
     const sub = topic.slice(this.base.length);
     let env; try { env = JSON.parse(payload); } catch (e) { return; }
@@ -9934,7 +9950,7 @@ const Manual = {
 <li><b>سؤال للجميع (20 ثانية):</b> كل طالب يجيب من جواله.</li>
 <li><b>الأوامر:</b> إذا أجاب أحد في فريقكم صحيحًا يأخذ الفريق <b>أمرًا</b>، وإذا أجاب 60٪ منكم صحيحًا فـ<b>أمرين</b>.</li>
 <li><b>القائد يختار (40 ثانية، و60 في أول جولة بعد أدوات جديدة):</b> وقت لتأمل الخريطة والتشاور، وللمشرف زر «+15 ثانية». أول من انضم للفريق هو القائد 👑. الأعضاء يضغطون على الأوامر فتصله <b>اقتراحات</b>، وهو يقرر ثم يضغط «جاهز».</li>
-<li><b>المشاهد:</b> تنفَّذ الأوامر على الخريطة أمام الجميع. وفي جوالك زر «🗺️ الخريطة»: تعمل بالطول والعرض، وتتابع المشاهد نفسها بلا صوت (زر «📺 متابعة»)، وتكبر وحدها وقت المشاهدة وتصغر وقت الإجابة، وزر ⤢ يكبّرها أو يصغّرها بيدك.</li>
+<li><b>المشاهد:</b> تنفَّذ الأوامر على الخريطة أمام الجميع. وفي جوالك زر «🗺️ الخريطة»: تفتح مباشرة على البث: تعرض المشاهد نفسها بلا صوت والكاميرا تتابع الحدث، ولك أن تسحبها وتقرّبها بيدك ثم تضغط «📺 عُد للبث». تعمل بالطول والعرض، وتكبر وحدها وقت المشاهدة وتصغر وقت الإجابة (⤢ يكبّرها أو يصغّرها بيدك)، وإغلاقها ثم فتحها فوري.</li>
 <li><b>الحصاد:</b> كل أرض تملكها تعطيك موارد كل جولة.</li>
 </ol>
 <h3>الهدف في جملة</h3>
@@ -10000,6 +10016,8 @@ const Manual = {
 ;
 /* رايات — شاشة العرض (البروجكتور): الجزيرة ثلاثية الأبعاد + طبقة نظيفة فوقها، عنصر رئيس واحد في كل لحظة */
 
+/* ما ينفتح في كل مرحلة وشرحه بسطر: تستعمله شاشة العرض وجوالات الطلاب */
+function unlockInfo() { const C = RayatRules.CFG, cg = (C.YIELD.castle.gold || 0) + (C.CASTLE_TRIBUTE.gold || 0); return { occupy: ['🚩', 'الاحتلال', 'خذوا أرضًا فاضية ملاصقة لأرضكم'], supply: ['🧺', 'التموين', `+${C.SUPPLY} من المورد الذي تحتاجونه`], inf: ['⚔️', 'المشاة', 'هاجموا أرض جاركم'], walls: ['🧱', 'الأسوار', 'المهاجم يحتاج فوزين'], cav: ['🐎', 'الفرسان', 'تقفز فوق أرض وتضرب أبعد'], tower: ['🗼', 'برج المراقبة', 'يوقف الفرسان'], garInf: ['🛡️', 'الحامية', 'تصدّ هجومًا واحدًا'], alliance: ['🤝', 'التحالفات', 'فريقان يهاجمان معًا ويتقاسمان الكلفة'], cat: ['🪨', 'المنجنيق', 'يهدم السور حتى لو صمد المدافع'], cap2: ['🏙️', 'تطوير العاصمة', 'حصاد أكثر ونهب أقل'], castle: ['🏰', 'القلعة', `${C.CASTLE_POINTS} أراضٍ + ${cg} ذهب كل جولة`] }; }
 const Display = {
   init(code, opt = {}) {
     this.local = !!opt.local; this.root = opt.root || $('#app');
@@ -10055,7 +10073,7 @@ const Display = {
     draw(); return W; },
   onState(P) {
     if (!P || !P.teams) return; if (this.code && P.code !== this.code && this.P) return; if (!this.code && P.code) this.join(P.code);
-    if (this.P && P.v < this.P.v && P.code === this.P.code) return;
+    if (this.P && P.v < this.P.v && P.code === this.P.code && P.hs === this.P.hs) return;
     const ask = $('#askcode'); if (ask) ask.remove();
     this.P = P; this.ensureWorld(P);
     if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d || 1; } else this.endAt = 0;
@@ -10076,7 +10094,7 @@ const Display = {
   // المشاهد تُعرض واحدًا بعد الآخر بسرعتها الطبيعية، والمشرف ينتظر إشارة انتهائها؛ لا تسريع إلا بطلب المشرف (تخطٍّ) أو لحاقًا هادئًا إن تأخرت الشاشة
   enqueue(ev) { (this.evq = this.evq || []).push(ev); if (!this.pumping) this.pump(); },
   async pump() { this.pumping = true; try { while (this.evq && this.evq.length) { const ev = this.evq.shift(); if (this.W) this.W.speed = this.evq.length ? 1.25 : 1; await this.playEvent(ev); this.ack(ev._ack); } } finally { this.pumping = false; if (this.W) this.W.speed = 1; } },
-  ack(key) { if (!key) return; if (this.local) { try { Host.g.sceneAck(key); } catch (e) { } return; } this.ackSeq = (this.ackSeq || 0) + 1; this.net.presence({ sd: { n: Date.now() * 10 + (this.ackSeq % 10), k: key } }); },
+  ack(key) { if (!key) return; if (this.local) { if (!Host.mapOn) return; /* الخريطة المخفية عند المشرف لا تنهي مشهد شاشة العرض */ try { Host.g.sceneAck(key); } catch (e) { } return; } this.ackSeq = (this.ackSeq || 0) + 1; this.net.presence({ sd: { n: Date.now() * 10 + (this.ackSeq % 10), k: key } }); },
   // العودة من تبويب مخفي: يُهمل المتراكم وتُعرض الحالة الحالية مباشرة بلا تسارع مرئي
   onVisible() { if (document.hidden || !this.W) return; if (this.evq && this.evq.length) this.evq.length = 0; if (this.playing) { if (this.W.snap) this.W.snap(); else this.W.skip(); SFX.stopAll(); } },
   async playEvent(ev) { const W = this.W, tn = this.P.teams; this.playing++; this.curEv = ev;
@@ -10126,7 +10144,8 @@ const Display = {
     const slog = $('#slog'); slog.innerHTML = '';
     if (st === 'lobby') { const url = joinUrl(P.code, P.fp); return this.show('lobby', `<div><div class="qr">${url ? qrSvg(url) : ''}</div><div class="code">رمز الغرفة<b>${esc(P.code)}</b></div></div><div><div class="ptitle k" style="font-size:64px;text-align:start">امسح الرمز وانضم</div><div class="mut" style="font-size:20px;margin:6px 0 20px">اختر فريقك من جوالك، وأول من ينضم يكون القائد</div><div class="teams">${T.map((t, i) => { const pl = Object.entries(P.players).filter(([, p]) => p.t === i).sort(([a], [b]) => (b === t.cap) - (a === t.cap)), n = pl.length; return `<div class="team" style="--tc:${t.color}"><h3>${esc(t.name)}</h3>${pl.slice(0, 4).map(([pid, p]) => `<div class="p ${t.cap === pid ? 'cap' : ''}">${t.cap === pid ? '👑 ' : ''}${esc(p.n)}</div>`).join('')}${n > 4 ? `<div class="p">و${n - 4} آخرون</div>` : ''}${n ? '' : '<div class="p">بانتظار المتسابقين…</div>'}<div class="cnt">${n ? (n === 1 ? 'لاعب واحد' : n === 2 ? 'لاعبان' : n + (n <= 10 ? ' لاعبين' : ' لاعبًا')) : 'بانتظار المتسابقين'}</div></div>`; }).join('')}</div></div>`); }
     if (st === 'phase' && P.ev && P.ev.k === 'phase') { // ما ينفتح يظهر واحدًا بعد الآخر (كل ثانيتين) ومع كل واحد سطر يشرح فائدته
-      const C = RayatRules.CFG, cg = (C.YIELD.castle.gold || 0) + (C.CASTLE_TRIBUTE.gold || 0), U = { occupy: ['🚩', 'الاحتلال', 'خذوا أرضًا فاضية ملاصقة لأرضكم'], supply: ['🧺', 'التموين', `+${C.SUPPLY} من المورد الذي تحتاجونه`], inf: ['⚔️', 'المشاة', 'هاجموا أرض جاركم'], walls: ['🧱', 'الأسوار', 'المهاجم يحتاج فوزين'], cav: ['🐎', 'الفرسان', 'تقفز فوق أرض وتضرب أبعد'], tower: ['🗼', 'برج المراقبة', 'يوقف الفرسان'], garInf: ['🛡️', 'الحامية', 'تصدّ هجومًا واحدًا'], alliance: ['🤝', 'التحالفات', 'فريقان يهاجمان معًا ويتقاسمان الكلفة'], cat: ['🪨', 'المنجنيق', 'يهدم السور حتى لو صمد المدافع'], cap2: ['🏙️', 'تطوير العاصمة', 'حصاد أكثر ونهب أقل'], castle: ['🏰', 'القلعة', `${C.CASTLE_POINTS} أراضٍ + ${cg} ذهب كل جولة`] };
+      const U = unlockInfo();
+
       const un = (P.ev.unlock || []).filter(k => U[k]), STEP = 2.2, lines = un.length ? un.map((k, i) => `<div class="pline" style="animation-delay:${(1.2 + i * STEP).toFixed(1)}s"><b>${U[k][0]} ${U[k][1]}</b><span>${U[k][2]}</span></div>`).join('') : P.ev.key === 'final' ? '<div class="pline" style="animation-delay:1.2s"><b>⚡ سقطت التحالفات كلها</b><span>وكل فريق لنفسه</span></div>' : '';
       const caps = (P.ev.caps || []).length ? `<div class="pcaps" style="animation-delay:${(1.2 + un.length * STEP + .4).toFixed(1)}s"><i>👑 القيادة تنتقل:</i>${P.ev.caps.map(([t, n]) => `<span><b style="color:${(T[t] || {}).color || 'inherit'}">${esc((T[t] || {}).name || '')}</b> ${esc(n)}</span>`).join('')}</div>` : '';
       return this.show('mid', `<div class="kind">المرحلة</div><div class="ptitle k">${esc(P.ev.name)}</div>${lines ? `<div class="punlock">${un.length ? 'ينفتح الآن:' : ''}</div><div class="plines">${lines}</div>` : ''}${caps}`); }
@@ -10199,14 +10218,14 @@ const Phone = {
   async join() { this.net.code = this.code; await this.net.joinRoom(this.code); this.pres(); },
   pres() { this.net.presence({ r: 's', c: this.code, pid: this.pid, nm: this.me.nm || null, tw: this.me.tw ?? null }); },
   send(f, d) { this.n++; this.SS.set('rayat.n', this.n); this.net.presence({ [f]: Object.assign({ n: this.n }, d) }); },
-  onState(P) { if (!P || (this.code && P.code !== this.code)) return; if (!this.code) this.code = P.code; if (this.P && P.v < this.P.v) return;
+  onState(P) { if (!P || (this.code && P.code !== this.code)) return; if (!this.code) this.code = P.code; if (this.P && P.v < this.P.v && P.hs === this.P.hs) return;
     { const t0 = this.P && this.myTeam(), was = t0 != null && this.P.teams[t0] && this.P.teams[t0].cap === this.pid, me1 = P.players && P.players[this.pid], now = !!(me1 && P.teams && P.teams[me1.t] && P.teams[me1.t].cap === this.pid); if (this.P && !was && now && P.stage === 'phase') { toast('👑 أنت قائد فريقك في هذه المرحلة', 4000); try { navigator.vibrate && navigator.vibrate([80, 60, 80]); } catch (e) { } } }
-    const prev = this.P; this.P = P; this.lastState = performance.now(); if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d; } else this.endAt = 0;
+    const prev = this.P; this.P = P; this.lastState = performance.now(); if (P.tm) { this.endAt = performance.now() + P.tm.r; { const k = P.stage + ':' + (P.ev ? P.ev.id : '') + ':' + (P.q ? P.q.id : ''); if (this.tmKey !== k) { this.tmKey = k; this.tmTot = P.tm.r; } else this.tmTot = Math.max(this.tmTot || 0, P.tm.r); } this.dur = P.tm.d; } else this.endAt = 0;
     { const L = P.stage === 'buzz' && P.duel ? P.duel.lock : P.stage === 'tie' && P.tie ? P.tie.lock : 0; this.lockUntil = P.paused ? Infinity : performance.now() + (L || 0); }
-    if (P.mapSeed != null && (!this.M || this.mkey !== P.teams.length + ':' + P.mapSeed)) { this.mkey = P.teams.length + ':' + P.mapSeed; this.M = RayatMap.build(P.teams.length, P.mapSeed); if (this.mapOpen) this.closeMap(); }
+    if (P.mapSeed != null && (!this.M || this.mkey !== P.teams.length + ':' + P.mapSeed)) { this.mkey = P.teams.length + ':' + P.mapSeed; this.M = RayatMap.build(P.teams.length, P.mapSeed); if (this.mapOpen) this.closeMap(); this.dropMap(); }
     if (this.MW && P.vis) { if (P.ev && P.ev.id !== this.lastEv) { this.lastEv = P.ev.id; (this.evq = this.evq || []).push(P.ev); if (!this.pumping) this.pump(); }
       else if (!this.playing) this.syncVis(); this.mapInfo(); }
-    if (this.mapOpen && (!prev || prev.stage !== P.stage)) { this.mapBigMan = null; this.mapSize(); const W = this.MW, D = P.duel; if (W && !this.playing && W.camMode() === 'follow') { try { if (['predict', 'buzz', 'judge', 'point'].includes(P.stage) && D && W.faceoff) W.faceoff({ a: D.a, d: D.d, r: D.r, unit: D.unit, ally: D.ally, from: D.from }); else if (['orders', 'harvest', 'bini', 'tie'].includes(P.stage)) W.overview(1.6); } catch (e) { } } }
+    if (this.mapOpen && (!prev || prev.stage !== P.stage)) { this.mapBigMan = null; this.mapSize(); this.stageCam(); this.mapFps(); }
     const t = this.myTeam(); if (prev && prev.stage !== P.stage) { this.local = {}; if (P.stage === 'orders') this.picks = []; this.tab = null;
       if (P.stage === 'predict' && P.duel && (P.duel.d === t || P.duel.a === t)) this.buzzV([120, 60, 120]);
       if (P.stage === 'buzz' && P.duel && (P.duel.d === t || P.duel.a === t || P.duel.ally === t)) this.buzzV([60]); }
@@ -10223,6 +10242,7 @@ const Phone = {
   rn(r) { return this.M ? this.M.regions[r].name : 'إقليم ' + r; },
   tick() { this.lockUI(); // انقطاع الاتصال بالمشرف: المشرف يبث كل 2.5 ثانية، فغياب البث 9 ثوانٍ يعني انقطاعًا
     { const off = !!(this.P && this.lastState && performance.now() - this.lastState > 9000); let ob = document.getElementById('offbar'); if (off && !ob) { ob = document.createElement('div'); ob.id = 'offbar'; ob.className = 'offbar'; ob.textContent = 'انقطع الاتصال بالمشرف… تُعاد المحاولة تلقائيًا'; document.body.appendChild(ob); } else if (!off && ob) ob.remove(); }
+    { const tb = document.getElementById('tbar'); if (tb && this.endAt && this.tmTot) tb.style.width = Math.max(0, Math.min(100, (this.endAt - performance.now()) / this.tmTot * 100)).toFixed(1) + '%'; }
     const el = $('#ptm'); if (el && this.P && this.P.paused) { el.textContent = this.P.tm ? '⏸ ' + Math.ceil(this.P.tm.r / 1000) + ' ث' : '⏸'; return; } if (el && this.endAt) { const s = Math.ceil(Math.max(0, this.endAt - performance.now()) / 1000); el.textContent = s + ' ث'; } },
   header() { const P = this.P, t = this.myTeam(), T = P && t != null ? P.teams[t] : null;
     return `<div class="hd"><div class="nm k">رايـات</div>${T ? `<span class="badge" style="--tc:${T.color}">${esc(T.name)}${this.isCap() ? ' · القائد 👑' : ''}</span>` : ''}${P && P.vis && this.me && this.me.nm ? `<button class="mapbtn ${this.mapOpen ? 'on' : ''}" data-map>🗺️ الخريطة</button>` : ''}<button class="mapbtn" data-guide>📖</button><span class="tm" id="ptm"></span></div>`; },
@@ -10265,6 +10285,11 @@ const Phone = {
     if (st === 'crown' && P.winner == null && P.rank && P.rank[0]) P.winner = P.rank[0].team;
     if (st === 'crown') { const won = P.winner === t; return `<div class="box"><div class="big k" style="font-size:36px;color:${tc(P.winner)}">${won ? '🏆 أنتم أبطال الجزيرة' : 'الأبطال: ' + tn(P.winner)}</div><div class="col" style="margin-top:14px">${(P.rank || []).map((x, k) => `<div class="row" style="justify-content:space-between;padding:8px 12px;border-radius:12px;background:rgba(255,255,255,.05);border-inline-start:5px solid ${tc(x.team)}"><b>${k + 1}. ${tn(x.team)}</b><span>${x.score} أرض</span></div>`).join('')}</div></div>`; }
     if (st === 'bini' && P.bini) return `<div class="box"><div class="mut" style="text-align:center">بيني ${P.bini.mult > 1 ? '×' + P.bini.mult : ''}</div><div class="big k">${esc(P.bini.name)}</div><div class="q" style="font-weight:400;font-size:17px;margin-top:8px">${esc(P.bini.desc)}</div></div>`;
+    if (st === 'phase' && P.ev && P.ev.k === 'phase') { /* بطاقة المرحلة نفسها التي على الشاشة: ما ينفتح وشرحه، والقيادة الجديدة، وشريط يتقدم فلا يبدو الجوال معلقًا */
+      const U = typeof unlockInfo === 'function' ? unlockInfo() : {}, un = (P.ev.unlock || []).filter(k => U[k]), T = P.teams;
+      const lines = un.map((k, i) => `<div class="pline" style="animation-delay:${(.4 + i * .5).toFixed(1)}s"><b>${U[k][0]} ${U[k][1]}</b><span>${U[k][2]}</span></div>`).join('') || (P.ev.key === 'final' ? '<div class="pline"><b>⚡ سقطت التحالفات كلها</b><span>وكل فريق لنفسه</span></div>' : '');
+      const caps = (P.ev.caps || []).length ? `<div class="pcaps"><i>👑 القيادة تنتقل:</i>${P.ev.caps.map(([tt, n]) => `<span><b style="color:${(T[tt] || {}).color || 'inherit'}">${esc((T[tt] || {}).name || '')}</b> ${esc(n)}</span>`).join('')}</div>` : '';
+      return `<div class="box pbox"><div class="mut" style="text-align:center">المرحلة</div><div class="big k" style="font-size:30px;text-align:center">${esc(P.ev.name || P.phaseName || '')}</div>${lines ? `<div class="punlock">${un.length ? 'ينفتح الآن:' : ''}</div><div class="plines">${lines}</div>` : ''}${caps}<div class="timer"><i id="tbar" style="width:100%;transition:width .25s linear"></i></div></div>${this.resBox()}`; }
     const cap = st === 'scene' && P.ev ? this.evText(P.ev) : st === 'harvest' ? 'الحصاد: أراضيكم تنتج' : st === 'phase' ? 'مرحلة جديدة: ' + esc(P.phaseName || '') : 'تابع الشاشة';
     return `<div class="box"><div class="big k" style="font-size:22px">${cap}</div></div>${this.resBox()}${this.dipBox()}`; },
   evText(e) { const T = this.P.teams, tn = i => i == null ? '' : esc(T[i].name);
@@ -10281,27 +10306,41 @@ const Phone = {
   // الخريطة في أعلى الشاشة، والسؤال والجرس والأوامر تبقى تحتها كما هي، فلا تتعارض اللمسات.
   /* بث الجوال: المشاهد نفسها تُعرض على خريطة الطالب بلا صوت، والكاميرا تتابع الحدث ما لم يحرّكها بيده */
   syncVis() { const P = this.P; if (!this.MW || !P || !P.vis) return; const vk = JSON.stringify(P.vis); if (vk === this.mvk) return; this.mvk = vk; try { this.MW.setState(P.vis); } catch (e) { } },
-  async pump() { this.pumping = true; try { while (this.MW && this.evq && this.evq.length) { if (this.evq.length > 1) { this.evq.splice(0, this.evq.length - 1); this.mvk = null; this.syncVis(); } /* متأخر: يلحق بآخر حدث */ const ev = this.evq.shift(), W = this.MW; this.playing = true;
+  async pump() { this.pumping = true; try { while (this.MW && this.evq && this.evq.length) { if (this.evq.length > 1) { this.evq.splice(0, this.evq.length - 1); this.mvk = null; this.syncVis(); } /* متأخر: يلحق بآخر حدث */ const ev = this.evq.shift(), W = this.MW; this.playing = true; this.mapFps();
       try { if (ev.k === 'phase') await W.phase({ key: ev.key, hold: Math.min(ev.hold || 0, 2) }); else if (ev.k === 'attack') await W.attack(ev); else if (ev.k === 'occupy') await W.occupy(ev.one || ev); else if (['walls', 'tower', 'garInf', 'garCav'].includes(ev.k)) { const e = ev.one || ev; await W.build({ r: e.r, k: e.k, team: e.team }); } else if (ev.k === 'capital') await W.capital(ev.one || ev); else if (ev.k === 'batch') await W.batch(ev.list.filter(e => e.k !== 'supply')); else if (ev.k === 'ally') await W.ally(ev); else if (ev.k === 'unally') await W.unally(ev); } catch (e) { console.error(e); }
-      this.playing = false; if (this.MW !== W) break; } } finally { this.pumping = false; this.playing = false; this.mvk = null; this.syncVis(); this.followBtn(); } },
-  followBtn() { const b = document.querySelector('#pmap [data-pm="f"]'); if (b && this.MW) b.classList.toggle('on', this.MW.camMode() === 'follow'); },
+      this.playing = false; if (this.MW !== W) break; } } finally { this.pumping = false; this.playing = false; this.mvk = null; this.syncVis(); this.followBtn(); this.mapFps(); this.stageCam(); } },
+  /* البث هو الأصل: الكاميرا تتبع اللحظة (المواجهة، السؤال، الأوامر) ما لم يحرّكها الطالب بيده */
+  stageCam() { const W = this.MW, P = this.P; if (!W || !P || this.playing || W.camMode() !== 'follow') return; const D = P.duel, st = P.stage;
+    try { if (['predict', 'buzz', 'judge', 'point', 'gq'].includes(st) && D && W.faceoff) W.faceoff({ a: D.a, d: D.d, r: D.r, unit: D.unit, ally: D.ally, from: D.from }); else if ((st === 'question' || st === 'reveal') && W.idle) W.idle(); else W.overview(1.6); } catch (e) { } },
+  /* سقف الرسم: وقت الإجابة والأوامر ترسم الخريطة قليلًا فيبقى الجوال خفيفًا، ووقت المشهد بسلاسة */
+  mapFps() { const W = this.MW, P = this.P; if (!W || !P) return; const input = ['question', 'orders', 'buzz', 'judge', 'predict', 'tie', 'gq'].includes(P.stage); W.maxFps = this.playing ? 30 : input ? 12 : 24; W.dtCap = .12; },
+  followBtn() { const b = document.querySelector('#pmap [data-pm="f"]'); if (b && this.MW) { const on = this.MW.camMode() === 'follow'; b.classList.toggle('on', on); b.textContent = on ? '📺 بث مباشر' : '📺 عُد للبث'; } },
   /* الطول: الخريطة أكبر وقت المشاهدة (مشهد، حصاد، مرحلة) وأصغر وقت الحاجة للإجابة، وزر ⤢ يقلب ذلك يدويًا */
   mapSize() { const P = this.P, watch = !!P && ['phase', 'scene', 'exec', 'harvest', 'point', 'bini', 'crown'].includes(P.stage), big = this.mapBigMan != null ? this.mapBigMan : watch; document.body.classList.toggle('mapbig', big); const b = document.querySelector('#pmap [data-pm="big"]'); if (b) b.textContent = big ? '⤡' : '⤢'; requestAnimationFrame(() => { if (this.mapRz) this.mapRz(); }); /* قد تُغلق الخريطة قبل الإطار التالي */ },
-  openMap() { const P = this.P; if (!P || !this.M || !P.vis || this.mapOpen) return; const box = document.createElement('div'); box.id = 'pmap';
-    box.innerHTML = `<canvas id="pmapc"></canvas><div class="pmbar"><button data-pm="f" class="fol on">📺 متابعة</button><button data-pm="all">🏝</button><button data-pm="in">＋</button><button data-pm="out">－</button><button data-pm="l" class="rot">⟲</button><button data-pm="r" class="rot">⟳</button><button data-pm="big">⤢</button><button data-pm="x" class="x">✕</button></div><div class="pminfo hide" id="pminfo"></div><div class="pmhint" id="pmhint">اسحب للتحريك · إصبعان للتقريب · المس أرضًا لمعلوماتها</div>`;
+  openMap() { const P = this.P; if (!P || !this.M || !P.vis || this.mapOpen) return;
+    const K = this.mapKeep; if (K && K.mkey === this.mkey && K.W) { /* فتح فوري: الخريطة محفوظة من قبل، تُستأنف على اللحظة الحالية */
+      const box = K.box, W = this.MW = K.W; box.style.display = ''; document.body.classList.add('mapon'); this.mapOpen = true; this.mapSel = null; this.mapSize(); this.mvk = null; W.resize(box.clientWidth, box.clientHeight); W.followEvent(); W.skipping = true; W.start(); setTimeout(() => { if (this.MW !== W) return; W.skipping = false; this.mvk = null; if (!this.playing) this.syncVis(); this.liveNow(); this.mapFps(); }, 450); /* يطوي ما فاته أولًا ثم يبدأ من اللحظة الحالية */ this.followBtn(); addEventListener('resize', this.mapRz = () => { if (this.MW) this.MW.resize(box.clientWidth, box.clientHeight); }); this.render(); return; }
+    if (K) this.dropMap();
+    const box = document.createElement('div'); box.id = 'pmap';
+    box.innerHTML = `<canvas id="pmapc"></canvas><div class="pmbar"><button data-pm="f" class="fol on">📺 بث مباشر</button><button data-pm="all">🏝</button><button data-pm="in">＋</button><button data-pm="out">－</button><button data-pm="l" class="rot">⟲</button><button data-pm="r" class="rot">⟳</button><button data-pm="big">⤢</button><button data-pm="x" class="x">✕</button></div><div class="pminfo hide" id="pminfo"></div><div class="pmhint" id="pmhint">اسحب للتحريك · إصبعان للتقريب · المس أرضًا لمعلوماتها</div>`;
     document.body.appendChild(box); document.body.classList.add('mapon'); this.mapOpen = true; this.mapSel = null; const cv = box.querySelector('canvas'), TT = P.teams.map(t => ({ name: t.name, color: t.color, mark: t.mark || t.name[0] }));
     const ld = document.createElement('div'); ld.className = 'pmload'; ld.textContent = 'جارٍ تجهيز الخريطة…'; box.appendChild(ld); this.render();
     setTimeout(() => { if (!this.mapOpen || !document.getElementById('pmap')) return;
     try { const c = document.createElement('canvas'); if (!(c.getContext('webgl2') || c.getContext('webgl'))) throw new Error('no webgl'); const W = this.MW = RayatWorld(cv, this.M, TT, { seed: 91, lite: true, shadow: 1024, maxDpr: 1.5 });
-      W.fontsReady(); W.setState(P.vis); this.mvk = JSON.stringify(P.vis); this.lastEv = P.ev ? P.ev.id : null; this.evq = []; this.mapSize(); W.resize(box.clientWidth, box.clientHeight); W.viewAll(); W.followEvent(); W.start(); cv.addEventListener('pointerup', () => setTimeout(() => this.followBtn(), 0)); cv.addEventListener('touchend', () => setTimeout(() => this.followBtn(), 0)); this.mapOff = W.attachControls(cv, { onPick: r => { this.mapSel = r; this.mapInfo(); const h = document.getElementById('pmhint'); if (h) h.remove(); } });
+      W.fontsReady(); W.setState(P.vis); this.mvk = JSON.stringify(P.vis); this.evq = []; this.mapSize(); W.resize(box.clientWidth, box.clientHeight); W.followEvent(); W.start(); this.mapKeep = { box, W, mkey: this.mkey }; this.liveNow(); this.mapFps(); cv.addEventListener('pointerup', () => setTimeout(() => this.followBtn(), 0)); cv.addEventListener('touchend', () => setTimeout(() => this.followBtn(), 0)); this.mapOff = W.attachControls(cv, { onPick: r => { this.mapSel = r; this.mapInfo(); const h = document.getElementById('pmhint'); if (h) h.remove(); } }); if (this.mapKeep) this.mapKeep.off = this.mapOff;
       const act = { f: () => W.followEvent(), all: () => W.viewAll(), in: () => W.zoomBy(.75), out: () => W.zoomBy(1.33), l: () => W.orbitBy(.4), r: () => W.orbitBy(-.4), big: () => { this.mapBigMan = !document.body.classList.contains('mapbig'); this.mapSize(); }, x: () => this.closeMap() }; box.querySelector('.pmbar').onclick = e => { const b = e.target.closest('[data-pm]'); if (b) { act[b.dataset.pm](); this.followBtn(); } }; setTimeout(() => { const h = document.getElementById('pmhint'); if (h) h.classList.add('fade'); }, 5000);
       this.mapRz = () => { if (this.MW) this.MW.resize(box.clientWidth, box.clientHeight); }; addEventListener('resize', this.mapRz); }
     catch (e) { // بديل بلا رسوم ثلاثية: خريطة مسطحة بالألوان نفسها
       this.MW = null; cv.remove(); const d = document.createElement('div'); d.className = 'pm2d'; d.innerHTML = RayatMap.svg(this.M, { teams: TT.map(t => ({ ...t, emb: t.mark })), owner: P.vis.regions.map(r => r.owner), forts: new Set(P.vis.regions.filter(r => r.walls).map(r => r.id)) }); box.prepend(d);
       box.querySelector('.pmbar').innerHTML = '<button data-pm="x" class="x">✕ إغلاق</button>'; box.querySelector('.pmbar').onclick = () => this.closeMap(); const h = box.querySelector('.pmhint'); if (h) h.textContent = 'جهازك لا يدعم العرض ثلاثي الأبعاد، فهذه خريطة مسطحة'; }
     ld.remove(); }, 40); },
-  closeMap() { if (!this.mapOpen) return; this.mapOpen = false; if (this.mapOff) { this.mapOff(); this.mapOff = null; } if (this.mapRz) { removeEventListener('resize', this.mapRz); this.mapRz = null; } if (this.MW) { try { this.MW.dispose(); } catch (e) { } this.MW = null; }
-    const box = document.getElementById('pmap'); if (box) box.remove(); document.body.classList.remove('mapon', 'mapbig'); this.mapBigMan = null; this.evq = []; this.mapSel = null; this.render(); },
+  /* إغلاق الخريطة يخفيها ويوقف رسمها فقط، فيعود فتحها فوريًا ولا يثقل الجوال وهي مغلقة */
+  closeMap() { if (!this.mapOpen) return; this.mapOpen = false; if (this.mapRz) { removeEventListener('resize', this.mapRz); this.mapRz = null; } const box = document.getElementById('pmap');
+    if (this.MW && this.mapKeep && this.mapKeep.W === this.MW) { this.MW.stop(); this.MW.skipping = true; if (box) box.style.display = 'none'; } else { if (this.mapOff) { this.mapOff(); this.mapOff = null; } if (this.MW) { try { this.MW.dispose(); } catch (e) { } } if (box) box.remove(); }
+    this.MW = null; document.body.classList.remove('mapon', 'mapbig'); this.mapBigMan = null; this.evq = []; this.mapSel = null; this.render(); },
+  dropMap() { const K = this.mapKeep; this.mapKeep = null; if (!K) return; try { K.off && K.off(); } catch (e) { } try { K.W.dispose(); } catch (e) { } if (K.box) K.box.remove(); },
+  /* البث فورًا عند الفتح: إن كان مشهد يُعرض الآن يُشغَّل من بدايته، وإلا تتجه الكاميرا للحظة الحالية */
+  liveNow() { const P = this.P; if (!P || !this.MW) return; if (['scene', 'phase'].includes(P.stage) && P.ev) { this.lastEv = P.ev.id; this.evq = [P.ev]; if (!this.pumping) this.pump(); } else { this.lastEv = P.ev ? P.ev.id : null; this.stageCam(); } },
   // بطاقة الأرض المحددة: اسمها ونوعها وإنتاجها ومالكها وتحصيناتها، والأوامر المتاحة عليها الآن بحسب صلاحية الطالب
   mapInfo() { const el = document.getElementById('pminfo'), P = this.P, r = this.mapSel; if (!el || !P) return; if (r == null || !this.M.regions[r] || !P.vis) { el.classList.add('hide'); return; }
     const R = this.M.regions[r], v = P.vis.regions[r] || {}, T = P.teams, TY = { farm: 'مزرعة', mine: 'منجم', quarry: 'محجر', village: 'قرية', port: 'ميناء', rich: 'أرض غنية', capital: 'عاصمة', castle: 'القلعة الكبرى' }, Y = RayatRules.CFG.YIELD[R.type], t = this.myTeam();
@@ -10393,7 +10432,7 @@ const Host = {
   // ---------- الجوالات ----------
   // إشارة شاشة العرض «انتهى المشهد»
   dispAck(peer, pr) { const m = pr && pr.sd; if (!m || typeof m.n !== 'number') return; this.ackN = this.ackN || {}; if (m.n <= (this.ackN[peer] || 0)) return; this.ackN[peer] = m.n; this.g.sceneAck(m.k); },
-  hasDisplay() { return !!this.mapLayer || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000); },
+  hasDisplay() { return !!(this.mapLayer && this.mapOn) || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000); },
   onPeers(ch) { ch.peers.forEach(p => { if (p.presence && p.presence.r === 'd' && !p.sameTab) this.dispAck(p.peer, p.presence); }); [...ch.joined, ...ch.updated].filter(p => !p.sameTab && p.kind === 'viewer').forEach(p => this.onPres(p.peer, p.presence || {}, p.by)); ch.left.forEach(p => this.onLeave(p.peer)); this.display = ch.peers.filter(p => p.presence && p.presence.r === 'd').length; if (ch.joined.length) this.broadcast(); this.renderSide(); },
   onBc(peer, pr, fp) { const isNew = !this.bcPeers.has(peer); this.bcPeers.set(peer, Date.now()); if (isNew) setTimeout(() => this.broadcast(), 50); if (pr.r === 'd') { this.bcDisplay = Date.now(); this.dispAck(peer, pr); return; } this.onPres(peer, pr, fp || null); },
   // انقطع نت المشرف أثناء المسابقة: توقف تلقائي حتى يعود، ثم تستأنف من حيث وقفت (الجوالات لا تخسر وقتها)
@@ -10438,7 +10477,7 @@ const Host = {
       ${x.ribbon && x.ribbon.length ? `<b>شريط الحرب</b>${x.ribbon.map(r => `<div style="font-size:14px"><b style="color:var(--gold)">${esc(r.name)}</b>: <span class="mut">${r.ev.map(esc).join(' · ')}</span></div>`).join('')}` : ''}
       <div class="row"><button class="btn pri" id="arcopy">نسخ النتيجة</button><button class="btn" data-close>إغلاق</button></div></div>`, m => { $('#arcopy', m).onclick = () => { try { navigator.clipboard.writeText(txt).then(() => toast('نُسخت النتيجة')).catch(() => toast('تعذّر النسخ')); } catch (e) { toast('تعذّر النسخ'); } }; }); },
   changed() { if (this.g.s.stage === 'crown') this.saveArchive(); if (!this.bq) this.bq = setTimeout(() => { this.bq = null; this.broadcast(); }, 40); if (!this.rq) this.rq = requestAnimationFrame(() => { this.rq = null; this.render(); }); if (!this.sq) this.sq = setTimeout(() => { this.sq = null; this.save(); }, 800); },
-  broadcast() { const P = this.g.pub(); if (this.fp) P.fp = this.fp; this.net.emit('state', P); if (this.mapLayer) { try { Display.onState(JSON.parse(JSON.stringify(P))); } catch (e) { console.error(e); } this.renderMapCtl(); } },
+  broadcast() { const P = this.g.pub(); if (this.fp) P.fp = this.fp; P.hs = this.hs || (this.hs = uid(8)); /* هوية جلسة المشرف: إن أُعيد فتحه يقبل الجوال حالته ولو صغر رقمها */ this.net.emit('state', P); if (this.mapLayer) { try { Display.onState(JSON.parse(JSON.stringify(P))); } catch (e) { console.error(e); } this.renderMapCtl(); } },
   save() { try { LS.set('rayat.save', JSON.parse(this.g.save())); } catch (e) { } },
   // ---------- الواجهة ----------
   tickUI() { const el = $('#htm'); if (el) { const l = this.g.left(); el.textContent = this.g.s.deadline ? Math.ceil(l / 1000) + ' ث' : ''; }
@@ -10456,7 +10495,7 @@ const Host = {
       const box = document.createElement('div'); Display.init(this.g.s.code, { local: true, root: box }); L.appendChild(box);
       const f = document.createElement('div'); f.className = 'mapctl'; f.id = 'mapctl'; L.appendChild(f); this.mapLayer = L; this.broadcast(); }
     this.mapLayer.style.display = on ? 'block' : 'none'; this.mapOn = on; this.renderMapCtl();
-    if (on && Display.W) Display.W.resize(innerWidth, innerHeight); },
+    if (Display.W) { const W = Display.W; if (on) { W.maxFps = 0; W.skipping = false; W.resize(innerWidth, innerHeight); if (W.followEvent) W.followEvent(); } else { W.maxFps = 2; W.skipping = true; } } /* الخريطة المخفية لا تكاد ترسم وتطوي مشاهدها: كانت تأكل جهاز المشرف بجانب شاشة العرض، وتعود عند الفتح على اللحظة الحالية */ },
   renderMapCtl() { if (this.mapLayer) SFX.setExt(!this.mapOn || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000)); const f = $('#mapctl'); if (!f || !this.mapOn) return; const html = `<button class="btn" data-mback>⚙️<span class="lbl"> لوحة المشرف</span></button>`;
     if (f.dataset.h === html) return; f.dataset.h = html; f.innerHTML = html;
     $('[data-mback]', f).onclick = () => this.showMap(false); },

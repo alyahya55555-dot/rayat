@@ -25,7 +25,7 @@ const Host = {
   // ---------- الجوالات ----------
   // إشارة شاشة العرض «انتهى المشهد»
   dispAck(peer, pr) { const m = pr && pr.sd; if (!m || typeof m.n !== 'number') return; this.ackN = this.ackN || {}; if (m.n <= (this.ackN[peer] || 0)) return; this.ackN[peer] = m.n; this.g.sceneAck(m.k); },
-  hasDisplay() { return !!this.mapLayer || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000); },
+  hasDisplay() { return !!(this.mapLayer && this.mapOn) || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000); },
   onPeers(ch) { ch.peers.forEach(p => { if (p.presence && p.presence.r === 'd' && !p.sameTab) this.dispAck(p.peer, p.presence); }); [...ch.joined, ...ch.updated].filter(p => !p.sameTab && p.kind === 'viewer').forEach(p => this.onPres(p.peer, p.presence || {}, p.by)); ch.left.forEach(p => this.onLeave(p.peer)); this.display = ch.peers.filter(p => p.presence && p.presence.r === 'd').length; if (ch.joined.length) this.broadcast(); this.renderSide(); },
   onBc(peer, pr, fp) { const isNew = !this.bcPeers.has(peer); this.bcPeers.set(peer, Date.now()); if (isNew) setTimeout(() => this.broadcast(), 50); if (pr.r === 'd') { this.bcDisplay = Date.now(); this.dispAck(peer, pr); return; } this.onPres(peer, pr, fp || null); },
   // انقطع نت المشرف أثناء المسابقة: توقف تلقائي حتى يعود، ثم تستأنف من حيث وقفت (الجوالات لا تخسر وقتها)
@@ -70,7 +70,7 @@ const Host = {
       ${x.ribbon && x.ribbon.length ? `<b>شريط الحرب</b>${x.ribbon.map(r => `<div style="font-size:14px"><b style="color:var(--gold)">${esc(r.name)}</b>: <span class="mut">${r.ev.map(esc).join(' · ')}</span></div>`).join('')}` : ''}
       <div class="row"><button class="btn pri" id="arcopy">نسخ النتيجة</button><button class="btn" data-close>إغلاق</button></div></div>`, m => { $('#arcopy', m).onclick = () => { try { navigator.clipboard.writeText(txt).then(() => toast('نُسخت النتيجة')).catch(() => toast('تعذّر النسخ')); } catch (e) { toast('تعذّر النسخ'); } }; }); },
   changed() { if (this.g.s.stage === 'crown') this.saveArchive(); if (!this.bq) this.bq = setTimeout(() => { this.bq = null; this.broadcast(); }, 40); if (!this.rq) this.rq = requestAnimationFrame(() => { this.rq = null; this.render(); }); if (!this.sq) this.sq = setTimeout(() => { this.sq = null; this.save(); }, 800); },
-  broadcast() { const P = this.g.pub(); if (this.fp) P.fp = this.fp; this.net.emit('state', P); if (this.mapLayer) { try { Display.onState(JSON.parse(JSON.stringify(P))); } catch (e) { console.error(e); } this.renderMapCtl(); } },
+  broadcast() { const P = this.g.pub(); if (this.fp) P.fp = this.fp; P.hs = this.hs || (this.hs = uid(8)); /* هوية جلسة المشرف: إن أُعيد فتحه يقبل الجوال حالته ولو صغر رقمها */ this.net.emit('state', P); if (this.mapLayer) { try { Display.onState(JSON.parse(JSON.stringify(P))); } catch (e) { console.error(e); } this.renderMapCtl(); } },
   save() { try { LS.set('rayat.save', JSON.parse(this.g.save())); } catch (e) { } },
   // ---------- الواجهة ----------
   tickUI() { const el = $('#htm'); if (el) { const l = this.g.left(); el.textContent = this.g.s.deadline ? Math.ceil(l / 1000) + ' ث' : ''; }
@@ -88,7 +88,7 @@ const Host = {
       const box = document.createElement('div'); Display.init(this.g.s.code, { local: true, root: box }); L.appendChild(box);
       const f = document.createElement('div'); f.className = 'mapctl'; f.id = 'mapctl'; L.appendChild(f); this.mapLayer = L; this.broadcast(); }
     this.mapLayer.style.display = on ? 'block' : 'none'; this.mapOn = on; this.renderMapCtl();
-    if (on && Display.W) Display.W.resize(innerWidth, innerHeight); },
+    if (Display.W) { const W = Display.W; if (on) { W.maxFps = 0; W.skipping = false; W.resize(innerWidth, innerHeight); if (W.followEvent) W.followEvent(); } else { W.maxFps = 2; W.skipping = true; } } /* الخريطة المخفية لا تكاد ترسم وتطوي مشاهدها: كانت تأكل جهاز المشرف بجانب شاشة العرض، وتعود عند الفتح على اللحظة الحالية */ },
   renderMapCtl() { if (this.mapLayer) SFX.setExt(!this.mapOn || this.display > 0 || (this.bcDisplay && Date.now() - this.bcDisplay < 12000)); const f = $('#mapctl'); if (!f || !this.mapOn) return; const html = `<button class="btn" data-mback>⚙️<span class="lbl"> لوحة المشرف</span></button>`;
     if (f.dataset.h === html) return; f.dataset.h = html; f.innerHTML = html;
     $('[data-mback]', f).onclick = () => this.showMap(false); },

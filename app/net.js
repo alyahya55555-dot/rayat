@@ -161,10 +161,17 @@ class Mq {
   start(code) {
     if (typeof Paho === 'undefined' || !Paho.Client) { this.failed = 'no-lib'; this.net.fire('status'); return; }
     if (this.code === code && this.links.length) return;
-    this.stop(); this.code = code; this.base = TOPIC_ROOT + code + '/'; this.gen = (this.gen || 0) + 1;
+    this.stop(); this.code = code; this.base = TOPIC_ROOT + code + '/'; this.gen = (this.gen || 0) + 1; this.guard(); this.lastIn = Math.max(this.lastIn || 0, performance.now());
     const gen = this.gen;
     this.ensureKey().then(() => { if (gen !== this.gen) return; if (this.multi) BROKERS.forEach((b, i) => this.openHost(b, i)); else this.attempt(0, gen); });
   }
+  /* إعادة اتصال كاملة بالخوادم: عند العودة للصفحة بعد قفل الشاشة أو تبديل التطبيق (الجوال يقتل الاتصال بصمت)، أو إن انقطعت الرسائل والمشرف يبث كل ثانيتين ونصف */
+  restart(why) { const c = this.code; if (!c) return; this.restarts = (this.restarts || 0) + 1; this.lastRestart = performance.now(); this.code = null; this.stop(); this.start(c); this.net.fire('status'); }
+  guard() { if (this.guardOn || this.role === 'host') return; this.guardOn = true; this.lastIn = performance.now();
+    const stale = ms => this.code && performance.now() - (this.lastIn || 0) > ms && performance.now() - (this.lastRestart || 0) > 6000;
+    const wake = () => { if (!document.hidden && stale(3500)) this.restart('wake'); };
+    document.addEventListener('visibilitychange', wake); addEventListener('pageshow', wake); addEventListener('online', () => setTimeout(() => { if (stale(1500)) this.restart('online'); }, 600)); addEventListener('focus', wake);
+    setInterval(() => { if (!document.hidden && stale(9000)) this.restart('silent'); }, 2500); }
   stop() { this.gen = (this.gen || 0) + 1; this.links.forEach(l => { if (!l) return; l.dead = true; clearTimeout(l.t); try { l.c && l.c.disconnect(); } catch (e) { } }); this.links = []; this.active = null; }
   client(b, i, l) {
     const c = new Paho.Client(b.h, b.p, b.path || '/mqtt', this.cid + '-' + i + '-' + (l.tries++));
@@ -172,7 +179,7 @@ class Mq {
     return c;
   }
   connOpts(b, onSuccess, onFailure) {
-    const o = { useSSL: !!b.ssl, timeout: 6, keepAliveInterval: 20, cleanSession: true, mqttVersion: 4, onSuccess, onFailure };
+    const o = { useSSL: !!b.ssl, timeout: 8, keepAliveInterval: 45, cleanSession: true, mqttVersion: 4, onSuccess, onFailure };
     if (this.role !== 'host') { const w = new Paho.Message(JSON.stringify({ bye: 1 })); w.destinationName = this.base + 'p/' + this.cid; w.qos = 0; o.willMessage = w; }
     return o;
   }
@@ -227,7 +234,7 @@ class Mq {
     return targets.length;
   }
   async onMsg(topic, payload, link) {
-    this.stats.in++;
+    this.stats.in++; this.lastIn = performance.now();
     if (!topic.startsWith(this.base)) return;
     const sub = topic.slice(this.base.length);
     let env; try { env = JSON.parse(payload); } catch (e) { return; }

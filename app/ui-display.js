@@ -1,5 +1,7 @@
 /* رايات — شاشة العرض (البروجكتور): الجزيرة ثلاثية الأبعاد + طبقة نظيفة فوقها، عنصر رئيس واحد في كل لحظة */
 
+/* ما ينفتح في كل مرحلة وشرحه بسطر: تستعمله شاشة العرض وجوالات الطلاب */
+function unlockInfo() { const C = RayatRules.CFG, cg = (C.YIELD.castle.gold || 0) + (C.CASTLE_TRIBUTE.gold || 0); return { occupy: ['🚩', 'الاحتلال', 'خذوا أرضًا فاضية ملاصقة لأرضكم'], supply: ['🧺', 'التموين', `+${C.SUPPLY} من المورد الذي تحتاجونه`], inf: ['⚔️', 'المشاة', 'هاجموا أرض جاركم'], walls: ['🧱', 'الأسوار', 'المهاجم يحتاج فوزين'], cav: ['🐎', 'الفرسان', 'تقفز فوق أرض وتضرب أبعد'], tower: ['🗼', 'برج المراقبة', 'يوقف الفرسان'], garInf: ['🛡️', 'الحامية', 'تصدّ هجومًا واحدًا'], alliance: ['🤝', 'التحالفات', 'فريقان يهاجمان معًا ويتقاسمان الكلفة'], cat: ['🪨', 'المنجنيق', 'يهدم السور حتى لو صمد المدافع'], cap2: ['🏙️', 'تطوير العاصمة', 'حصاد أكثر ونهب أقل'], castle: ['🏰', 'القلعة', `${C.CASTLE_POINTS} أراضٍ + ${cg} ذهب كل جولة`] }; }
 const Display = {
   init(code, opt = {}) {
     this.local = !!opt.local; this.root = opt.root || $('#app');
@@ -55,7 +57,7 @@ const Display = {
     draw(); return W; },
   onState(P) {
     if (!P || !P.teams) return; if (this.code && P.code !== this.code && this.P) return; if (!this.code && P.code) this.join(P.code);
-    if (this.P && P.v < this.P.v && P.code === this.P.code) return;
+    if (this.P && P.v < this.P.v && P.code === this.P.code && P.hs === this.P.hs) return;
     const ask = $('#askcode'); if (ask) ask.remove();
     this.P = P; this.ensureWorld(P);
     if (P.tm) { this.endAt = performance.now() + P.tm.r; this.dur = P.tm.d || 1; } else this.endAt = 0;
@@ -76,7 +78,7 @@ const Display = {
   // المشاهد تُعرض واحدًا بعد الآخر بسرعتها الطبيعية، والمشرف ينتظر إشارة انتهائها؛ لا تسريع إلا بطلب المشرف (تخطٍّ) أو لحاقًا هادئًا إن تأخرت الشاشة
   enqueue(ev) { (this.evq = this.evq || []).push(ev); if (!this.pumping) this.pump(); },
   async pump() { this.pumping = true; try { while (this.evq && this.evq.length) { const ev = this.evq.shift(); if (this.W) this.W.speed = this.evq.length ? 1.25 : 1; await this.playEvent(ev); this.ack(ev._ack); } } finally { this.pumping = false; if (this.W) this.W.speed = 1; } },
-  ack(key) { if (!key) return; if (this.local) { try { Host.g.sceneAck(key); } catch (e) { } return; } this.ackSeq = (this.ackSeq || 0) + 1; this.net.presence({ sd: { n: Date.now() * 10 + (this.ackSeq % 10), k: key } }); },
+  ack(key) { if (!key) return; if (this.local) { if (!Host.mapOn) return; /* الخريطة المخفية عند المشرف لا تنهي مشهد شاشة العرض */ try { Host.g.sceneAck(key); } catch (e) { } return; } this.ackSeq = (this.ackSeq || 0) + 1; this.net.presence({ sd: { n: Date.now() * 10 + (this.ackSeq % 10), k: key } }); },
   // العودة من تبويب مخفي: يُهمل المتراكم وتُعرض الحالة الحالية مباشرة بلا تسارع مرئي
   onVisible() { if (document.hidden || !this.W) return; if (this.evq && this.evq.length) this.evq.length = 0; if (this.playing) { if (this.W.snap) this.W.snap(); else this.W.skip(); SFX.stopAll(); } },
   async playEvent(ev) { const W = this.W, tn = this.P.teams; this.playing++; this.curEv = ev;
@@ -126,7 +128,8 @@ const Display = {
     const slog = $('#slog'); slog.innerHTML = '';
     if (st === 'lobby') { const url = joinUrl(P.code, P.fp); return this.show('lobby', `<div><div class="qr">${url ? qrSvg(url) : ''}</div><div class="code">رمز الغرفة<b>${esc(P.code)}</b></div></div><div><div class="ptitle k" style="font-size:64px;text-align:start">امسح الرمز وانضم</div><div class="mut" style="font-size:20px;margin:6px 0 20px">اختر فريقك من جوالك، وأول من ينضم يكون القائد</div><div class="teams">${T.map((t, i) => { const pl = Object.entries(P.players).filter(([, p]) => p.t === i).sort(([a], [b]) => (b === t.cap) - (a === t.cap)), n = pl.length; return `<div class="team" style="--tc:${t.color}"><h3>${esc(t.name)}</h3>${pl.slice(0, 4).map(([pid, p]) => `<div class="p ${t.cap === pid ? 'cap' : ''}">${t.cap === pid ? '👑 ' : ''}${esc(p.n)}</div>`).join('')}${n > 4 ? `<div class="p">و${n - 4} آخرون</div>` : ''}${n ? '' : '<div class="p">بانتظار المتسابقين…</div>'}<div class="cnt">${n ? (n === 1 ? 'لاعب واحد' : n === 2 ? 'لاعبان' : n + (n <= 10 ? ' لاعبين' : ' لاعبًا')) : 'بانتظار المتسابقين'}</div></div>`; }).join('')}</div></div>`); }
     if (st === 'phase' && P.ev && P.ev.k === 'phase') { // ما ينفتح يظهر واحدًا بعد الآخر (كل ثانيتين) ومع كل واحد سطر يشرح فائدته
-      const C = RayatRules.CFG, cg = (C.YIELD.castle.gold || 0) + (C.CASTLE_TRIBUTE.gold || 0), U = { occupy: ['🚩', 'الاحتلال', 'خذوا أرضًا فاضية ملاصقة لأرضكم'], supply: ['🧺', 'التموين', `+${C.SUPPLY} من المورد الذي تحتاجونه`], inf: ['⚔️', 'المشاة', 'هاجموا أرض جاركم'], walls: ['🧱', 'الأسوار', 'المهاجم يحتاج فوزين'], cav: ['🐎', 'الفرسان', 'تقفز فوق أرض وتضرب أبعد'], tower: ['🗼', 'برج المراقبة', 'يوقف الفرسان'], garInf: ['🛡️', 'الحامية', 'تصدّ هجومًا واحدًا'], alliance: ['🤝', 'التحالفات', 'فريقان يهاجمان معًا ويتقاسمان الكلفة'], cat: ['🪨', 'المنجنيق', 'يهدم السور حتى لو صمد المدافع'], cap2: ['🏙️', 'تطوير العاصمة', 'حصاد أكثر ونهب أقل'], castle: ['🏰', 'القلعة', `${C.CASTLE_POINTS} أراضٍ + ${cg} ذهب كل جولة`] };
+      const U = unlockInfo();
+
       const un = (P.ev.unlock || []).filter(k => U[k]), STEP = 2.2, lines = un.length ? un.map((k, i) => `<div class="pline" style="animation-delay:${(1.2 + i * STEP).toFixed(1)}s"><b>${U[k][0]} ${U[k][1]}</b><span>${U[k][2]}</span></div>`).join('') : P.ev.key === 'final' ? '<div class="pline" style="animation-delay:1.2s"><b>⚡ سقطت التحالفات كلها</b><span>وكل فريق لنفسه</span></div>' : '';
       const caps = (P.ev.caps || []).length ? `<div class="pcaps" style="animation-delay:${(1.2 + un.length * STEP + .4).toFixed(1)}s"><i>👑 القيادة تنتقل:</i>${P.ev.caps.map(([t, n]) => `<span><b style="color:${(T[t] || {}).color || 'inherit'}">${esc((T[t] || {}).name || '')}</b> ${esc(n)}</span>`).join('')}</div>` : '';
       return this.show('mid', `<div class="kind">المرحلة</div><div class="ptitle k">${esc(P.ev.name)}</div>${lines ? `<div class="punlock">${un.length ? 'ينفتح الآن:' : ''}</div><div class="plines">${lines}</div>` : ''}${caps}`); }
